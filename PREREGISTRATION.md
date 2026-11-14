@@ -6,7 +6,7 @@ Written and committed 2026-11-14, before any global data has been analysed and b
 
 **What has already been looked at.** These rules were checked on the Argentina study box only: FIRMS standard-processing archives for Aqua MODIS (MCD14ML C6.1) and S-NPP VIIRS (375 m), 2012–2025, clipped to `[-76.0, -56.0, -50.0, -20.0]`, using the baseline model below. The global archives are downloaded but have not been analysed. NOAA-20, NOAA-21 and Terra have not been analysed. Because the pass marks were tuned on Argentina, Argentina is not an independent test of them.
 
-The evidence for each number is in `science/rule_checks/results.json` and `frp_results.json`, produced by `ingest.py`, `checks.py` and `frp_check.py` in the same folder. The plain-language explanation is the primer (`science/rule_checks/primer.html`).
+The evidence for each number is in `science/rule_checks/results.json` and `science/rule_checks/frp_results.json`, produced by `ingest.py`, `checks.py` and `frp_check.py` in that folder. The plain-language explanation is the primer (`science/rule_checks/primer.html`).
 
 ## 1. Definitions
 

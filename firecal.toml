@@ -1,0 +1,62 @@
+# firecal configuration, read by the pipeline (Python) and the API (Rust).
+
+[data]
+raw_dir = "data"                 # FIRMS yearly "all countries" zips
+out_dir = "data"                 # bronze/ silver/ model/ gold/ are created under here
+first_year = 2000
+last_year = 2025
+# Country files to read from each zip (names as in the FIRMS file names).
+countries = ["Argentina", "Bolivia", "Brazil", "Chile", "Paraguay", "Uruguay", "Falkland_Islands"]
+# Clip box [min_lon, min_lat, max_lon, max_lat].
+clip_bbox = [-76.0, -56.0, -50.0, -20.0]
+
+[filters]
+vegetation_only = true           # FIRMS type = 0
+modis_min_confidence = 30        # MODIS confidence is 0-100
+viirs_confidence = ["n", "h"]    # VIIRS confidence is l / n / h
+
+[grid]
+celldays_resolution = 8          # H3 res 8 for burning cell-days
+app_resolutions = [4, 5, 6]      # H3 levels published for the app
+
+[harmonization]
+target = "snpp"                  # counts are converted to S-NPP-equivalent burning cell-days
+stratum_resolution = 3           # per-area multipliers on H3 res-3 parents
+shrinkage_k = 50                 # pseudo-count pulling sparse areas toward the study-area multiplier
+calibration_first_year = 2013
+calibration_last_year = 2022
+# One satellite per day, never summed. Each era lists its satellites in order of preference;
+# a day uses the first one with any detection in the study box (the outage rule in PREREGISTRATION.md).
+eras = [
+  { start = "2000-11-01", end = "2002-07-31", source = "terra_harmonized", chain = ["terra", "aqua"] },
+  { start = "2002-08-01", end = "2012-01-31", source = "aqua_harmonized",  chain = ["aqua", "terra"] },
+  { start = "2012-02-01", end = "2025-12-31", source = "viirs",            chain = ["snpp", "noaa20"] },
+]
+
+[api]
+max_hexagons = 3000              # finest level that keeps an area under this many hexagons
+bind = "127.0.0.1:8080"
+
+[[presets]]
+id = "argentina-box"
+name = "Study region"
+note = "The whole Argentina study box"
+bbox = [-76.0, -56.0, -50.0, -20.0]
+
+[[presets]]
+id = "parana-delta"
+name = "Paraná Delta"
+note = "Wetland fires, notably 2020 and 2022"
+bbox = [-60.8, -34.3, -58.3, -32.0]
+
+[[presets]]
+id = "chaco"
+name = "Gran Chaco (Argentina)"
+note = "Dry forest clearing and grassland fires"
+bbox = [-64.5, -27.5, -59.5, -22.0]
+
+[[presets]]
+id = "patagonia-andes"
+name = "Northern Patagonian Andes"
+note = "Forest fires around Bariloche and El Bolsón"
+bbox = [-72.5, -43.5, -70.5, -40.0]

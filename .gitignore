@@ -1,2 +1,8 @@
 # Data (raw FIRMS zips and all derived layers)
 /data/
+
+# Build output and environments
+/api/target/
+/pipeline/.venv/
+__pycache__/
+/.claude/
