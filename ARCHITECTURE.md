@@ -83,7 +83,7 @@ SvelteKit static build (served by the same Rust binary) ── MapLibre map + ch
 
 `source` is one of `terra_harmonized`, `aqua_harmonized`, `viirs` (S-NPP, or NOAA-20 as its successor).
 
-**Sizes** are not measured yet. Extrapolating from the prototype's Argentina table, the global res-6 table is probably a few hundred MB, res 5 under 100 MB and res 4 tens of MB. Measure one global year on the first run before relying on these.
+**Sizes** are not measured yet. As a rough estimate, the global res 6 table is probably a few hundred MB, res 5 under 100 MB and res 4 tens of MB. Measure one global year on the first run before relying on these.
 
 ## 5. Rust API (`api/`)
 
