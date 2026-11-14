@@ -8,7 +8,7 @@ All counts are **burning cell-days**: one H3 resolution-8 cell (about 0.74 km²)
 
 ```json
 {
-  "data_version": "v1",
+  "data_version": "v2",
   "series_start": "2000-11",
   "series_end": "2025-12",
   "unit": "VIIRS-equivalent burning cell-days (...)",
@@ -52,7 +52,7 @@ Response:
 
 ```json
 {
-  "data_version": "v1",
+  "data_version": "v2",
   "area": { "resolution": 6, "hexagons": 2247, "active_hexagons": 2046 },
   "start": "2000-11",
   "end": "2025-12",
