@@ -1,0 +1,172 @@
+# firecal architecture
+
+**Challenge:** NASA Space Apps 2026, *Harmonization of MODIS and VIIRS Hot Spots*.
+**Shape:** offline Python + DuckDB pipeline → versioned Parquet → Rust (axum) API → SvelteKit static frontend.
+**Status:** design only, 2026-11-14. The method is tested on Argentina (`science/rule_checks/`) and its keep/reject rules are fixed in `PREREGISTRATION.md`. No pipeline, API or app code exists yet.
+
+## 1. Challenge objectives → where they are met
+
+| The challenge asks for | Component | How |
+|---|---|---|
+| Harmonize MODIS and VIIRS so the sensor of origin no longer matters | Pipeline: `fit`, `publish` | Count burning cell-days (H3 res 8, local solar date, day/night). Convert Aqua MODIS to S-NPP-equivalent counts with per-area day/night multipliers fitted on 2013–2022. Validate by leaving one year out. Judge every change by `PREREGISTRATION.md`. |
+| Consistent series from the early 2000s to the present | Pipeline, recent-data job | Terra from 2000-11, Aqua from 2002-08, S-NPP as observed from 2012-02, then NOAA-20 after S-NPP's last day. One satellite per day, never summed. Recent months from the FIRMS API. |
+| Web app taking harmonized data as input | API + frontend | The app reads only the published `gold/` data. |
+| Select a region and a date range | Frontend map and form → `POST /api/query` | Draw a box or polygon, or enter latitude/longitude (box, or point and radius). Date-range picker. |
+| Burning calendar: busier months, busier years, current fire vs previous | Frontend calendar and stats card | Years × months heatmap; answer card comparing the selected month with the same month in earlier years. |
+| Current month against the historical median | `month_to_date.parquet` + stats | A month still in progress is compared like for like (days 1–D against days 1–D of earlier years). |
+| Download analytics and visualizations | `POST /api/summary.csv`, chart export | Monthly series as CSV; charts as PNG/SVG. |
+| CSV of hotspots detected during a search | `POST /api/export.csv` | Streams raw hotspot rows for the area and dates, with size caps. |
+| Colour ramps showing similarities and differences across months | Frontend | Sequential ramp for counts, diverging ramp for anomalies, both colour-blind safe, with values on hover. |
+
+**Potential considerations**
+
+| Consideration | Design |
+|---|---|
+| Audience: emergency responders, scientists, land managers, firefighters | Answer card first ("2.4× the usual October, 3rd highest of 26 years"), detail charts below, methods page for scientists |
+| Draw an area or enter latitude/longitude | Both, in one area input |
+| Accessible colour ramps | Validated palettes; colour never carries meaning alone |
+| Anomalies against multi-year averages | Toggle between mean (as the challenge words it) and median (steadier against extreme years); median by default, always labelled |
+| Number of fires detected | Each satellite's raw hotspot count shown beside the harmonized calendar |
+
+**Hotspots vs burning places.** The challenge speaks of "number of hotspots". We harmonize burning cell-days instead, because a raw hotspot count mostly reflects pixel size: VIIRS reports about 5× as many hotspots as Aqua for the same fires. The app shows the harmonized cell-day calendar as the main view and each satellite's raw hotspot count as "fires detected", and explains the difference in one line.
+
+## 2. System overview
+
+```
+OFFLINE  (Python + DuckDB; run on demand)
+──────────────────────────────────────────
+FIRMS zips ──▶ ingest ──▶ cell-days ──▶ fit + validate ──▶ publish
+               bronze/    silver/        model/              gold/vN/
+
+SCHEDULED  (daily; the only process that holds the FIRMS key)
+──────────────────────────────────────────────────────────────
+FIRMS API ──▶ recent cell-days ──▶ republish recent months ──▶ gold/vN+1/
+
+ONLINE
+──────
+Rust API (axum) ── reads gold/current/ ── swaps when a new version lands
+     │  small JSON, streamed CSV
+     ▼
+SvelteKit static build (served by the same Rust binary) ── MapLibre map + charts
+```
+
+**Rules that hold across the system**
+
+- **Python writes `gold/`; Rust only reads it.** The folder layout and schemas in section 4 are the contract.
+- **The model is applied once, in `publish`.** The API never multiplies by a ratio, so the app cannot disagree with the validation.
+- **Statistics are computed after summing an area.** The median of an area's totals is not the sum of per-cell medians.
+- **One configuration file** (`firecal.toml`) sets the region, filters, years and model options for every step.
+- **The FIRMS key is never in the repo, the API or the browser.** It lives in a git-ignored `.env` read only by the download and recent-data steps.
+
+## 3. Offline pipeline (Python 3.13, DuckDB, `uv`)
+
+| Step | Input | Output | Notes |
+|---|---|---|---|
+| `ingest` | FIRMS yearly zips | `bronze/{product}/{year}.parquet` | One schema for all products. Clipped to the configured box. Idempotent, one year at a time. |
+| `cells` | bronze | `silver/cell_day/…` | Filters (`type = 0`; MODIS confidence ≥ 30; VIIRS nominal/high), local solar date, H3 res 8, day/night. One row per cell, date, satellite and day/night, with hotspot count and FRP. |
+| `outages` | bronze | `silver/coverage.parquet` | Which satellite had data on which day, per check unit. The unit and partial-day rule must be added to `PREREGISTRATION.md` before the global fit. |
+| `fit` | silver | `model/model.json`, `model/validation.json`, `model/misses.parquet` | Per-area day/night multipliers with shrinkage; leave-one-year-out predictions; rule checks from `PREREGISTRATION.md`. |
+| `publish` | silver + model | `gold/vN/` | Applies the model, picks one satellite per day with fallbacks, builds the hexagon levels, writes the manifest. |
+
+**Going global.** Every step runs on a box from config: Argentina first (minutes), checked against the known numbers, then the globe. Large aggregations stay in DuckDB over Parquet split by year and satellite; nothing loads the full record into pandas.
+
+## 4. Published data (`gold/vN/`)
+
+| File | Contents |
+|---|---|
+| `monthly_res4.parquet`, `monthly_res5.parquet`, `monthly_res6.parquet` | One row per hexagon per month with any fire, sorted by cell: `cell, year, month, source, value, raw, detections, frp`. `value` is S-NPP-equivalent burning cell-days; `raw` is the source satellite's own count; `detections` is its hotspot count. |
+| `month_to_date.parquet` | Same columns for days 1–D of the current month, for every year. Absent when no month is in progress. |
+| `misses.parquet` | Past misses `ln(V / V̂)` by predicted-count bin, from leave-one-year-out. Used to build error ranges for any area. |
+| `hotspots/year=YYYY/parent=…/*.parquet` | Filtered hotspot rows, split by year and coarse parent hexagon, for the CSV export. |
+| `model.json`, `validation.json` | Multipliers and test results, shown on the methods page. |
+| `manifest.json` | Data version, coverage dates, satellites and outages filled, input file checksums, model version. |
+
+`source` is one of `terra_harmonized`, `aqua_harmonized`, `viirs` (S-NPP, or NOAA-20 as its successor).
+
+**Sizes** are not measured yet. Extrapolating from the prototype's Argentina table, the global res-6 table is probably a few hundred MB, res 5 under 100 MB and res 4 tens of MB. Measure one global year on the first run before relying on these.
+
+## 5. Rust API (`api/`)
+
+Crates: `axum`, `tokio`, `duckdb` (bundled), `h3o`, `geo`, `serde`, `tower-http` (compression, static files).
+
+| Endpoint | Request | Response |
+|---|---|---|
+| `POST /api/query` | area, metric (`cell_days`, `detections`, `frp`), harmonized or raw, date range, comparison (mean or median) | Monthly series with 80 % ranges, calendar grid, stats card for the selected month |
+| `POST /api/map` | area, month, metric | Hexagons with value, multi-year average and difference |
+| `POST /api/summary.csv` | area, date range | Monthly series as CSV |
+| `POST /api/export.csv` | area, date range | Streamed hotspot rows; capped by area and date span |
+| `GET /api/presets` | | Preset regions from `firecal.toml` |
+| `GET /api/meta` | | Data version, coverage, satellites, last date, month-in-progress flag |
+
+An **area** is a GeoJSON polygon, a box, or a point and radius.
+
+**How a query runs**
+
+1. Turn the area into hexagons. Use the finest level that keeps it under about 3,000 hexagons (res 6 for a province, res 4 for a continent). Cache the result keyed by a hash of the shape.
+2. Sum those hexagons' rows into one monthly series.
+3. Compute the stats on that series: same month in earlier years, median or mean, rank, ratio.
+4. Build the 80 % range from `misses.parquet`, using the area's own predicted total.
+
+**Design choices**
+
+- **Stateless.** Every request carries its area; nothing is stored per user, so restarts and extra instances are harmless.
+- **Coarse levels in memory, fine levels from disk.** Res 4 and 5 are loaded at start-up. Res 6 and hotspot rows are read through DuckDB from cell-sorted Parquet.
+- **Cacheable.** A response depends only on the request and the data version, so the data version is the HTTP cache key (`ETag`).
+- **Version swap.** `gold/current` points at one version. When it changes, the API loads the new version and swaps atomically.
+
+## 6. Frontend (`web/`, SvelteKit with `adapter-static`)
+
+| View | Purpose |
+|---|---|
+| Area input | Map drawing (box or polygon) and a latitude/longitude form; presets |
+| Answer card | "Is this month unusual?", with the error range and the comparison used |
+| Calendar heatmap | Years × months; sequential ramp for counts, diverging for anomalies |
+| Yearly totals | Raw-to-harmonized toggle that removes the 2012 jump (the demo moment) |
+| Seasonal curve | Typical year with its normal range, and the selected year over it |
+| Map | Hexagons for the selected month against the average |
+| Downloads | Summary CSV, hotspot CSV, PNG/SVG of each chart |
+| Methods and limits | How the conversion works, test results from `validation.json`, known weaknesses, data credits, AI use |
+
+The frontend is developed against a saved example of the `/api/query` response, so app and pipeline work proceed in parallel.
+
+## 7. Operations
+
+- **One container:** the Rust binary serves the API and the built frontend; `gold/` is mounted as a volume.
+- **Recent data:** a daily job fetches new FIRMS days with the key from its own environment, then runs `cells` → `publish` for the affected months and flips `gold/current`.
+- **Snapshots:** a frozen, checksummed copy of `gold/` is used for the submission, so the demo, slides and video show the same numbers.
+- **Fallback:** a script saves the API's responses for every preset as JSON. If hosting fails during judging, the frontend runs from those files.
+
+## 8. Repository layout
+
+```
+firecal.toml          configuration for every step
+pipeline/             Python package: ingest, cells, outages, fit, publish
+science/              analysis, rule checks, primer
+api/                  Rust crate (axum)
+web/                  SvelteKit app
+data/                 git-ignored: bronze/, silver/, model/, gold/
+PREREGISTRATION.md    fixed keep/reject rules
+ARCHITECTURE.md       this file
+```
+
+## 9. Build order and fallbacks
+
+1. **Pipeline on Argentina, end to end**, checked against the known numbers (day multiplier about 3.05, night about 10.3, typical error about 10 %).
+2. **API pass 1:** `query` and `meta`, enough for the calendar and answer card. Frontend built against a saved response in parallel.
+3. **Global pipeline run**, with per-continent validation.
+4. **API pass 2:** `map`. **Pass 3:** the two CSV exports.
+5. **Recent-data job** and month-in-progress comparison.
+
+| Risk | Fallback |
+|---|---|
+| Global run not ready or wrong | Ship Argentina plus showcase regions from the same pipeline |
+| API not ready | Frontend runs from saved preset JSON |
+| Hosting fails during judging | Local run plus the recorded video |
+| Hotspot export too slow globally | Cap the area and date span, or limit export to preset regions |
+
+## 10. Known limits
+
+- Pre-2012 values are a conversion that cannot be checked directly; the backward test (fit on later years, predict earlier ones) is the best available evidence.
+- The conversion overshoots in busy months and undershoots in quiet ones (the tilt in `PREREGISTRATION.md`, rule 3). The cause is small fires that only VIIRS detects.
+- Small areas are noisy; error ranges widen accordingly.
+- High latitudes, where satellite passes overlap several times a day, are untested.
