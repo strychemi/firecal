@@ -1,0 +1,838 @@
+<title>Firecal Harmonization Primer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one reading column (lab-notebook lessons); each lesson = claim, figure, how to read it, key idea. */
+:root{
+  --bg:#f6f7f9; --surface:#fdfdfe; --ink:#0e1116; --ink2:#4a5160; --muted:#7d8492; --grid:#e3e6eb; --axis:#c2c7d0; --hair:rgba(14,17,22,.10);
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --band:rgba(42,120,214,.10); --warnband:rgba(235,104,52,.12);
+  --good:#0ca30c; --warn:#fab219; --serious:#ec835a; --crit:#d03b3b;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0d0f12; --surface:#17191d; --ink:#eef0f3; --ink2:#c0c5cf; --muted:#8a909c; --grid:#2a2d33; --axis:#3d414a; --hair:rgba(255,255,255,.10);
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --band:rgba(57,135,229,.16); --warnband:rgba(217,89,38,.18); color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#0d0f12; --surface:#17191d; --ink:#eef0f3; --ink2:#c0c5cf; --muted:#8a909c; --grid:#2a2d33; --axis:#3d414a; --hair:rgba(255,255,255,.10);
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --band:rgba(57,135,229,.16); --warnband:rgba(217,89,38,.18); color-scheme:dark }
+body{background:var(--bg);color:var(--ink);font:16px/1.6 var(--sans)}
+main{max-width:880px;margin:0 auto;padding-block:40px 80px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:56px}
+h1,h2,h3{margin:0;text-wrap:balance;line-height:1.2;font-weight:600}
+h1{font-size:clamp(28px,5vw,38px);letter-spacing:-.01em}
+h2{font-size:24px}
+h3{font-size:15px}
+p{margin:0;max-width:66ch}
+header,section{display:flex;flex-direction:column;gap:16px}
+.eyebrow{font:500 12px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.lede{font-size:18px;color:var(--ink2)}
+.scope{font-size:14px;color:var(--ink2);border-left:2px solid var(--axis);padding-left:14px}
+figure{margin:0;background:var(--surface);border:1px solid var(--hair);border-radius:6px;padding:18px;display:flex;flex-direction:column;gap:12px;min-width:0}
+figcaption{font-size:13.5px;color:var(--ink2);max-width:70ch}
+.sub{font-size:13px;color:var(--muted)}
+.chart{width:100%;min-width:0}
+.chart svg{display:block;max-width:100%}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:var(--ink2)}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
+.legend i.dot{width:9px;height:9px;border-radius:50%}
+.legend i.box{width:12px;height:10px;border-radius:2px}
+.key{font-size:15px;padding:12px 16px;background:var(--band);border-radius:6px;max-width:none}
+.key b{font-weight:600}
+.pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px 32px;border-top:1px solid var(--grid);padding-top:16px}
+.pair>div{display:flex;flex-direction:column;gap:6px;min-width:0}
+.pair h4{margin:0;font:500 12px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.pair p{font-size:15px;color:var(--ink2);max-width:none}
+.pair p b{color:var(--ink);font-weight:600}
+.rule{font-size:15px;border:1px solid var(--axis);border-radius:6px;padding:12px 16px;max-width:none}
+.rule b{font-weight:600}
+.ideas{margin:0;padding:0;list-style:none;counter-reset:idea;display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:20px 28px}
+.ideas li{counter-increment:idea;display:flex;flex-direction:column;gap:4px;min-width:0;font-size:15px}
+.ideas li::before{content:"Idea " counter(idea);font:500 12px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.ideas li b{font-weight:600;font-size:16px} .ideas li span{color:var(--ink2)}
+.map{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.map>div{border:1px solid var(--axis);border-radius:6px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;min-width:0;background:var(--surface)}
+.map h4{margin:0;font-size:15px;font-weight:600} .map p{font-size:14px;color:var(--ink2)}
+.map ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--ink2)}
+a{color:var(--ink);text-decoration:underline;text-decoration-color:var(--s1);text-underline-offset:3px;font-weight:500}
+a:focus-visible{outline:2px solid var(--s1);outline-offset:2px}
+.part{border-top:2px solid var(--ink);padding-top:16px;display:flex;flex-direction:column;gap:6px}
+.part h2{font-size:28px} .part p{color:var(--ink2);font-size:17px}
+.fits{margin:0;display:grid;grid-template-columns:minmax(96px,max-content) 1fr;gap:6px 16px;font-size:14.5px}
+.fits dt{font:500 12px/1.9 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);max-width:150px}
+.fits dd{margin:0;color:var(--ink2);min-width:0}
+@media (max-width:520px){.fits{grid-template-columns:1fr;gap:0 0}.fits dd{margin-bottom:8px}.fits dt{max-width:none}}
+section[id],div.part{scroll-margin-top:16px}
+.fits dd.plain{color:var(--ink);font-size:16px}
+.cmp{display:flex;flex-direction:column;gap:10px}
+.cmp div{display:grid;grid-template-columns:1fr;gap:3px;font-size:14px;color:var(--ink2)}
+.cmp i{display:block;height:18px;border-radius:0 4px 4px 0;min-width:2px}
+.cmp b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+.panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px}
+.panels>div{min-width:0;display:flex;flex-direction:column;gap:6px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.tile{display:flex;flex-direction:column;gap:2px}
+.tile b{font:500 30px/1.1 var(--sans)}
+.tile span{font-size:13px;color:var(--ink2)}
+.schem{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px}
+.schem>div{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink2);min-width:0}
+.schem svg{width:100%;height:auto;border:1px solid var(--grid);border-radius:4px}
+.schem b{color:var(--ink);font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips span{font:12px var(--mono);padding:3px 8px;border:1px solid var(--axis);border-radius:4px;color:var(--ink2)}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;font-size:14px;min-width:820px;width:100%}
+th,td{text-align:left;padding:9px 12px 9px 0;border-bottom:1px solid var(--grid);vertical-align:top}
+th{font:500 12px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+td.n{font-variant-numeric:tabular-nums}
+.v{white-space:nowrap;font-weight:500}
+.v i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px}
+.v.keep i{background:var(--good)} .v.fix i{background:var(--warn);border-radius:1px;transform:rotate(45deg)} .v.drop i{background:var(--crit);border-radius:1px}
+details{border-top:1px solid var(--grid);padding:10px 0;font-size:15px}
+details:last-of-type{border-bottom:1px solid var(--grid)}
+summary{cursor:pointer;font-weight:500}
+summary:focus-visible{outline:2px solid var(--s1);outline-offset:3px}
+details p{margin-top:8px;color:var(--ink2)}
+#tip{position:fixed;z-index:20;pointer-events:none;background:var(--surface);color:var(--ink);border:1px solid var(--axis);border-radius:5px;padding:7px 10px;font-size:12.5px;line-height:1.45;box-shadow:0 4px 14px rgba(0,0,0,.14);max-width:240px}
+#tip b{font-weight:600} #tip .m{color:var(--ink2)}
+svg text{font-family:var(--sans);font-size:11.5px;fill:var(--ink2)}
+svg text.mu{fill:var(--muted)} svg text.b{fill:var(--ink);font-weight:600} svg text.num{font-variant-numeric:tabular-nums}
+code{font:13px var(--mono)}
+.math{border-top:1px solid var(--grid);padding-top:16px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.math h4{margin:0;font:500 12px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.math p{font-size:15px;color:var(--ink2);max-width:none}
+.math p b{color:var(--ink);font-weight:600}
+.math pre{margin:0;font:13px/1.6 var(--mono);color:var(--ink);background:var(--surface);border:1px solid var(--hair);border-radius:6px;padding:12px 14px;overflow-x:auto;white-space:pre}
+.eq{background:var(--surface);border:1px solid var(--hair);border-radius:6px;padding:14px 16px;display:flex;flex-direction:column;gap:18px;overflow-x:auto}
+.eq>div{min-width:max-content}
+.eq math{font-size:1.3em;color:var(--ink)}
+.proc{margin:0;padding-left:22px;font-size:15px;color:var(--ink2);display:flex;flex-direction:column;gap:2px}
+.next{font-size:15px;color:var(--ink2);border-left:2px solid var(--s1);padding-left:14px;max-width:none}
+.next b{color:var(--ink);font-weight:600}
+</style>
+
+<main>
+<header>
+  <span class="eyebrow">NASA Space Apps 2026 · MODIS and VIIRS hot spots</span>
+  <h1>Why the two fire records disagree, and how we decide a fix is real</h1>
+  <p class="lede">Two satellites have counted fires for years, but they count differently. This page explains how we make their records comparable and how we check the result, using our own data. It is one path of nine steps. Each step answers the question the step before it raised, with a chart, a metaphor and a worked example.</p>
+  <p class="scope"><b>What the charts use.</b> Science-quality FIRMS archives for Aqua (MODIS) and S-NPP (VIIRS), 2013–2025, in a box around Argentina (20°S–56°S, 50°W–76°W). Fire activity is counted in burning cell-days on H3 resolution-8 hexagons, with day and night kept apart. Only the baseline conversion is fitted, so the rest of the globe stays unexamined.</p>
+</header>
+
+<section id="start">
+  <span class="eyebrow">Start here</span>
+  <h2>The whole idea in two minutes</h2>
+  <p>Imagine you count the birds in a park every year for 25 years. For the first twelve years you count by eye. Then someone gives you binoculars, and your count triples overnight. The birds did not triple. You just see better.</p>
+  <p>Now you want to know whether there were more birds in 2008 or in 2020. You cannot compare the two numbers directly, because one was counted by eye and the other with binoculars. You first need to work out what you <i>would have</i> counted in 2008 if you had owned binoculars back then.</p>
+  <p>That is this whole project, with fires in place of birds and satellites in place of eyes:</p>
+  <dl class="fits">
+    <dt>The old satellite</dt><dd><b>MODIS</b> has watched for fires since 2000. Its picture is made of squares about 1 km wide, so it misses small fires. It is the naked eye.</dd>
+    <dt>The new satellite</dt><dd><b>VIIRS</b> has watched since 2012. Its squares are about 375 m wide, so it catches many small fires that MODIS misses. It is the binoculars.</dd>
+    <dt>The lucky part</dt><dd>From 2012 onward both have been watching at the same time. Those shared years let us work out how the two counts relate.</dd>
+  </dl>
+  <figure>
+    <h3>Same fires, same year, two very different counts</h3>
+    <div class="cmp" id="cmp"></div>
+    <figcaption>Burning places counted in our Argentina study area during 2020, by a MODIS instrument (on the Aqua satellite) and a VIIRS instrument (on the S-NPP satellite) passing overhead at the same time of day. The newer satellite counted <b id="cmpx"></b> times as many. Nothing about the fires differed.</figcaption>
+  </figure>
+  <p><b>The goal</b> is a fire calendar in which any two months since 2000 can be compared fairly. To get there, we convert the old satellite's counts into “what the new satellite would have counted”. People call this <b>harmonizing</b> the two records.</p>
+  <p>Keep one question in mind as you read: <b>was August 2008 a worse fire month than August 2020?</b> Every step below moves toward answering that honestly.</p>
+
+  <h3>Three big ideas</h3>
+  <p>Everything on this page comes from three ideas. None of them is about satellites.</p>
+  <ol class="ideas">
+    <li><b>A count depends on who is counting.</b><span>The number a satellite reports is not the number of fires. It is the fires <i>that satellite managed to see</i>. To compare two counters fairly, you have to learn how their counts relate, and you can only learn that when both count the same thing at once.</span></li>
+    <li><b>Don't mark your own homework.</b><span>If we work out a conversion using certain years and then test it on those same years, it will always look good. So we set some years aside, build the conversion without them, and then see how well it predicts them.</span></li>
+    <li><b>Small differences can be luck.</b><span>Flip a fair coin ten times and you might get six heads. That does not make the coin unfair. In the same way, if one method scores slightly better than another, we must ask whether the gap is bigger than luck alone would produce.</span></li>
+  </ol>
+
+  <h3>The path, one step at a time</h3>
+  <p>We build only one thing: a <b>multiplier</b> that turns an old-satellite count into a new-satellite count. Everything else asks one question about it: <b>is the multiplier wrong, and how would we know?</b></p>
+  <p>The page follows the order a scientist would work in. Each step ends with a question, and the next step answers it.</p>
+  <div class="map">
+    <div><h4>Build · Steps 1 to 3</h4><p>Make the conversion. <i>Uses idea 1.</i></p><ul><li><a href="#step-1">Step 1</a> decide what to count</li><li><a href="#step-2">Step 2</a> throw out unfair days</li><li><a href="#step-3">Step 3</a> compute the multiplier</li></ul></div>
+    <div><h4>Test · Steps 4 to 8</h4><p>Look for ways it could be wrong. <i>Uses idea 2.</i></p><ul><li><a href="#step-4">Step 4</a> test it on a hidden year</li><li><a href="#step-5">Step 5</a> look for a pattern in the misses</li><li><a href="#step-6">Step 6</a> find the cause</li><li><a href="#step-7">Step 7</a> check the join</li><li><a href="#step-8">Step 8</a> add honest error bars</li></ul></div>
+    <div><h4>Prepare to improve · Step 9</h4><p>Check the tests themselves. <i>Uses idea 3.</i></p><ul><li><a href="#step-9a">Part 1</a> the test for the tilt</li><li><a href="#step-9b">Part 2</a> the test for accuracy</li><li><a href="#step-9c">Part 3</a> two smaller tests</li></ul></div>
+  </div>
+  <p><b>The maths.</b> Each step has a box showing the data it reads and the formula it computes. Three letters recur: <b>M</b> is a count from the old satellite (MODIS), <b>V</b> is a count from the new one (VIIRS), and <b>V̂</b> is our prediction of V. You can skip the boxes and still follow the path.</p>
+  <p><b>How much to read.</b> Steps 1 to 4 are the method: read those and you understand what the calendar does. Steps 5 to 8 are what make it trustworthy. Step 9 only matters once you start comparing a new version against the old one.</p>
+
+  <h3>Words you will meet</h3>
+  <dl class="fits">
+    <dt>Burning place</dt><dd>We divide the map into small six-sided patches about 1 km across. A patch where a satellite saw fire on a given day counts as one. The technical name is a <b>cell-day</b>.</dd>
+    <dt>Multiplier</dt><dd>How many times more the new satellite counts than the old one. A multiplier of 3 means three times as many. Scientists call it the <b>ratio</b>.</dd>
+    <dt>Error</dt><dd>How far our converted number is from what the new satellite really counted, as a percentage.</dd>
+    <dt>Typical error</dt><dd>The error in an ordinary month: half of months do better and half do worse. Charts call it the <b>median error</b>.</dd>
+    <dt>Tilt</dt><dd>Whether the error gets steadily bigger or smaller as months get busier. A tilt of zero means it stays the same. Scientists call it the <b>slope</b>.</dd>
+    <dt>Luck range</dt><dd>How much a result changes if we redo the sum with the years shuffled. It tells us how much is luck. Charts call it the <b>95 % range</b>.</dd>
+  </dl>
+</section>
+
+<div class="part" id="part-1">
+  <h2>Build · Steps 1 to 3</h2>
+  <p>Decide what to count, drop the days that cannot be compared, and work out the multiplier. At the end of Step 3 there is a working calendar. This part uses idea 1: a count depends on who is counting.</p>
+</div>
+
+<section id="step-1">
+  <span class="eyebrow">Step 1 of 9 · Decide what to count</span>
+  <h2>One fire, three different counts</h2>
+  <dl class="fits">
+    <dt>In plain words</dt><dd class="plain">A sharper camera turns one fire into more dots. So we do not count dots. We count places that burned.</dd>
+    <dt>Question</dt><dd>What should we count?</dd>
+    <dt>Why the calendar needs it</dt><dd>August 2008 was recorded in 1 km pixels and August 2020 in 375 m pixels. Comparing pixel counts would compare the cameras, not the fires.</dd>
+    <dt>Big idea</dt><dd>Idea 1 · A count depends on who is counting</dd>
+  </dl>
+  <p>A satellite does not photograph flames. It measures heat, one square of ground at a time, and flags any square that is much hotter than its neighbours. Each flagged square is called a <b>hotspot</b>.</p>
+  <p>The new satellite's squares are much smaller than the old one's. So a single line of fire covers many more of its squares. If we counted squares, the new satellite would report “more fire” simply for having smaller squares.</p>
+  <div class="pair">
+    <div><h4>Picture it this way</h4><p>Rain falls on two floors, one laid with large tiles and one with small tiles. The same puddle wets 2 large tiles or 13 small ones. Counting wet tiles tells you about the tiles. Asking “which rooms got wet?” tells you about the rain. Our six-sided patch of land is the room.</p></div>
+    <div><h4>Worked example</h4><p>A new-satellite square covers about <b>one seventh</b> of the ground an old-satellite square does. Two things follow. One fire fills more squares, which is only a counting quirk, and we remove it. And a small fire stands out more in a small square, so the new satellite spots fires the old one misses. That part is real, and we keep it.</p></div>
+  </div>
+  <figure>
+    <h3>The same line of fire, counted three ways</h3>
+    <div class="schem" id="schem"></div>
+    <figcaption>A drawing, to scale, of one line of fire crossing a square of land 4 km wide. Left and middle: the squares each satellite would flag. Right: the six-sided patches we count instead. For each patch we ask one yes-or-no question: did anything burn here today?</figcaption>
+  </figure>
+  <p>Counting burning places removes the square-size problem. What remains is a real difference: the new satellite spots small, weak fires that the old one cannot. That difference is what the rest of the path deals with.</p>
+  <div class="math">
+    <h4>The maths</h4>
+    <p><b>Data it reads.</b> One row per hotspot: <code>latitude</code>, <code>longitude</code>, <code>acq_date</code>, <code>acq_time</code>, <code>daynight</code>, and the quality columns <code>confidence</code> and <code>type</code>.</p>
+    <div class="eq">
+      <div><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mtext>cell</mtext><mo>=</mo><mi mathvariant="normal">h3</mi><mo>⁡</mo><mo stretchy="false">(</mo><mtext>latitude</mtext><mo separator="true">,</mo><mtext> longitude</mtext><mo separator="true">,</mo><mtext> size </mtext><mn>8</mn><mo stretchy="false">)</mo></mrow><annotation encoding="application/x-tex">\text{cell} = \operatorname{h3}(\text{latitude},\ \text{longitude},\ \text{size } 8)</annotation></semantics></math></span></div>
+      <div><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><msub><mi>t</mi><mtext>local</mtext></msub><mo>=</mo><msub><mi>t</mi><mtext>UTC</mtext></msub><mo>+</mo><mfrac><mtext>longitude</mtext><mn>15</mn></mfrac><mtext> hours</mtext></mrow><annotation encoding="application/x-tex">t_{\text{local}} = t_{\text{UTC}} + \dfrac{\text{longitude}}{15}\ \text{hours}</annotation></semantics></math></span></div>
+      <div><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><msub><mi>B</mi><mrow><mi>c</mi><mo separator="true">,</mo><mi>d</mi></mrow></msub><mo>=</mo><mn>1</mn><mtext>  if cell </mtext><mi>c</mi><mtext> has at least one hotspot on day </mtext><mi>d</mi><mo separator="true">,</mo><mtext>  otherwise </mtext><mn>0</mn></mrow><annotation encoding="application/x-tex">B_{c,d} = 1 \ \text{ if cell } c \text{ has at least one hotspot on day } d, \ \text{ otherwise } 0</annotation></semantics></math></span></div>
+      <div><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mi>M</mi><mtext> or </mtext><mi>V</mi><mo>=</mo><munder><mo>∑</mo><mrow><mtext>cells </mtext><mi>c</mi><mtext> in the area</mtext></mrow></munder><mspace width="2em"/><munder><mo>∑</mo><mrow><mtext>days </mtext><mi>d</mi><mtext> in the month</mtext></mrow></munder><msub><mi>B</mi><mrow><mi>c</mi><mo separator="true">,</mo><mi>d</mi></mrow></msub></mrow><annotation encoding="application/x-tex">M \ \text{or}\ V = \sum_{\text{cells } c \text{ in the area}} \qquad \sum_{\text{days } d \text{ in the month}} B_{c,d}</annotation></semantics></math></span></div>
+    </div>
+    <p>A list of millions of hotspots becomes a small table: for each area, month, and day or night, one count <b>M</b> from the old satellite and one count <b>V</b> from the new one. Every later step reads this table.</p>
+  </div>
+  <p class="key"><b>Key idea.</b> Count something that does not depend on how sharp the camera is. After this step, each satellite gives one tally of burning places per day.</p>
+  <p class="next"><b>Next question.</b> Both satellites now give tallies we can compare. But was each one actually counting on every day?</p>
+</section>
+
+<section id="step-2">
+  <span class="eyebrow">Step 2 of 9 · Throw out unfair days</span>
+  <h2>A blank day is not a fire-free day</h2>
+  <dl class="fits">
+    <dt>In plain words</dt><dd class="plain">Sometimes a satellite is switched off for days. A blank day is not a day without fire, so we must not count it as zero.</dd>
+    <dt>Question</dt><dd>When a satellite reports nothing, was there no fire?</dd>
+    <dt>Why the calendar needs it</dt><dd>A hidden outage makes one month look quiet and every month compared with it look extreme. It would also spoil the multiplier we work out in Step 3.</dd>
+    <dt>Big idea</dt><dd>Idea 1 · A count depends on who is counting</dd>
+  </dl>
+  <p>Satellites break down, lose contact, or get switched into a safe mode. In the data, a broken day looks exactly like a day with no fire: there is simply nothing written down.</p>
+  <p>In the middle of 2022 the new satellite went silent for 15 days, while the old one kept seeing fires all over the area.</p>
+  <p class="rule"><b>The rule.</b> If a satellite reports nothing at all across the whole study area for a day, we treat that day as “no data”, not “no fire”. And when we compare the two satellites, we only use days when both were working. <b>Why it makes sense.</b> The study area is huge, so something is always burning somewhere. A completely empty day almost always means the satellite was off.</p>
+  <div class="pair">
+    <div><h4>Picture it this way</h4><p>A shop's till shows no sales on a Tuesday. Either nobody came in, or the shop was closed. The till roll looks the same both ways. You find out by checking whether the shop next door was busy that day.</p></div>
+    <div><h4>Worked example</h4><p>With round numbers for illustration: a normal July has 10,000 burning places, and the breakdown hides 2,600 of them, so July 2022 is recorded as 7,400. The next July is a normal 10,000. Beside the false 7,400 it looks <b>35 % worse than last year</b>. One gap has now spoiled two months.</p></div>
+  </div>
+  <figure>
+    <h3>Burning places seen each day, 15 June to 5 September 2022</h3>
+    <div class="chart" id="c-outage"></div>
+    <figcaption>Each bar is one day. The top row is the new satellite and the bottom row is the old one. The empty stretch in the top row is the breakdown. Counted as zeros, those days would make July 2022 look about a quarter quieter than it really was.</figcaption>
+  </figure>
+  <div class="math">
+    <h4>The maths</h4>
+    <p><b>Data it reads.</b> The daily hotspot totals for each satellite across the whole study area.</p>
+    <p><b>H<sub>d</sub></b> is the number of hotspots a satellite reported across the whole study area on day <b>d</b>.</p>
+    <div class="eq">
+      <div><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mtext>day </mtext><mi>d</mi><mtext> is fair</mtext><mtext>  </mtext><mo>⟺</mo><mtext>  </mtext><msubsup><mi>H</mi><mi>d</mi><mtext>old</mtext></msubsup><mo>&gt;</mo><mn>0</mn><mtext>  and  </mtext><msubsup><mi>H</mi><mi>d</mi><mtext>new</mtext></msubsup><mo>&gt;</mo><mn>0</mn></mrow><annotation encoding="application/x-tex">\text{day } d \text{ is fair} \iff H^{\text{old}}_{d} &gt; 0 \ \text{ and } \ H^{\text{new}}_{d} &gt; 0</annotation></semantics></math></span></div>
+    </div>
+    <p>No arithmetic beyond a yes-or-no test. Its job is to make sure the division in Step 3 compares like with like.</p>
+  </div>
+  <p class="key"><b>Key idea.</b> Before comparing two counters, make sure both were actually counting. Our simple check caught every known breakdown in this area. It cannot yet catch a satellite that was off for only part of a day.</p>
+  <p class="next"><b>Next question.</b> Only fair days are left. What is the simplest way to turn the old satellite's tally into the new one's?</p>
+</section>
+
+<section id="step-3">
+  <span class="eyebrow">Step 3 of 9 · Compute the multiplier</span>
+  <h2>One division gives the conversion: about 3 by day, about 10 at night</h2>
+  <dl class="fits">
+    <dt>In plain words</dt><dd class="plain">Multiply the old satellite's count by about 3 in the daytime and about 10 at night, using a slightly different number for each area.</dd>
+    <dt>Question</dt><dd>How do we turn an old-satellite count into what the new satellite would have seen?</dd>
+    <dt>Why the calendar needs it</dt><dd>This is the step that puts August 2008 on the same scale as August 2020. It is the only thing we build. Every later step checks it.</dd>
+    <dt>Big idea</dt><dd>Idea 1 · A count depends on who is counting</dd>
+  </dl>
+  <p>Take the years when both satellites were flying. Add up every burning place the new satellite saw. Add up every burning place the old one saw. Divide the first total by the second. The answer is the <b>multiplier</b>.</p>
+  <p>We do that sum twice, once for daytime and once for night, because the new satellite's advantage is much bigger at night, when fires are small and cool.</p>
+  <figure>
+    <h3>For every burning place the old satellite saw, the new one saw…</h3>
+    <div class="tiles">
+      <div class="tile"><b id="rD"></b><span>by day</span></div>
+      <div class="tile"><b id="rN"></b><span>at night, when fires are smaller and cooler</span></div>
+    </div>
+    <figcaption>Measured in our Argentina study area, 2013–2022. Only days when both satellites were working are used (Step 2).</figcaption>
+  </figure>
+  <div class="pair">
+    <div><h4>Picture it this way</h4><p>Two people listen for birds, and one has sharper hearing. At noon the birds are loud and both hear most of them. At night the calls are faint, and the sharper ear hears ten for every one the other catches. One “hearing number” cannot describe both.</p></div>
+    <div><h4>Worked example</h4><p>Suppose the old satellite saw 100 burning places by day and 10 at night. Converted: 100 × 3.05 + 10 × 10.3 = <b>408</b>. Now suppose it saw 50 by day and 60 at night: 50 × 3.05 + 60 × 10.3 = <b>771</b>. Both months have 110 in total, yet the answers are far apart. That is why we never mix day and night.</p></div>
+  </div>
+  <p>To convert, take the old satellite's count and multiply: by about 3 for daytime, by about 10 for night.</p>
+  <p>We go one step further and give each area its own multiplier, because a grass fire and a forest fire do not look the same from space. The areas are six-sided regions about 120 km across.</p>
+  <p>Some areas have very few fires, so a multiplier based only on their own data would be a wild guess. Those areas lean on the average for the whole study area.</p>
+  <div class="pair">
+    <div><h4>Picture it this way</h4><p>Think of changing money where the exchange rate differs from town to town. A town with thousands of trades has earned its own rate. A village with three trades has not, so it mostly uses the national rate. It is the same reason you trust “4.6 stars from 3,000 reviews” more than “4.9 stars from 3 reviews”.</p></div>
+    <div><h4>Worked example</h4><p>The whole-area daytime multiplier is 3.05. A quiet area where the old satellite saw 20 burning places and the new one saw 100 has its own multiplier of 5.0, but 20 is too few to trust. So we mix in 50 pretend sightings that behave like the average: (100 + 50 × 3.05) ÷ (20 + 50) = <b>3.61</b>. A busy area with 2,000 and 10,000 keeps almost all of its own: <b>4.95</b>.</p></div>
+  </div>
+  <div class="math">
+    <h4>The maths</h4>
+    <p><b>Data it reads.</b> <b>M</b> and <b>V</b> from fair days, 2013–2022, day and night kept apart.</p>
+    <div class="eq">
+      <div><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mi>r</mi><mo>=</mo><mfrac><mrow><mo>∑</mo><mi>V</mi></mrow><mrow><mo>∑</mo><mi>M</mi></mrow></mfrac><mo>≈</mo><mn>3.05</mn><mtext> by day</mtext><mo separator="true">,</mo><mtext>  </mtext><mn>10.3</mn><mtext> at night</mtext></mrow><annotation encoding="application/x-tex">r = \dfrac{\sum V}{\sum M} \approx 3.05 \text{ by day},\ \ 10.3 \text{ at night}</annotation></semantics></math></span></div>
+      <div><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><msub><mi>r</mi><mi>s</mi></msub><mo>=</mo><mfrac><mrow><msub><mi>V</mi><mi>s</mi></msub><mo>+</mo><mi>k</mi><mtext> </mtext><mi>r</mi></mrow><mrow><msub><mi>M</mi><mi>s</mi></msub><mo>+</mo><mi>k</mi></mrow></mfrac><mo separator="true">,</mo><mspace width="2em"/><mi>k</mi><mo>=</mo><mn>50</mn></mrow><annotation encoding="application/x-tex">r_s = \dfrac{V_s + k\,r}{M_s + k}, \qquad k = 50</annotation></semantics></math></span></div>
+      <div><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mover accent="true"><mi>V</mi><mo>^</mo></mover><mo>=</mo><msub><mi>r</mi><mi>s</mi></msub><mo>×</mo><mi>M</mi></mrow><annotation encoding="application/x-tex">\hat{V} = r_s \times M</annotation></semantics></math></span></div>
+    </div>
+    <p><b>r</b> is the multiplier for the whole study area. <b>r<sub>s</sub></b> is the multiplier for one area: when the area has few sightings, the <b>k × r</b> term dominates and pulls it toward the average; when it has thousands, the term hardly matters. <b>V̂</b> ("V-hat") is our prediction of what the new satellite would have counted.</p>
+  </div>
+  <p class="key"><b>Key idea.</b> The whole conversion is one division, done separately for day and night. Each area gets its own multiplier only as far as its own data has earned it. After this step there is a working calendar.</p>
+  <p class="next"><b>Next question.</b> A multiplier always fits the years it was built from. Does it also work on a year it has never seen?</p>
+</section>
+
+<div class="part" id="part-2">
+  <h2>Test · Steps 4 to 8</h2>
+  <p>Each step here is one way the multiplier could be wrong: on years it has not seen, in a pattern, at the join, or in its error bars. This part uses idea 2: don't mark your own homework.</p>
+</div>
+
+<section id="step-4">
+  <span class="eyebrow">Step 4 of 9 · Test it on a hidden year</span>
+  <h2>Hide a year, predict it, then look</h2>
+  <dl class="fits">
+    <dt>In plain words</dt><dd class="plain">Hide one year. Work out the multipliers from the other nine. Predict the hidden year and compare with what the new satellite really saw. In an ordinary month we are off by about 10 %.</dd>
+    <dt>Question</dt><dd>Does the multiplier work on a year it was not built from?</dd>
+    <dt>Why the calendar needs it</dt><dd>August 2008 is a month the multiplier has never seen, because the new satellite was not flying yet. Predicting a hidden year is the closest practice we can get.</dd>
+    <dt>Big idea</dt><dd>Idea 2 · Don't mark your own homework</dd>
+  </dl>
+  <p>A multiplier worked out from 2013–2022 will fit 2013–2022 well, because it was made to. That tells us nothing about how it does on a year it has not seen.</p>
+  <p>So we hide a year. We work out the multipliers from the other nine years, use them to predict the hidden year month by month, and only then look at what the new satellite really saw. Then we put that year back, hide the next one, and repeat until every year has had a turn.</p>
+  <p>The result: in an ordinary month the prediction is about <b>10 %</b> away from the truth. In the worst one month in ten, it is off by 20 % or more.</p>
+  <div class="pair">
+    <div><h4>Picture it this way</h4><p>A teacher who hands out the exam questions a week early learns nothing from the marks. To find out what the class really knows, the exam has to stay hidden until the studying is done. Each year takes a turn as the hidden exam.</p></div>
+    <div><h4>Worked example</h4><p>With round numbers for illustration: hide 2017. From the other nine years the daytime multiplier comes out at 3. One month, the old satellite saw 4,000 burning places by day, so we predict <b>12,000</b>. The new satellite really saw 13,300. We were about <b>10 % too low</b>, which is an ordinary miss.</p></div>
+  </div>
+  <figure>
+    <h3>Burning places per month in the Argentina study area</h3>
+    <div class="legend"><span><i class="" style="background:var(--s1)"></i>New satellite, as seen</span><span><i class="" style="background:var(--s2)"></i>Old satellite, converted</span><span><i class="" style="background:var(--s3)"></i>Old satellite, raw count</span></div>
+    <div class="chart" id="c-series"></div>
+    <figcaption>Hover for the numbers. Blue is what the new satellite saw. Orange is what we predicted from the old satellite, and each orange point was predicted without using its own year. Where blue and orange sit together, the conversion works. Green is the old satellite's raw count. The shaded years were kept completely aside.</figcaption>
+  </figure>
+  <div class="math">
+    <h4>The maths</h4>
+    <p><b>Data it reads.</b> For every month, the prediction <b>V̂</b> made without that month's year, and the real count <b>V</b>.</p>
+    <div class="eq">
+      <div><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mtext>error</mtext><mo>=</mo><mfrac><mrow><mo stretchy="false">∣</mo><mover accent="true"><mi>V</mi><mo>^</mo></mover><mo>−</mo><mi>V</mi><mo stretchy="false">∣</mo></mrow><mi>V</mi></mfrac></mrow><annotation encoding="application/x-tex">\text{error} = \dfrac{\lvert \hat{V} - V \rvert}{V}</annotation></semantics></math></span></div>
+      <div><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mtext>typical error</mtext><mo>=</mo><mi mathvariant="normal">median</mi><mo>⁡</mo><mo stretchy="false">(</mo><mtext>error</mtext><mo stretchy="false">)</mo><mo>≈</mo><mn>10</mn><mtext> </mtext><mi mathvariant="normal">%</mi></mrow><annotation encoding="application/x-tex">\text{typical error} = \operatorname{median}(\text{error}) \approx 10\,\%</annotation></semantics></math></span></div>
+    </div>
+    <p>Steps 4, 5, 7 and 8 all read the same two columns, <b>V̂</b> and <b>V</b>. They are four summaries of one list of misses: its size (here), its lean, its total and its spread.</p>
+  </div>
+  <p class="key"><b>Key idea.</b> The years when both satellites were flying are the only place the method can be tested, so each one is used as a hidden exam. A score earned on hidden years is the only score worth quoting.</p>
+  <p class="next"><b>Next question.</b> A 10 % miss would be fine if misses were random, sometimes high and sometimes low. Are they, or do they lean one way?</p>
+</section>
+
+<section id="step-5">
+  <span class="eyebrow">Step 5 of 9 · Look for a pattern in the misses</span>
+  <h2>The multiplier slips: too small in quiet months, too big in busy ones</h2>
+  <dl class="fits">
+    <dt>In plain words</dt><dd class="plain">The multiplier is not quite the same in quiet months and busy months. In quiet months it is too small, and in the busiest months it is too big.</dd>
+    <dt>Question</dt><dd>Is one ratio right for quiet months and busy months alike?</dd>
+    <dt>Why the calendar needs it</dt><dd>People open the calendar to compare ordinary months with extreme ones. That is exactly where a single ratio leans the wrong way.</dd>
+    <dt>Big idea</dt><dd>Idea 1 · A count depends on who is counting</dd>
+  </dl>
+  <p>If one multiplier worked equally well for every month, the dots below would be scattered evenly above and below the middle line. They are not. They tilt: high on the left, where months are quiet, and low on the right, where months are busy.</p>
+  <p>In quiet months the new satellite saw more than we predicted. In the busiest months it saw less.</p>
+  <div class="pair">
+    <div><h4>Picture it this way</h4><p>Two fishing nets, one with fine mesh and one with coarse. On a day with only small fish, the fine net lands many times more. When a shoal of big fish arrives, both nets fill up and the gap narrows. Quiet months are small-fish days.</p></div>
+    <div><h4>Worked example</h4><p>Compare a month with 3,000 predicted burning places and a month with 30,000, ten times busier. Going from the first to the second, what the new satellite really saw, compared with our prediction, drops by <b>18 %</b> in the daytime. At night it drops by <b>half</b>.</p></div>
+  </div>
+  <figure>
+    <h3>How wrong the prediction was, against how busy the month was</h3>
+    <div class="panels"><div><span class="sub">Day</span><div class="chart" id="c-scD"></div></div><div><span class="sub">Night</span><div class="chart" id="c-scN"></div></div></div>
+    <figcaption>Each dot is one month. Further right means a busier month. Above the middle line, the new satellite saw more than we predicted; below it, less. The black line shows the tilt, and the number beside it says how steep it is. A flat line would mean the multiplier works equally well in every month.</figcaption>
+  </figure>
+  <div class="math">
+    <h4>The maths</h4>
+    <p><b>Data it reads.</b> The same <b>V̂</b> and <b>V</b> for every month, signs kept this time.</p>
+    <p>A miss above zero means the new satellite saw more than we predicted.</p>
+    <div class="eq">
+      <div><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mtext>miss</mtext><mo>=</mo><mi>ln</mi><mo>⁡</mo><mfrac><mi>V</mi><mover accent="true"><mi>V</mi><mo>^</mo></mover></mfrac></mrow><annotation encoding="application/x-tex">\text{miss} = \ln\dfrac{V}{\hat{V}}</annotation></semantics></math></span></div>
+      <div><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mtext>miss</mtext><mo>≈</mo><mi>a</mi><mo>+</mo><mi>b</mi><mtext> </mtext><mi>ln</mi><mo>⁡</mo><mover accent="true"><mi>V</mi><mo>^</mo></mover></mrow><annotation encoding="application/x-tex">\text{miss} \approx a + b\,\ln\hat{V}</annotation></semantics></math></span></div>
+      <div><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><msub><mi>b</mi><mtext>day</mtext></msub><mo>=</mo><mo>−</mo><mn>0.087</mn><mo separator="true">,</mo><mspace width="2em"/><msub><mi>b</mi><mtext>night</mtext></msub><mo>=</mo><mo>−</mo><mn>0.30</mn></mrow><annotation encoding="application/x-tex">b_{\text{day}} = -0.087, \qquad b_{\text{night}} = -0.30</annotation></semantics></math></span></div>
+    </div>
+    <p><b>ln</b> is the natural logarithm, used so that "twice too high" and "half too low" count as equal and opposite. A month ten times busier changes V / V̂ by a factor of 10<sup>b</sup>. By day 10<sup>−0.087</sup> = 0.82, the 18 % drop in the worked example. At night 10<sup>−0.30</sup> = 0.50, the drop by half.</p>
+  </div>
+  <p class="key"><b>Key idea.</b> Averaged over all months, our errors cancel out to zero. But they lean one way in quiet months and the other way in busy ones, and those are exactly the months people want to compare. Looking only at the average would have hidden this.</p>
+  <p class="next"><b>Next question.</b> The misses lean. Why would the multiplier depend on how busy the month is?</p>
+</section>
+
+<section id="step-6">
+  <span class="eyebrow">Step 6 of 9 · Find the cause</span>
+  <h2>Ignore the tiny fires and the tilt disappears</h2>
+  <dl class="fits">
+    <dt>In plain words</dt><dd class="plain">The reason is tiny fires. The new satellite sees huge numbers of small fires the old one cannot see at all. Leave the tiny fires out and the two satellites agree much better.</dd>
+    <dt>Question</dt><dd>Why does the ratio change with activity?</dd>
+    <dt>Why the calendar needs it</dt><dd>If the cause is physical, it was also present in 2008, so it is worth correcting. If it were a quirk of recent years, correcting it could make 2008 worse.</dd>
+    <dt>Big idea</dt><dd>Idea 1 · A count depends on who is counting</dd>
+  </dl>
+  <p>Why does the multiplier tilt? Our guess: the new satellite sees a crowd of small, weak fires that the old one cannot see at all. Quiet months are mostly small fires, so the new satellite is far ahead. Busy months have big fires that both can see.</p>
+  <p>A good guess can be tested. Every fire sighting comes with a measure of how much heat the fire gives off, in megawatts (MW). One megawatt is roughly 500 electric kettles running at once. We set a minimum strength and counted only burning places at least that strong. If the guess is right, raising the minimum should make the tilt go away.</p>
+  <div class="pair">
+    <div><h4>Picture it this way</h4><p>Two people count stars, and one wears glasses. Their totals differ wildly, and the gap changes from night to night with the haze. Ask both to count only the bright stars, and they agree. The disagreement was never about the bright ones.</p></div>
+    <div><h4>Worked example</h4><p>At night, a minimum of 5 MW removes only <b>2 %</b> of what the old satellite saw, because it almost never spots anything that weak. The same minimum removes nearly <b>three quarters</b> of what the new satellite saw. In that one step the multiplier falls from 10.3 to 2.8.</p></div>
+  </div>
+  <figure>
+    <h3>How many times more the new satellite counts, as we ignore weaker and weaker fires</h3>
+    <div class="panels"><div><span class="sub">Day</span><div class="chart" id="c-frD"></div></div><div><span class="sub">Night</span><div class="chart" id="c-frN"></div></div></div>
+    <figcaption>From left to right, more of the weak fires are ignored. The heavier line marks 1, where both satellites count the same. The multiplier falls quickly, but it does not stop at 1. It keeps falling. The up-and-down scale is squeezed so that 10 and 0.5 both fit.</figcaption>
+  </figure>
+  <figure>
+    <h3>The tilt from Step 5, as we ignore weaker and weaker fires</h3>
+    <div class="panels"><div><span class="sub">Day</span><div class="chart" id="c-fsD"></div></div><div><span class="sub">Night</span><div class="chart" id="c-fsN"></div></div></div>
+    <figcaption>Each dot is the tilt, and the bar through it is the luck range. The heavier line is zero, meaning no tilt. Once fires weaker than about 10 to 20 MW are ignored, the tilt cannot be told apart from zero. It is worked out in a slightly simpler way than in Step 5, so it starts from a slightly different number. The two rightmost night points have too few months to work out.</figcaption>
+  </figure>
+  <p>Why does the multiplier fall below 1? Probably because the old satellite's large square puts all of a fire's heat into one patch, while the new satellite spreads it over several. “At least 30 MW” is then not the same test for both. We have not checked this.</p>
+  <div class="math">
+    <h4>The maths</h4>
+    <p><b>Data it reads.</b> The hotspot rows again, this time with <code>frp</code>, the fire's strength in megawatts.</p>
+    <p>The strength <b>P</b> of a burning place is the summed <code>frp</code> of its hotspots on the strongest pass that day. <b>V<sub>≥f</sub></b> and <b>M<sub>≥f</sub></b> count only burning places with P of at least <b>f</b> megawatts.</p>
+    <div class="eq">
+      <div><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><msub><mi>P</mi><mrow><mi>c</mi><mo separator="true">,</mo><mi>d</mi></mrow></msub><mo>=</mo><munder><mrow><mi>max</mi><mo>⁡</mo></mrow><mtext>passes</mtext></munder><mtext> </mtext><munder><mo>∑</mo><mtext>hotspots</mtext></munder><mtext>frp</mtext></mrow><annotation encoding="application/x-tex">P_{c,d} = \max_{\text{passes}}\ \sum_{\text{hotspots}} \text{frp}</annotation></semantics></math></span></div>
+      <div><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mi>r</mi><mo stretchy="false">(</mo><mi>f</mi><mo stretchy="false">)</mo><mo>=</mo><mfrac><mrow><mo>∑</mo><msub><mi>V</mi><mrow><mo>≥</mo><mi>f</mi></mrow></msub></mrow><mrow><mo>∑</mo><msub><mi>M</mi><mrow><mo>≥</mo><mi>f</mi></mrow></msub></mrow></mfrac></mrow><annotation encoding="application/x-tex">r(f) = \dfrac{\sum V_{\ge f}}{\sum M_{\ge f}}</annotation></semantics></math></span></div>
+      <div><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mi>b</mi><mo stretchy="false">(</mo><mi>f</mi><mo stretchy="false">)</mo><mo>=</mo><mtext>the tilt </mtext><mi>b</mi><mtext> from Step 5, refitted on </mtext><msub><mi>V</mi><mrow><mo>≥</mo><mi>f</mi></mrow></msub><mtext> and </mtext><msub><mi>M</mi><mrow><mo>≥</mo><mi>f</mi></mrow></msub></mrow><annotation encoding="application/x-tex">b(f) = \text{the tilt } b \text{ from Step 5, refitted on } V_{\ge f} \text{ and } M_{\ge f}</annotation></semantics></math></span></div>
+    </div>
+    <p>This is Step 3 and Step 5 run again and again with a rising minimum. By day r(f) goes 3.05, then 2.11 at 5 MW, then 1.07 at 30 MW, and b(f) reaches zero at about 10 to 20 MW.</p>
+  </div>
+  <p class="key"><b>Key idea.</b> A good explanation predicts something you have not looked at yet, and ours did. The tilt has a real cause, small fires, so it was there in 2008 too and is worth fixing. But ignoring small fires is not a shortcut: the multiplier never settles at 1, and small fires, such as farm burning, are part of what the calendar is for.</p>
+  <p class="next"><b>Next question.</b> The tilt is real and has a cause. Is it big enough to leave a visible jump where the two records meet?</p>
+</section>
+
+<section id="step-7">
+  <span class="eyebrow">Step 7 of 9 · Check the join</span>
+  <h2>Do the old and new records line up where they meet?</h2>
+  <dl class="fits">
+    <dt>In plain words</dt><dd class="plain">After converting, do the old record and the new record line up where they meet? Tested on years we set aside, they line up to within a few percent.</dd>
+    <dt>Question</dt><dd>Does the finished record jump where the sensor changes?</dd>
+    <dt>Why the calendar needs it</dt><dd>A jump would make every month before 2012 look higher or lower than every month after it. The 2008 versus 2020 comparison would then measure the join, not the fires.</dd>
+    <dt>Big idea</dt><dd>Idea 2 · Don't mark your own homework</dd>
+  </dl>
+  <p>Picture the finished calendar: the old satellite's converted counts up to 2012, and the new satellite's counts after that. If the conversion were a little off, there would be a step at 2012, with every earlier month slightly too high or too low. We call that join the <b>seam</b>.</p>
+  <p>We cannot measure the step at 2012 itself, because the new satellite was not flying before then. But in the shared years we can measure the same thing: add up the converted counts, add up what the new satellite really saw, and compare.</p>
+  <p>The fairest version is the <b>backward test</b>: learn the multipliers from later years (2018–2022) and predict earlier ones (2013–2017). That copies the real job, which is reaching back in time.</p>
+  <p class="rule"><b>The rule.</b> On years the conversion has not seen, the converted total must be within 5 % of the real total. <b>Why it makes sense.</b> This measures the step directly. We fix the 5 % beforehand, because otherwise a sloppy test that cannot see anything would “find no problem” and pass.</p>
+  <div class="pair">
+    <div><h4>Picture it this way</h4><p>Two translators each translate half of a book. To check that the halves join smoothly, give them one chapter in common and compare. And since the real job is translating the early chapters using what was learned from the late ones, the practice chapter should be an early one too.</p></div>
+    <div><h4>Worked example</h4><p>Learning from 2018–2022 and predicting 2013–2017 puts the converted total <b>2.0 % too high</b>. That is inside 5 %. But five test years is not many, and luck alone could move the answer anywhere from 1.7 % too low to 6.7 % too high. The honest claim is “within about 7 %”, so 7 % is the pass mark we should have set.</p></div>
+  </div>
+  <figure>
+    <h3>How far the converted total is from the real total (%)</h3>
+    <div class="legend"><span><i class="box" style="background:var(--band)"></i>5 % pass mark</span><span><i class="dot" style="background:var(--s1)"></i>How far off, with its luck range</span></div>
+    <div class="chart" id="c-seam"></div>
+    <figcaption>Each dot shows how far off the converted total is. Right of zero means too high. The bar is the luck range, and the shaded strip is the 5 % pass mark. A row passes cleanly only when its whole bar sits inside the strip. Three things to notice. The top row in each group is not a real test, because it is marked on its own homework. The night bars are wide, because there are fewer night fires and luck plays a bigger part. And 2023–2025 drifts away because the old satellite's orbit has been slipping, so it now passes overhead later in the day than it used to. That tells us about the satellite's old age, not about our method.</figcaption>
+  </figure>
+  <div class="math">
+    <h4>The maths</h4>
+    <p><b>Data it reads.</b> <b>V̂</b> and <b>V</b>, added up over years the multiplier was not built from.</p>
+    <div class="eq">
+      <div><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mtext>gap</mtext><mo>=</mo><mn>100</mn><mo>×</mo><mi>ln</mi><mo>⁡</mo><mfrac><mrow><mo>∑</mo><mover accent="true"><mi>V</mi><mo>^</mo></mover></mrow><mrow><mo>∑</mo><mi>V</mi></mrow></mfrac><mtext> </mtext><mo>≈</mo><mtext> </mtext><mn>100</mn><mo>×</mo><mfrac><mrow><mo>∑</mo><mover accent="true"><mi>V</mi><mo>^</mo></mover><mo>−</mo><mo>∑</mo><mi>V</mi></mrow><mrow><mo>∑</mo><mi>V</mi></mrow></mfrac></mrow><annotation encoding="application/x-tex">\text{gap} = 100 \times \ln\dfrac{\sum \hat{V}}{\sum V} \ \approx\ 100 \times \dfrac{\sum \hat{V} - \sum V}{\sum V}</annotation></semantics></math></span></div>
+    </div>
+    <p>Step 4 asked how big each month's miss is. This asks whether the misses cancel when added up. On the backward test the gap is +2.0 %.</p>
+  </div>
+  <p class="key"><b>Key idea.</b> Test in the direction you will use the method, which here is backward in time. Set the pass mark before you look. And make sure the years you test on can themselves be trusted.</p>
+  <p class="next"><b>Next question.</b> The totals line up. But how sure can we be about any single month?</p>
+</section>
+
+<section id="step-8">
+  <span class="eyebrow">Step 8 of 9 · Add honest error bars</span>
+  <h2>When we say “give or take”, are we right?</h2>
+  <dl class="fits">
+    <dt>In plain words</dt><dd class="plain">Every converted number comes with a “give or take this much”. We checked that the give-or-take holds about four times in five, which is what it promises.</dd>
+    <dt>Question</dt><dd>How far off might a single converted month be?</dd>
+    <dt>Why the calendar needs it</dt><dd>The calendar will show August 2008 with a range beside it. A user will treat that range as trustworthy, so we need to know how often it is right.</dd>
+    <dt>Big idea</dt><dd>Idea 2 · Don't mark your own homework, and idea 3 · Small differences can be luck</dd>
+  </dl>
+  <p>No converted number is exact. So the calendar will show each one with a range: “about 12,000, give or take”.</p>
+  <p>We build that range from our own past mistakes. For months of a similar size, we look at how wrong we were in other years, and take the range that covered four out of five of those mistakes. That is an <b>80 % range</b>.</p>
+  <p>Then we check it. In a year we set aside, do about four in five months really land inside?</p>
+  <p class="rule"><b>The rule.</b> The range passes if between 75 % and 85 % of months in a set-aside year fall inside it. <b>Why it makes sense.</b> People will read the range as “it is probably within this”. We should know how often that is true.</p>
+  <div class="pair">
+    <div><h4>Picture it this way</h4><p>A weather forecaster says “80 % chance of rain” on many days. You cannot judge any single day. But across all those days it should have rained on about four in five. If it rained on only half, the forecaster is too sure of themselves. Our range is a forecast of the same kind.</p></div>
+    <div><h4>Worked example</h4><p>Set 2017 aside. For the whole study area there are only 12 months, and 7 landed inside the range: <b>58 %</b>. That looks like a fail, but each month is worth 8 points, so two unlucky months explain it. Split the area into about 200 km squares and there are around 1,100 square-months for the same year. Of those, <b>80 %</b> landed inside.</p></div>
+  </div>
+  <figure>
+    <h3>Share of months that landed inside the range, for each set-aside year</h3>
+    <div class="legend"><span><i class="dot" style="background:var(--s1)"></i>Many small areas (about 1,100 per year)</span><span><i class="dot" style="background:var(--muted)"></i>Whole study area (12 months per year)</span><span><i class="box" style="background:var(--band)"></i>Pass mark, 75–85 %</span></div>
+    <div class="chart" id="c-cov"></div>
+    <figcaption>Each dot is one set-aside year. Blue uses many small areas and lands between 76 % and 82 % every year, so the range does what it promises. Grey uses the whole study area, which gives only 12 months a year. It jumps between 58 % and 100 % simply because 12 is too few to measure a percentage.</figcaption>
+  </figure>
+  <div class="math">
+    <h4>The maths</h4>
+    <p><b>Data it reads.</b> The misses <b>ln(V / V̂)</b> from Step 5, grouped by how big the predicted month was.</p>
+    <p><b>q<sub>10</sub></b> and <b>q<sub>90</sub></b> are the values that 10 % and 90 % of past misses fall below, taken from other years for months of similar size.</p>
+    <div class="eq">
+      <div><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mtext>range</mtext><mo>=</mo><mrow><mo fence="true">[</mo><mtext> </mtext><mover accent="true"><mi>V</mi><mo>^</mo></mover><mtext> </mtext><msup><mi>e</mi><mrow><mtext> </mtext><msub><mi>q</mi><mn>10</mn></msub></mrow></msup><mo separator="true">,</mo><mtext>  </mtext><mover accent="true"><mi>V</mi><mo>^</mo></mover><mtext> </mtext><msup><mi>e</mi><mrow><mtext> </mtext><msub><mi>q</mi><mn>90</mn></msub></mrow></msup><mtext> </mtext><mo fence="true">]</mo></mrow></mrow><annotation encoding="application/x-tex">\text{range} = \left[\ \hat{V}\,e^{\,q_{10}},\ \ \hat{V}\,e^{\,q_{90}}\ \right]</annotation></semantics></math></span></div>
+      <div><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mtext>coverage</mtext><mo>=</mo><mfrac><mrow><mtext>hidden-year months with </mtext><mi>V</mi><mtext> inside the range</mtext></mrow><mtext>all hidden-year months</mtext></mfrac><mo>≈</mo><mn>79.9</mn><mtext> </mtext><mi mathvariant="normal">%</mi></mrow><annotation encoding="application/x-tex">\text{coverage} = \dfrac{\text{hidden-year months with } V \text{ inside the range}}{\text{all hidden-year months}} \approx 79.9\,\%</annotation></semantics></math></span></div>
+    </div>
+    <p>The misses are the <b>ln(V / V̂)</b> values from Step 5. Ten percent of past misses were below the range and ten percent above, so 80 % were inside. Coverage checks that the same holds on a year the range was not built from: 79.9 % on the small-area score.</p>
+  </div>
+  <p class="key"><b>Key idea.</b> A “give or take” is a promise, and a promise can be checked. Check it on years it was not built from, and with enough months for the percentage to mean something.</p>
+  <p class="next"><b>Next question.</b> The basic method now stands, with its weak spots known. If we try to improve it, how will we know the improvement is real?</p>
+</section>
+
+<div class="part" id="part-3">
+  <h2>Prepare to improve · Step 9</h2>
+  <p>You can skip this part until you want to try an improvement. Every improvement must pass a test agreed beforehand, so first we check that each test can tell a real gain from luck. This part uses idea 3: small differences can be luck.</p>
+</div>
+
+<section id="step-9a">
+  <span class="eyebrow">Step 9 of 9 · Part 1 of 3 · The test for the tilt</span>
+  <h2>A test that even a perfect fix would fail</h2>
+  <dl class="fits">
+    <dt>In plain words</dt><dd class="plain">One of our pass/fail tests was so strict that even a perfect fix would fail it through bad luck. We swapped it for a test that works.</dd>
+    <dt>Question</dt><dd>Can our test tell whether the tilt from Step 5 was fixed?</dd>
+    <dt>Why the calendar needs it</dt><dd>A fix for the tilt adds complexity. We agreed in advance on a test it must pass. If the test itself is unreliable, we would keep or reject the fix by luck.</dd>
+    <dt>Big idea</dt><dd>Idea 3 · Small differences can be luck</dd>
+  </dl>
+  <p>Step 5 found a tilt. Suppose we build a fix for it. How do we decide whether the fix worked?</p>
+  <p>Our first plan was this: line the months up from quietest to busiest, split them into ten groups, and require the average error in every group to be under 3 %.</p>
+  <p class="rule"><b>The rule.</b> Accept the fix only if, afterwards, none of the ten groups has an average error above 3 %. <b>Why it makes sense.</b> The fix makes the method more complicated, so it should have to prove it removed the tilt. We wrote the rule down before building the fix, so the result could not tempt us to change the test.</p>
+  <p>It sounds sensible. To test the test, we made a case where we already know the right answer. We shuffled our errors randomly among the months, so that by design the errors have nothing to do with how busy a month was. There is no tilt at all. A fair test should say “pass”.</p>
+  <div class="pair">
+    <div><h4>Picture it this way</h4><p>Hand a fair coin to ten people and have each flip it 12 times. Somebody will get 9 heads. If the test is “nobody may get more than 7”, the fair coin fails. It fails only because you picked out the luckiest of ten small samples.</p></div>
+    <div><h4>Worked example</h4><p>One month's prediction is typically off by about 10 %. Average 12 such months and the result still wanders by about 10 ÷ √12 = <b>2.9 %</b>, already at the pass mark. The rule then picks the worst of ten such averages, which in our shuffles was typically <b>7.2 %</b>. A perfect fix would be thrown out for bad luck.</p></div>
+  </div>
+  <figure>
+    <h3>How big the worst group's error came out, in 2,000 shuffles with no tilt at all</h3>
+    <div class="panels"><div><span class="sub">Whole study area: 12 months in each group</span><div class="chart" id="c-hR"></div></div><div><span class="sub">Many small areas: about 526 in each group</span><div class="chart" id="c-hB"></div></div></div>
+    <figcaption>Each bar shows how many shuffles gave that result. The shaded zone is where the test says “fail”. On the left, nearly every shuffle fails, even though nothing is wrong. On the right, with far more data in each group, it still fails often. We replaced this test with one that measures the tilt directly. The tilt is a single number worked out from all the months together, so it is much steadier.</figcaption>
+  </figure>
+  <div class="math">
+    <h4>The maths</h4>
+    <p><b>Data it reads.</b> The misses from Step 5, with their link to month size deliberately broken.</p>
+    <ol class="proc"><li>Shuffle which miss belongs to which month, so the tilt is zero by design.</li><li>Split the months into 10 groups and find the worst group's average miss.</li><li>Repeat 2,000 times and count how often the worst group is above 3 %.</li></ol>
+    <div class="eq">
+      <div><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mtext>fail rate</mtext><mo>=</mo><mfrac><mrow><mtext>shuffles where the worst group is above </mtext><mn>3</mn><mtext> </mtext><mi mathvariant="normal">%</mi></mrow><mrow><mn>2</mn><mo separator="true" lspace="0em" rspace="0em">,</mo><mn>000</mn></mrow></mfrac></mrow><annotation encoding="application/x-tex">\text{fail rate} = \dfrac{\text{shuffles where the worst group is above } 3\,\%}{2{,}000}</annotation></semantics></math></span></div>
+      <div><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mtext>noise in an average of </mtext><mi>n</mi><mtext> months</mtext><mo>=</mo><mfrac><mtext>noise in one month</mtext><msqrt><mi>n</mi></msqrt></mfrac><mo>=</mo><mfrac><mrow><mn>10</mn><mtext> </mtext><mi mathvariant="normal">%</mi></mrow><msqrt><mn>12</mn></msqrt></mfrac><mo>=</mo><mn>2.9</mn><mtext> </mtext><mi mathvariant="normal">%</mi></mrow><annotation encoding="application/x-tex">\text{noise in an average of } n \text{ months} = \dfrac{\text{noise in one month}}{\sqrt{n}} = \dfrac{10\,\%}{\sqrt{12}} = 2.9\,\%</annotation></semantics></math></span></div>
+    </div>
+    <p>Averaging <b>n</b> noisy numbers shrinks the noise by √n, so 12 months with 10 % noise still wander by 10 ÷ √12 = 2.9 %. Taking the worst of ten such groups pushes that to about 7 %, which is why a tilt-free world fails.</p>
+  </div>
+  <p class="key"><b>Key idea.</b> Before trusting a pass/fail test, try it on a case where you already know the answer. A test that fails something that is fine cannot tell you whether your fix worked.</p>
+  <p class="next"><b>Next question.</b> The tilt now has a test that works. What about the test for overall accuracy?</p>
+</section>
+
+<section id="step-9b">
+  <span class="eyebrow">Step 9 of 9 · Part 2 of 3 · The test for accuracy</span>
+  <h2>How big must an improvement be before we believe it?</h2>
+  <dl class="fits">
+    <dt>In plain words</dt><dd class="plain">Two versions of the method often differ by a tiny amount. We worked out how big a difference has to be before it is more than luck.</dd>
+    <dt>Question</dt><dd>How big must an improvement be before it counts?</dd>
+    <dt>Why the calendar needs it</dt><dd>Every proposed change to the conversion is judged by whether the error went down. Without knowing how much the error moves by chance, that judgement is a coin flip.</dd>
+    <dt>Big idea</dt><dd>Idea 3 · Small differences can be luck</dd>
+  </dl>
+  <p>We compare versions of the method by their <b>typical error</b>: how far off the prediction is in an ordinary month. Lower is better.</p>
+  <p>But that score depends partly on which years we happen to have. To see how much, we draw ten years at random from our ten, allowing repeats, and work the score out again. We do that thousands of times. How far the score moves is its <b>luck range</b>.</p>
+  <p class="rule"><b>The rules.</b> Keep an improvement only if it lowers the typical error by at least 0.5 percentage points. Throw it out if it makes the typical error worse by more than 0.2. <b>Why they make sense.</b> The first stops us adding complication for almost nothing. The second stops us fixing one thing while quietly breaking another.</p>
+  <div class="pair">
+    <div><h4>Picture it this way</h4><p>A bathroom scale shows a slightly different number each time you step on it, up to a kilogram either way. You cannot use it to confirm that you lost 200 grams. You need a steadier scale, or a bigger change. Scoring on many small areas is the steadier scale.</p></div>
+    <div><h4>Worked example</h4><p>Two almost identical versions differ by 0.29 points when scored on the whole study area. But luck alone moves that gap anywhere from 0.78 one way to 0.56 the other, so <b>either could be the better one</b>. Scored on many small areas, the gap is 0.34 and luck moves it only between 0.57 and 0.05, always the same way. There, <b>the first version really is better</b>.</p></div>
+  </div>
+  <figure>
+    <h3>Gap in typical error between two versions (percentage points)</h3>
+    <div class="legend"><span><i class="box" style="background:var(--band)"></i>The 0.2 pass mark</span><span><i class="dot" style="background:var(--s1)"></i>Measured gap, with its luck range</span></div>
+    <div class="chart" id="c-noise"></div>
+    <figcaption>Each dot is the gap between two versions. Left of zero means the first version is better. The bar is the luck range, and the thin shaded strip is the 0.2 pass mark. Scored on the whole study area, the bars are far wider than the strip, so a gap of 0.2 cannot be measured. Scored on many small areas, about 200 km squares, there are thousands of data points and the bars are tight.</figcaption>
+  </figure>
+  <div class="math">
+    <h4>The maths</h4>
+    <p><b>Data it reads.</b> The per-month errors from Step 4 for two versions, A and B.</p>
+    <ol class="proc"><li>Draw 10 years at random from the 10, repeats allowed.</li><li>Work out Δ on those years.</li><li>Repeat thousands of times and keep the middle 95 % of the Δ values.</li></ol>
+    <div class="eq">
+      <div><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mi mathvariant="normal">Δ</mi><mo>=</mo><mi mathvariant="normal">median</mi><mo>⁡</mo><mo stretchy="false">(</mo><msub><mtext>error</mtext><mi>A</mi></msub><mo stretchy="false">)</mo><mo>−</mo><mi mathvariant="normal">median</mi><mo>⁡</mo><mo stretchy="false">(</mo><msub><mtext>error</mtext><mi>B</mi></msub><mo stretchy="false">)</mo></mrow><annotation encoding="application/x-tex">\Delta = \operatorname{median}(\text{error}_A) - \operatorname{median}(\text{error}_B)</annotation></semantics></math></span></div>
+      <div><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mtext>luck range</mtext><mo>=</mo><mrow><mo fence="true">[</mo><mtext> </mtext><msub><mi mathvariant="normal">Δ</mi><mrow><mn>2.5</mn><mtext> </mtext><mi mathvariant="normal">%</mi></mrow></msub><mo separator="true">,</mo><mtext>  </mtext><msub><mi mathvariant="normal">Δ</mi><mrow><mn>97.5</mn><mtext> </mtext><mi mathvariant="normal">%</mi></mrow></msub><mtext> </mtext><mo fence="true">]</mo></mrow></mrow><annotation encoding="application/x-tex">\text{luck range} = \left[\ \Delta_{2.5\,\%},\ \ \Delta_{97.5\,\%}\ \right]</annotation></semantics></math></span></div>
+    </div>
+    <p>If the luck range includes zero, neither version is shown to be better. Both versions are scored on the same drawn years each time, so a hard year hurts both and cancels out of Δ.</p>
+  </div>
+  <p class="key"><b>Key idea.</b> Find out how much your measuring stick wobbles before you set a pass mark on it. We now set fine pass marks only on the small-area score, and use a much looser one, about 2 points, for the whole-area score.</p>
+  <p class="next"><b>Next question.</b> Two smaller tests were left. Do they measure anything?</p>
+</section>
+
+<section id="step-9c">
+  <span class="eyebrow">Step 9 of 9 · Part 3 of 3 · Two smaller tests</span>
+  <h2>Test where you know the answer, and drop checks that change nothing</h2>
+  <dl class="fits">
+    <dt>In plain words</dt><dd class="plain">Test a method in places where you already know the right answer, and stop running a check once it has shown it changes nothing.</dd>
+    <dt>Question</dt><dd>Are we testing where the answer can actually be measured?</dd>
+    <dt>Why the calendar needs it</dt><dd>Regions with no fire history still need a ratio, and the reported error must be fair. Both checks only mean something if they are scored on solid ground.</dd>
+    <dt>Big idea</dt><dd>Idea 2 · Don't mark your own homework, and idea 3 · Small differences can be luck</dd>
+  </dl>
+  <p><b>First check: stand-in multipliers.</b> Some areas have almost no fires in the shared years, so they have no multiplier of their own and need a stand-in. Which is better: the average for the whole study area, or the average for the larger region around them?</p>
+  <p>The first plan was to see which stand-in works better in the areas with the fewest fires. But those areas have so few fires that only 0.3 % of their months could be scored at all. A better test takes an area with plenty of fires, pretends we know nothing about it, predicts it with the stand-in alone, and compares that with the truth.</p>
+  <div class="pair">
+    <div><h4>Picture it this way</h4><p>To judge a stand-in teacher, send them to a class whose usual results you know well. Sending them to a class of two pupils tells you nothing, because one bad morning for one pupil swings the average. The quietest areas are the class of two.</p></div>
+    <div><h4>Worked example</h4><p>In a quiet area one month, the new satellite saw 4 burning places and we predicted 6. That is a <b>50 % error caused by two patches of land</b>, and it says nothing about the stand-in. Hiding a busy area and predicting it blind gave a typical error of 19.3 % with the whole-area average and <b>14.0 %</b> with the surrounding region's average.</p></div>
+  </div>
+  <figure>
+    <h3>Typical error when a whole area is hidden and predicted blind (113 areas)</h3>
+    <div class="chart" id="c-fb"></div>
+    <figcaption>Each dot is the typical error for one kind of stand-in, and the bar is its luck range. Borrowing from the larger surrounding region is better by about 5 points. This is an early look at a possible improvement, so treat it as provisional.</figcaption>
+  </figure>
+  <p><b>Second check: is our reported score flattered?</b> If you pick the best of several versions and then quote that same score, you flatter the winner, because part of winning is luck. The careful way is to choose using some years and score on others. We did that ten times, setting a different year aside each time.</p>
+  <div class="pair">
+    <div><h4>Picture it this way</h4><p>Seven darts players each throw one round, and you pick the top scorer. Quoting that same round as the winner's skill includes the luck that made them win. The fair way is to pick on one round and score on another.</p></div>
+    <div><h4>Worked example</h4><p>With each year set aside in turn, we repeated the choice among seven versions using only the other nine years. The same version won <b>all ten times</b>. So the score worked out the careful way is identical to the one we had already reported. No luck was hiding in the choice.</p></div>
+  </div>
+  <figure>
+    <h3>Which version won when each year was set aside</h3>
+    <div class="chips" id="picks"></div>
+    <figcaption>The same version won every time. With many more versions to choose from, this check could start to matter again.</figcaption>
+  </figure>
+  <div class="math">
+    <h4>The maths</h4>
+    <p><b>Data it reads.</b> The Step 3 formula and the Step 4 error, applied to an area we pretend to know nothing about.</p>
+    <p>Hide area <b>s</b> and predict it with a stand-in multiplier: either the whole-area <b>r</b>, or the <b>r</b> of the larger region around s.</p>
+    <div class="eq">
+      <div><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mover accent="true"><mi>V</mi><mo>^</mo></mover><mo>=</mo><msub><mi>r</mi><mtext>stand-in</mtext></msub><mo>×</mo><msub><mi>M</mi><mi>s</mi></msub></mrow><annotation encoding="application/x-tex">\hat{V} = r_{\text{stand-in}} \times M_s</annotation></semantics></math></span></div>
+      <div><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mtext>error</mtext><mo>=</mo><mfrac><mrow><mo stretchy="false">∣</mo><mover accent="true"><mi>V</mi><mo>^</mo></mover><mo>−</mo><mi>V</mi><mo stretchy="false">∣</mo></mrow><mi>V</mi></mfrac><mo separator="true">,</mo><mspace width="2em"/><mtext>typical error</mtext><mo>=</mo><mi mathvariant="normal">median</mi><mo>⁡</mo><mtext> over 113 hidden areas</mtext></mrow><annotation encoding="application/x-tex">\text{error} = \dfrac{\lvert \hat{V} - V \rvert}{V}, \qquad \text{typical error} = \operatorname{median} \text{ over 113 hidden areas}</annotation></semantics></math></span></div>
+    </div>
+    <p>Setting <b>M<sub>s</sub> = V<sub>s</sub> = 0</b> in the Step 3 formula leaves only the stand-in, so this tests exactly what a no-history area would get. The second check reuses Step 4 with one extra loop: choose the version on nine years, score it on the tenth.</p>
+  </div>
+  <p class="key"><b>Key idea.</b> Score a method in places where the right answer is well known. And once a safety check has shown that it changes nothing, it is fine to stop running it.</p>
+  <p class="next"><b>End of the path.</b> From here, improvements are tried one at a time, and each is judged by a test we now know can tell a real gain from luck.</p>
+</section>
+
+<section>
+  <span class="eyebrow">Summary</span>
+  <h2>What happened to each test</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>Step</th><th>Test</th><th>Why we wanted it</th><th>What we found</th><th>Decision</th></tr></thead>
+    <tbody>
+      <tr><td class="n">2</td><td>A blank day means no data</td><td>So breakdowns are not read as fire-free days</td><td>Caught every known breakdown in the area</td><td><span class="v fix"><i></i>Extend to part-days and the whole globe</span></td></tr>
+      <tr><td class="n">7</td><td>Old and new line up within 5 %</td><td>To show there is no step where the satellites meet</td><td>Fine for the total and for daytime; night is too uncertain</td><td><span class="v fix"><i></i>Use 7 % backward, 10 % at night</span></td></tr>
+      <tr><td class="n">8</td><td>The range holds four months in five</td><td>So the “give or take” can be believed</td><td>76 to 82 % every year on small areas</td><td><span class="v keep"><i></i>Keep, pass mark 75–85 %</span></td></tr>
+      <tr><td class="n">9</td><td>Every group's error under 3 %</td><td>To prove a fix removed the tilt from Step 5</td><td>Fails 99 times in 100 even when nothing is wrong</td><td><span class="v drop"><i></i>Replace: measure the tilt directly</span></td></tr>
+      <tr><td class="n">9</td><td>The tilt is zero</td><td>Same purpose, using one number from all months</td><td>Can be measured precisely</td><td><span class="v keep"><i></i>Keep</span></td></tr>
+      <tr><td class="n">9</td><td>Typical error no worse by more than 0.2</td><td>To stop a fix making the calendar less accurate</td><td>Luck moves the whole-area score by 0.35 to 1.0</td><td><span class="v fix"><i></i>Loosen to about 2 for the whole area</span></td></tr>
+      <tr><td class="n">9</td><td>Typical error better by 0.5 on small areas</td><td>To add complication only when it clearly helps</td><td>Luck moves the small-area score by 0.13 to 0.30</td><td><span class="v keep"><i></i>Keep</span></td></tr>
+      <tr><td class="n">9</td><td>Stand-ins tested on the quietest areas</td><td>To choose a multiplier for areas with no history</td><td>Only 0.3 % of months could be scored</td><td><span class="v drop"><i></i>Replace: hide busy areas instead</span></td></tr>
+      <tr><td class="n">9</td><td>Choose and score on separate years</td><td>To keep the reported score from flattering the winner</td><td>The same version won all ten times</td><td><span class="v drop"><i></i>Drop for now</span></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <span class="eyebrow">Self-test</span>
+  <h2>Try these before opening the answers</h2>
+  <div>
+  <details><summary>Why does the new satellite beat the old one by so much more at night?</summary><p>Fires at night are smaller and cooler. A small fire stands out much more in a small square than in a large one, so the new satellite's advantage is biggest exactly when fires are weakest.</p></details>
+  <details><summary>Our errors average out to zero over ten years. Why is that not good enough?</summary><p>Errors can cancel. Step 5 shows quiet months converted too low and busy months too high. A calendar compares individual months, so a lean that depends on how busy the month is spoils exactly the comparisons people make.</p></details>
+  <details><summary>Two versions differ by 0.3 points when scored on the whole study area. Which is better?</summary><p>You cannot tell. Luck alone moves that gap by 0.35 to 1.0 points. Compare them on the small-area score, where luck moves it far less, or report the gap together with its luck range.</p></details>
+  <details><summary>Why is 2023–2025 a poor test of the seam, even though those years were set aside?</summary><p>The old satellite's orbit slipped in those years, so it passed overhead later in the day. Its count changed for a reason that has nothing to do with 2002–2011, which is the period we are converting.</p></details>
+  <details><summary>Above about 30 MW the two satellites count almost the same. Why not count only strong fires and skip the conversion?</summary><p>Three reasons. The match is a lucky crossing point: at 20 MW the daytime multiplier is 1.20 and at 50 MW it is 0.94, so it never settles. It throws away 59 % of what the old satellite saw in the daytime. And what it throws away is the small fires, which include most farm burning.</p></details>
+  <details><summary>How would you check that a “give or take” range is honest?</summary><p>Build it from some years, then count how often months from a set-aside year land inside. Use enough months for the count to be steady: thousands of small-area months, not twelve months of one region.</p></details>
+  </div>
+</section>
+</main>
+<div id="tip" hidden></div>
+
+<script>
+const D = __DATA__;
+const NS = 'http://www.w3.org/2000/svg', $ = s => document.querySelector(s);
+function E(t, a, p){ const e = document.createElementNS(NS, t); for (const k in a){ if (k === 'text') e.textContent = a[k]; else if (k === 'fill' || k === 'stroke' || k === 'opacity') e.style[k] = a[k]; else e.setAttribute(k, a[k]); } if (p) p.appendChild(e); return e; }
+const lin = (d0, d1, r0, r1) => v => r0 + (v - d0) / (d1 - d0) * (r1 - r0);
+const fmt = n => Math.round(n).toLocaleString('en-US');
+const sg = (v, d = 1) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(d);
+const tip = $('#tip');
+function showTip(ev, html){ tip.innerHTML = html; tip.hidden = false; const r = tip.getBoundingClientRect(); let x = ev.clientX + 14, y = ev.clientY + 14; if (x + r.width > innerWidth - 8) x = ev.clientX - r.width - 14; if (y + r.height > innerHeight - 8) y = ev.clientY - r.height - 14; tip.style.left = Math.max(8, x) + 'px'; tip.style.top = Math.max(8, y) + 'px'; }
+const hideTip = () => { tip.hidden = true; };
+function frame(el, h){ el.replaceChildren(); const w = Math.max(260, Math.floor(el.clientWidth)); return [E('svg', {viewBox: `0 0 ${w} ${h}`, width: w, height: h, role: 'img'}, el), w]; }
+const charts = [];
+const reg = (id, fn) => charts.push([$(id), fn]);
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+/* Lesson 1: schematic */
+(function(){
+  const S = 200, kmpx = S / 4, pts = [];
+  for (let i = 0; i <= 80; i++){ const t = i / 80; pts.push([34 + 128 * t + 10 * Math.sin(t * 5), 150 - 92 * t + 14 * Math.sin(t * 7 + 1)]); }
+  const front = 'M' + pts.map(p => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('L');
+  function sq(size, color){
+    const s = E('svg', {viewBox: `0 0 ${S} ${S}`}), hit = new Set(pts.map(p => Math.floor(p[0] / size) + ',' + Math.floor(p[1] / size)));
+    for (const k of hit){ const [i, j] = k.split(',').map(Number); E('rect', {x: i * size + 1, y: j * size + 1, width: size - 2, height: size - 2, rx: 2, fill: color, opacity: .55}, s); }
+    for (let v = size; v < S - .5; v += size){ E('line', {x1: v, x2: v, y1: 0, y2: S, stroke: 'var(--grid)'}, s); E('line', {y1: v, y2: v, x1: 0, x2: S, stroke: 'var(--grid)'}, s); }
+    E('path', {d: front, fill: 'none', stroke: 'var(--ink)', 'stroke-width': 2, 'stroke-linecap': 'round'}, s); return [s, hit.size];
+  }
+  function hex(){
+    const a = Math.sqrt(0.737 / 2.598) * kmpx, s = E('svg', {viewBox: `0 0 ${S} ${S}`}), r3 = Math.sqrt(3);
+    const key = (x, y) => { let q = (r3 / 3 * x - y / 3) / a, r = (2 / 3 * y) / a, z = -q - r, rq = Math.round(q), rr = Math.round(r), rz = Math.round(z); const dq = Math.abs(rq - q), dr = Math.abs(rr - r), dz = Math.abs(rz - z); if (dq > dr && dq > dz) rq = -rr - rz; else if (dr > dz) rr = -rq - rz; return rq + ',' + rr; };
+    const hit = new Set(pts.map(p => key(p[0], p[1])));
+    for (let r = -1; r < 7; r++) for (let q = -4; q < 8; q++){
+      const cx = a * r3 * (q + r / 2), cy = a * 1.5 * r; if (cx < -a || cx > S + a || cy < -a || cy > S + a) continue;
+      const d = [0,1,2,3,4,5].map(i => { const t = Math.PI / 180 * (60 * i - 30); return (cx + (a - 1) * Math.cos(t)).toFixed(1) + ',' + (cy + (a - 1) * Math.sin(t)).toFixed(1); }).join(' ');
+      const on = hit.has(q + ',' + r); E('polygon', {points: d, fill: on ? 'var(--ink2)' : 'none', opacity: on ? .45 : 1, stroke: 'var(--grid)'}, s);
+    }
+    E('path', {d: front, fill: 'none', stroke: 'var(--ink)', 'stroke-width': 2, 'stroke-linecap': 'round'}, s); return [s, hit.size];
+  }
+  const box = $('#schem');
+  for (const [label, unit, [svg, n]] of [['MODIS, 1 km pixels', 'hotspots', sq(kmpx, 'var(--s3)')], ['VIIRS, 375 m pixels', 'hotspots', sq(kmpx * .375, 'var(--s1)')], ['H3 resolution 8, about 0.74 km²', 'burning cells', hex()]]){
+    const d = document.createElement('div'); svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', label); d.appendChild(svg);
+    const c = document.createElement('span'); c.innerHTML = `<b>${n} ${unit}</b><br>${label}`; d.appendChild(c); box.appendChild(d);
+  }
+})();
+$('#rD').textContent = D.ratios.day.toFixed(2) + '×'; $('#rN').textContent = D.ratios.night.toFixed(1) + '×';
+
+/* Lesson 2: monthly series */
+reg('#c-series', el => {
+  const H = 300, [s, w] = frame(el, H), m = {l: 44, r: 14, t: 14, b: 26}, S = D.series, n = S.ym.length;
+  const ymax = Math.ceil(Math.max(...S.viirs, ...S.conv) / 20000) * 20000, x = lin(0, n - 1, m.l, w - m.r), y = lin(0, ymax, H - m.b, m.t);
+  const i0 = S.ym.indexOf('2023-01');
+  E('rect', {x: x(i0 - .5), y: m.t, width: w - m.r - x(i0 - .5), height: H - m.b - m.t, fill: 'var(--band)'}, s);
+  E('text', {x: x(i0 - .5) + 6, y: m.t + 13, text: 'set aside', class: 'mu'}, s);
+  for (let v = 0; v <= ymax; v += 20000){ E('line', {x1: m.l, x2: w - m.r, y1: y(v), y2: y(v), stroke: v ? 'var(--grid)' : 'var(--axis)'}, s); E('text', {x: m.l - 6, y: y(v) + 4, 'text-anchor': 'end', text: v ? v / 1000 + 'k' : '0', class: 'num'}, s); }
+  const step = w < 520 ? 3 : 2;
+  S.ym.forEach((d, i) => { if (d.endsWith('-01') && (+d.slice(0, 4) - 2013) % step === 0) E('text', {x: x(i), y: H - 8, text: d.slice(0, 4), class: 'num'}, s); });
+  for (const [k, c] of [['aqua', 'var(--s3)'], ['conv', 'var(--s2)'], ['viirs', 'var(--s1)']])
+    E('path', {d: 'M' + S[k].map((v, i) => x(i).toFixed(1) + ' ' + y(v).toFixed(1)).join('L'), fill: 'none', stroke: c, 'stroke-width': 1.8, 'stroke-linejoin': 'round'}, s);
+  const ch = E('line', {y1: m.t, y2: H - m.b, stroke: 'var(--axis)', visibility: 'hidden'}, s);
+  const ov = E('rect', {x: m.l, y: m.t, width: w - m.l - m.r, height: H - m.t - m.b, fill: 'transparent'}, s);
+  ov.addEventListener('pointermove', ev => { const b = s.getBoundingClientRect(), i = Math.max(0, Math.min(n - 1, Math.round((ev.clientX - b.left - m.l) / (w - m.l - m.r) * (n - 1)))); ch.setAttribute('x1', x(i)); ch.setAttribute('x2', x(i)); ch.setAttribute('visibility', 'visible'); const [yy, mm] = S.ym[i].split('-');
+    showTip(ev, `<b>${MON[mm - 1]} ${yy}</b><br>New satellite: ${fmt(S.viirs[i])}<br>Old, converted: ${fmt(S.conv[i])} <span class="m">(${sg((S.conv[i] / S.viirs[i] - 1) * 100, 0)} %)</span><br>Old, raw count: ${fmt(S.aqua[i])}`); });
+  ov.addEventListener('pointerleave', () => { ch.setAttribute('visibility', 'hidden'); hideTip(); });
+});
+
+/* Lesson 3: outage */
+reg('#c-outage', el => {
+  const ph = 96, gap = 34, H = 2 * ph + gap + 40, [s, w] = frame(el, H), m = {l: 44, r: 10}, O = D.outage, n = O.days.length, bw = (w - m.l - m.r) / n;
+  const g0 = O.days.indexOf('2022-07-27'), g1 = O.days.indexOf('2022-08-10');
+  [['snpp', 'New satellite (VIIRS)', 'var(--s1)'], ['aqua', 'Old satellite (MODIS)', 'var(--s3)']].forEach(([k, name, c], p) => {
+    const top = 18 + p * (ph + gap), max = Math.ceil(Math.max(...O[k]) / 500) * 500, y = lin(0, max, top + ph, top);
+    E('text', {x: m.l, y: top - 6, text: name, class: 'b'}, s);
+    if (p === 0){ E('rect', {x: m.l + g0 * bw, y: top, width: (g1 - g0 + 1) * bw, height: ph, fill: 'var(--warnband)'}, s); E('text', {x: m.l + (g0 + g1 + 1) / 2 * bw, y: top + ph / 2, 'text-anchor': 'middle', text: w < 520 ? 'no data' : 'no data, 15 days', class: 'b'}, s); }
+    for (const v of [0, max]){ E('line', {x1: m.l, x2: w - m.r, y1: y(v), y2: y(v), stroke: v ? 'var(--grid)' : 'var(--axis)'}, s); E('text', {x: m.l - 6, y: y(v) + 4, 'text-anchor': 'end', text: fmt(v), class: 'num'}, s); }
+    O[k].forEach((v, i) => { const r = E('rect', {x: m.l + i * bw + .5, y: y(v), width: Math.max(1, bw - 1.5), height: y(0) - y(v), fill: c}, s); });
+    const ov = E('rect', {x: m.l, y: top, width: w - m.l - m.r, height: ph, fill: 'transparent'}, s);
+    ov.addEventListener('pointermove', ev => { const b = s.getBoundingClientRect(), i = Math.max(0, Math.min(n - 1, Math.floor((ev.clientX - b.left - m.l) / bw))), d = O.days[i]; showTip(ev, `<b>${+d.slice(8)} ${MON[+d.slice(5, 7) - 1]} 2022</b><br>New satellite: ${O.snpp[i] ? fmt(O.snpp[i]) : 'no data'}<br>Old satellite: ${fmt(O.aqua[i])}`); });
+    ov.addEventListener('pointerleave', hideTip);
+  });
+  O.days.forEach((d, i) => { if (d.endsWith('-01') || i === 0) E('text', {x: m.l + i * bw, y: H - 6, text: i === 0 ? '15 Jun' : '1 ' + MON[+d.slice(5, 7) - 1]}, s); });
+});
+
+/* Lesson 4: activity scatter */
+function scatter(id, key, resKey){
+  reg(id, el => {
+    const H = 280, [s, w] = frame(el, H), m = {l: 46, r: 12, t: 12, b: 38}, A = D.activity[key], R = D.results.A_decile_vs_slope.find(d => d.scale === resKey);
+    const P = A.pts.map(p => ({y: p[0], m: p[1], pred: p[2], obs: p[3], lx: Math.log(p[2]), r: Math.log(p[3] / p[2])}));
+    const x0 = Math.min(...P.map(p => p.lx)) - .1, x1 = Math.max(...P.map(p => p.lx)) + .1, r0 = Math.min(...P.map(p => p.r), -.2) - .05, r1 = Math.max(...P.map(p => p.r), .2) + .05;
+    const x = lin(x0, x1, m.l, w - m.r), y = lin(r0, r1, H - m.b, m.t);
+    for (const p of [-50, -25, 0, 25, 50, 100, 200, 400]){ const v = Math.log(1 + p / 100); if (v < r0 || v > r1) continue; E('line', {x1: m.l, x2: w - m.r, y1: y(v), y2: y(v), stroke: p ? 'var(--grid)' : 'var(--axis)'}, s); E('text', {x: m.l - 6, y: y(v) + 4, 'text-anchor': 'end', text: sg(p, 0) + ' %', class: 'num'}, s); }
+    for (const t of [300, 1000, 3000, 10000, 30000, 100000]){ const v = Math.log(t); if (v < x0 || v > x1) continue; E('text', {x: x(v), y: H - m.b + 15, 'text-anchor': 'middle', text: t >= 1000 ? t / 1000 + 'k' : t, class: 'num'}, s); }
+    E('text', {x: (m.l + w - m.r) / 2, y: H - 5, 'text-anchor': 'middle', text: 'how busy the month was (predicted burning places)', class: 'mu'}, s);
+    for (const p of P){ const c = E('circle', {cx: x(p.lx), cy: y(p.r), r: 3.5, fill: 'var(--s1)', opacity: .6, stroke: 'var(--surface)', 'stroke-width': 1}, s), h = E('circle', {cx: x(p.lx), cy: y(p.r), r: 9, fill: 'transparent'}, s);
+      h.addEventListener('pointerenter', ev => { c.style.opacity = 1; showTip(ev, `<b>${MON[p.m - 1]} ${p.y}</b><br>Predicted: ${fmt(p.pred)}<br>Observed: ${fmt(p.obs)} <span class="m">(${sg((p.obs / p.pred - 1) * 100, 0)} %)</span>`); });
+      h.addEventListener('pointerleave', () => { c.style.opacity = .6; hideTip(); }); }
+    const f = v => A.fit[0] * v + A.fit[1];
+    E('line', {x1: x(x0), x2: x(x1), y1: y(f(x0)), y2: y(f(x1)), stroke: 'var(--ink)', 'stroke-width': 2}, s);
+    E('text', {x: w - m.r - 4, y: m.t + 12, 'text-anchor': 'end', text: `tilt ${sg(R.slope, 2)}  (luck range ${sg(R.slope_ci95[0], 2)} to ${sg(R.slope_ci95[1], 2)})`, class: 'b'}, s);
+  });
+}
+scatter('#c-scD', 'region D', 'region D'); scatter('#c-scN', 'region N', 'region N');
+
+/* Lesson 5: null histograms */
+function hist(id, key){
+  reg(id, el => {
+    const H = 220, [s, w] = frame(el, H), m = {l: 12, r: 12, t: 30, b: 38}, A = D.activity[key], R = D.results.A_decile_vs_slope.find(d => d.scale === key);
+    const xmax = A.edges[A.edges.length - 1], x = lin(0, xmax, m.l, w - m.r), y = lin(0, Math.max(...A.hist), H - m.b, m.t);
+    E('rect', {x: x(3), y: m.t - 18, width: w - m.r - x(3), height: H - m.b - m.t + 18, fill: 'var(--warnband)'}, s);
+    A.hist.forEach((v, i) => { if (!v) return; const r = E('rect', {x: x(A.edges[i]) + 1, y: y(v), width: x(A.edges[i + 1]) - x(A.edges[i]) - 2, height: y(0) - y(v), rx: 2, fill: 'var(--s1)'}, s);
+      r.addEventListener('pointermove', ev => showTip(ev, `<b>${A.edges[i]}–${A.edges[i + 1]} %</b><br>${v} of 2,000 shuffles`)); r.addEventListener('pointerleave', hideTip); });
+    E('line', {x1: m.l, x2: w - m.r, y1: y(0), y2: y(0), stroke: 'var(--axis)'}, s);
+    E('line', {x1: x(3), x2: x(3), y1: m.t - 18, y2: y(0), stroke: 'var(--ink)', 'stroke-width': 1.5}, s);
+    E('text', {x: x(3) + 6, y: m.t - 5, text: `test says fail: ${(R.null_prob_fail_3pct * 100).toFixed(R.null_prob_fail_3pct > .99 ? 1 : 0)} % of shuffles`, class: 'b'}, s);
+    const st = xmax > 10 ? 3 : 1; for (let v = 0; v <= xmax; v += st) E('text', {x: x(v), y: H - m.b + 15, 'text-anchor': 'middle', text: v + ' %', class: 'num'}, s);
+    E('text', {x: (m.l + w - m.r) / 2, y: H - 5, 'text-anchor': 'middle', text: 'average error in the worst of the ten groups', class: 'mu'}, s);
+  });
+}
+hist('#c-hR', 'region D'); hist('#c-hB', 'block>=50 D');
+
+/* Forest plots (lessons 6, 7, 9) */
+function forest(id, cfg){
+  reg(id, el => {
+    const narrow = el.clientWidth < 600, rowH = narrow ? 42 : 28, gH = 26;
+    const rows = cfg.groups.reduce((a, g) => a + g.rows.length, 0), heads = cfg.groups.filter(g => g.title).length, H = rows * rowH + heads * gH + 34;
+    const [s, w] = frame(el, H), lw = narrow ? 4 : Math.min(300, w * .4), vw = narrow ? 4 : 132, x = lin(cfg.dom[0], cfg.dom[1], lw + 8, w - vw - 8);
+    const top = 4, bot = H - 30;
+    if (cfg.band) E('rect', {x: x(cfg.band[0]), y: top, width: x(cfg.band[1]) - x(cfg.band[0]), height: bot - top, fill: 'var(--band)'}, s);
+    for (const t of cfg.ticks){ E('line', {x1: x(t), x2: x(t), y1: top, y2: bot, stroke: t === 0 ? 'var(--axis)' : 'var(--grid)'}, s); E('text', {x: x(t), y: H - 12, 'text-anchor': 'middle', text: cfg.plain ? t : sg(t, 0), class: 'num'}, s); }
+    let yy = top;
+    for (const g of cfg.groups){
+      if (g.title){ E('text', {x: 0, y: yy + 17, text: g.title, class: 'b'}, s); yy += gH; }
+      for (const r of g.rows){
+        const cy = narrow ? yy + 30 : yy + rowH / 2, val = `${cfg.plain ? r.v.toFixed(1) : sg(r.v, cfg.dec)}  (${cfg.plain ? r.lo.toFixed(1) : sg(r.lo, cfg.dec)} to ${cfg.plain ? r.hi.toFixed(1) : sg(r.hi, cfg.dec)})`;
+        E('text', {x: 0, y: narrow ? yy + 15 : cy + 4, text: r.label}, s);
+        E('text', {x: w, y: narrow ? yy + 15 : cy + 4, 'text-anchor': 'end', text: val, class: 'num'}, s);
+        E('line', {x1: x(Math.max(r.lo, cfg.dom[0])), x2: x(Math.min(r.hi, cfg.dom[1])), y1: cy, y2: cy, stroke: 'var(--s1)', 'stroke-width': 2, 'stroke-linecap': 'round'}, s);
+        E('circle', {cx: x(r.v), cy, r: 4.5, fill: 'var(--s1)', stroke: 'var(--surface)', 'stroke-width': 2}, s);
+        const h = E('rect', {x: 0, y: yy, width: w, height: rowH, fill: 'transparent'}, s);
+        h.addEventListener('pointermove', ev => showTip(ev, `<b>${r.label}</b><br>${val} ${cfg.unit}`)); h.addEventListener('pointerleave', hideTip);
+        yy += rowH;
+      }
+    }
+  });
+}
+const N = D.results.B_metric_noise, pr = (k, label) => ({label, v: N[k].diff_median, lo: N[k].ci95[0], hi: N[k].ci95[1]});
+forest('#c-noise', {dom: [-7, 3.2], ticks: [-6, -4, -2, 0, 2], band: [-.2, .2], dec: 2, unit: 'points', groups: [
+  {title: 'Two almost identical versions of the method', rows: [pr('paired_r3k50_minus_r3k200_region', 'Scored on the whole study area'), pr('paired_r3k50_minus_r3k200_block50', 'Scored on many small areas')]},
+  {title: 'A multiplier for each area vs one multiplier for everything', rows: [pr('paired_r3k50_minus_nostrata_region', 'Scored on the whole study area'), pr('paired_r3k50_minus_nostrata_block50', 'Scored on many small areas')]}]});
+const C = D.results.C_seam, tests = [['in_sample_2013_2022', 'Same years it learned from (not a real test)'], ['loyo_2013_2022', 'Each year set aside in turn'], ['backward_fit2018_22_pred2013_17', 'Backward: learn from 2018–22, predict 2013–17'], ['forward_fit2013_17_pred2018_22', 'Forward: learn from 2013–17, predict 2018–22'], ['heldout_2023_2025', 'Set aside 2023–25 (old satellite drifting)']];
+forest('#c-seam', {dom: [-42, 22], ticks: [-40, -30, -20, -10, 0, 10, 20], band: [-5, 5], dec: 1, unit: '%', groups: [['all', 'Day and night together'], ['day', 'Day'], ['night', 'Night']].map(([k, title]) => ({title, rows: tests.map(([t, label]) => ({label, v: C[t][k].gap_pct, lo: C[t][k].ci95[0], hi: C[t][k].ci95[1]}))}))});
+const F = D.results.E_fallback.leave_stratum_out;
+forest('#c-fb', {dom: [0, 24], ticks: [0, 5, 10, 15, 20], dec: 1, plain: true, unit: '% median error', groups: [{rows: [
+  {label: 'Stand-in: whole-area average', v: F.median_ape_region_fallback, lo: F.median_ape_region_fallback - 1.96 * F.sd_each[0], hi: F.median_ape_region_fallback + 1.96 * F.sd_each[0]},
+  {label: 'Stand-in: larger surrounding region', v: F.median_ape_parent_fallback, lo: F.median_ape_parent_fallback - 1.96 * F.sd_each[1], hi: F.median_ape_parent_fallback + 1.96 * F.sd_each[1]}]}]});
+
+/* Lesson 8: coverage by year */
+reg('#c-cov', el => {
+  const H = 250, [s, w] = frame(el, H), m = {l: 44, r: 14, t: 12, b: 26}, B = D.results.D_bands_80pct, a = B.block_month_5bins.honest_by_year, b = B.region_month.honest_by_year;
+  const x = lin(0, 9, m.l + 14, w - m.r - 14), y = lin(50, 100, H - m.b, m.t);
+  E('rect', {x: m.l, y: y(85), width: w - m.l - m.r, height: y(75) - y(85), fill: 'var(--band)'}, s);
+  for (const v of [50, 60, 70, 80, 90, 100]){ E('line', {x1: m.l, x2: w - m.r, y1: y(v), y2: y(v), stroke: v === 80 ? 'var(--axis)' : 'var(--grid)'}, s); E('text', {x: m.l - 6, y: y(v) + 4, 'text-anchor': 'end', text: v + ' %', class: 'num'}, s); }
+  E('path', {d: 'M' + a.map((v, i) => x(i) + ' ' + y(v)).join('L'), fill: 'none', stroke: 'var(--s1)', 'stroke-width': 2}, s);
+  for (let i = 0; i < 10; i++){
+    E('text', {x: x(i), y: H - 8, 'text-anchor': 'middle', text: w < 520 ? "'" + (13 + i) : 2013 + i, class: 'num'}, s);
+    E('circle', {cx: x(i), cy: y(b[i]), r: 4.5, fill: 'var(--muted)', stroke: 'var(--surface)', 'stroke-width': 2}, s);
+    E('circle', {cx: x(i), cy: y(a[i]), r: 4.5, fill: 'var(--s1)', stroke: 'var(--surface)', 'stroke-width': 2}, s);
+    const h = E('rect', {x: x(i) - 16, y: m.t, width: 32, height: H - m.t - m.b, fill: 'transparent'}, s);
+    h.addEventListener('pointermove', ev => showTip(ev, `<b>${2013 + i} set aside</b><br>Small areas: ${a[i]} % inside<br>Whole area: ${b[i]} % inside`)); h.addEventListener('pointerleave', hideTip);
+  }
+});
+
+/* Lesson 9: nested picks */
+for (const [y, p] of Object.entries(D.results.F_nested.picks_by_year)){ const c = document.createElement('span'); c.textContent = `${y}: ${p.replace('r3_k', '120 km areas, blend ').replace('r2_k', '300 km areas, blend ')}`; $('#picks').appendChild(c); }
+
+/* Lesson 10: fire-power floors */
+function frp(id, dn, kind){
+  reg(id, el => {
+    const H = 236, [s, w] = frame(el, H), m = {l: 44, r: 12, t: 14, b: 40}, R = D.frp.floors.filter(r => r.dn === dn), n = R.length, ratio = kind === 'ratio';
+    const x = lin(0, n - 1, m.l + 14, w - m.r - 14), ly = lin(Math.log(.4), Math.log(12), H - m.b, m.t), sy = lin(-.32, .16, H - m.b, m.t), y = v => ratio ? ly(Math.log(v)) : sy(v);
+    for (const t of ratio ? [.5, 1, 2, 5, 10] : [-.3, -.2, -.1, 0, .1]){ const ref = t === (ratio ? 1 : 0); E('line', {x1: m.l, x2: w - m.r, y1: y(t), y2: y(t), stroke: ref ? 'var(--muted)' : 'var(--grid)', 'stroke-width': ref ? 1.5 : 1}, s); E('text', {x: m.l - 6, y: y(t) + 4, 'text-anchor': 'end', text: ratio ? t + '×' : sg(t, 1), class: 'num'}, s); }
+    R.forEach((r, i) => E('text', {x: x(i), y: H - m.b + 15, 'text-anchor': 'middle', text: r.floor_MW ? r.floor_MW : 'none', class: 'num'}, s));
+    E('text', {x: (m.l + w - m.r) / 2, y: H - 6, 'text-anchor': 'middle', text: 'weakest fire counted (MW)', class: 'mu'}, s);
+    const val = r => ratio ? r.ratio : (r.slope_vs_aqua ? r.slope_vs_aqua.slope : null), ci = r => ratio ? r.ratio_ci95 : r.slope_vs_aqua.ci95;
+    if (ratio) E('path', {d: 'M' + R.map((r, i) => x(i).toFixed(1) + ' ' + y(r.ratio).toFixed(1)).join('L'), fill: 'none', stroke: 'var(--s1)', 'stroke-width': 2}, s);
+    R.forEach((r, i) => {
+      const v = val(r);
+      if (v !== null){
+        if (!ratio) E('line', {x1: x(i), x2: x(i), y1: y(Math.max(ci(r)[0], -.32)), y2: y(Math.min(ci(r)[1], .16)), stroke: 'var(--s1)', 'stroke-width': 2, 'stroke-linecap': 'round'}, s);
+        E('circle', {cx: x(i), cy: y(v), r: 4.5, fill: 'var(--s1)', stroke: 'var(--surface)', 'stroke-width': 2}, s);
+        if (ratio && (i === 0 || r.floor_MW === 30)) E('text', {x: x(i) + 8, y: y(v) - 8, text: v.toFixed(v >= 10 ? 1 : 2) + '×', class: 'b num'}, s);
+        if (!ratio && i === 0) E('text', {x: x(i) + 9, y: y(v) + 4, text: sg(v, 2), class: 'b num'}, s);
+      }
+      const h = E('rect', {x: x(i) - 16, y: m.t, width: 32, height: H - m.t - m.b, fill: 'transparent'}, s), head = `<b>${r.floor_MW ? 'Ignoring fires under ' + r.floor_MW + ' MW' : 'All fires counted'}</b><br>`;
+      h.addEventListener('pointermove', ev => showTip(ev, head + (ratio ? `Ratio ${r.ratio.toFixed(2)}× <span class="m">(${ci(r)[0].toFixed(2)} to ${ci(r)[1].toFixed(2)})</span><br>Old satellite's count kept: ${Math.round(r.share_of_aqua_kept * 100)} %` : v === null ? 'Too few months to estimate' : `Tilt ${sg(v, 2)} <span class="m">(${sg(ci(r)[0], 2)} to ${sg(ci(r)[1], 2)})</span><br>${r.slope_vs_aqua.months} months`)));
+      h.addEventListener('pointerleave', hideTip);
+    });
+  });
+}
+frp('#c-frD', 'D', 'ratio'); frp('#c-frN', 'N', 'ratio'); frp('#c-fsD', 'D', 'slope'); frp('#c-fsN', 'N', 'slope');
+
+/* Start here: one year, two counts */
+(function(){ const S = D.series; let a = 0, v = 0; S.ym.forEach((d, i) => { if (d.startsWith('2020')){ a += S.aqua[i]; v += S.viirs[i]; } });
+  for (const [name, val, c] of [['Older satellite (MODIS)', a, 'var(--s3)'], ['Newer satellite (VIIRS)', v, 'var(--s1)']]){ const d = document.createElement('div'); d.innerHTML = `<span>${name}: <b>${fmt(val)}</b> burning places</span><i style="background:${c};width:${(val / v * 100).toFixed(1)}%"></i>`; $('#cmp').appendChild(d); }
+  $('#cmpx').textContent = (v / a).toFixed(1); })();
+
+const drawAll = () => charts.forEach(([el, fn]) => fn(el));
+drawAll();
+let lastW = innerWidth, t; addEventListener('resize', () => { if (innerWidth === lastW) return; lastW = innerWidth; clearTimeout(t); t = setTimeout(drawAll, 120); });
+</script>

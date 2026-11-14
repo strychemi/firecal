@@ -1,0 +1,472 @@
+{
+ "frp_quantiles_MW": [
+  {
+   "sat": "aqua",
+   "dn": "D",
+   "p10_p25_p50_p75_p90": [
+    7.5,
+    11.8,
+    22.8,
+    51.0,
+    117.5
+   ]
+  },
+  {
+   "sat": "aqua",
+   "dn": "N",
+   "p10_p25_p50_p75_p90": [
+    7.1,
+    10.4,
+    18.9,
+    40.2,
+    89.4
+   ]
+  },
+  {
+   "sat": "snpp",
+   "dn": "D",
+   "p10_p25_p50_p75_p90": [
+    2.7,
+    4.2,
+    7.7,
+    17.2,
+    41.0
+   ]
+  },
+  {
+   "sat": "snpp",
+   "dn": "N",
+   "p10_p25_p50_p75_p90": [
+    0.8,
+    1.2,
+    2.4,
+    5.3,
+    12.7
+   ]
+  }
+ ],
+ "floors": [
+  {
+   "dn": "D",
+   "floor_MW": 0,
+   "aqua": 678186,
+   "viirs": 2068806,
+   "share_of_aqua_kept": 1.0,
+   "ratio": 3.05,
+   "ratio_ci95": [
+    2.986,
+    3.13
+   ],
+   "slope_vs_aqua": {
+    "slope": -0.071,
+    "ci95": [
+     -0.102,
+     -0.041
+    ],
+    "months": 120
+   },
+   "slope_vs_viirs": {
+    "slope": -0.052,
+    "ci95": [
+     -0.088,
+     -0.019
+    ],
+    "months": 120
+   }
+  },
+  {
+   "dn": "D",
+   "floor_MW": 5,
+   "aqua": 665479,
+   "viirs": 1405843,
+   "share_of_aqua_kept": 0.981,
+   "ratio": 2.113,
+   "ratio_ci95": [
+    2.032,
+    2.205
+   ],
+   "slope_vs_aqua": {
+    "slope": -0.037,
+    "ci95": [
+     -0.078,
+     0.005
+    ],
+    "months": 120
+   },
+   "slope_vs_viirs": {
+    "slope": 0.017,
+    "ci95": [
+     -0.028,
+     0.065
+    ],
+    "months": 120
+   }
+  },
+  {
+   "dn": "D",
+   "floor_MW": 10,
+   "aqua": 550069,
+   "viirs": 840452,
+   "share_of_aqua_kept": 0.811,
+   "ratio": 1.528,
+   "ratio_ci95": [
+    1.468,
+    1.592
+   ],
+   "slope_vs_aqua": {
+    "slope": -0.009,
+    "ci95": [
+     -0.041,
+     0.027
+    ],
+    "months": 120
+   },
+   "slope_vs_viirs": {
+    "slope": 0.029,
+    "ci95": [
+     -0.002,
+     0.064
+    ],
+    "months": 120
+   }
+  },
+  {
+   "dn": "D",
+   "floor_MW": 20,
+   "aqua": 372773,
+   "viirs": 446388,
+   "share_of_aqua_kept": 0.55,
+   "ratio": 1.197,
+   "ratio_ci95": [
+    1.164,
+    1.228
+   ],
+   "slope_vs_aqua": {
+    "slope": -0.003,
+    "ci95": [
+     -0.027,
+     0.022
+    ],
+    "months": 120
+   },
+   "slope_vs_viirs": {
+    "slope": 0.021,
+    "ci95": [
+     -0.001,
+     0.042
+    ],
+    "months": 120
+   }
+  },
+  {
+   "dn": "D",
+   "floor_MW": 30,
+   "aqua": 275284,
+   "viirs": 294084,
+   "share_of_aqua_kept": 0.406,
+   "ratio": 1.068,
+   "ratio_ci95": [
+    1.043,
+    1.089
+   ],
+   "slope_vs_aqua": {
+    "slope": -0.005,
+    "ci95": [
+     -0.025,
+     0.011
+    ],
+    "months": 120
+   },
+   "slope_vs_viirs": {
+    "slope": 0.012,
+    "ci95": [
+     -0.003,
+     0.026
+    ],
+    "months": 120
+   }
+  },
+  {
+   "dn": "D",
+   "floor_MW": 50,
+   "aqua": 173092,
+   "viirs": 163130,
+   "share_of_aqua_kept": 0.255,
+   "ratio": 0.942,
+   "ratio_ci95": [
+    0.928,
+    0.957
+   ],
+   "slope_vs_aqua": {
+    "slope": 0.006,
+    "ci95": [
+     -0.016,
+     0.029
+    ],
+    "months": 120
+   },
+   "slope_vs_viirs": {
+    "slope": 0.021,
+    "ci95": [
+     -0.002,
+     0.042
+    ],
+    "months": 120
+   }
+  },
+  {
+   "dn": "D",
+   "floor_MW": 100,
+   "aqua": 81793,
+   "viirs": 63049,
+   "share_of_aqua_kept": 0.121,
+   "ratio": 0.771,
+   "ratio_ci95": [
+    0.756,
+    0.79
+   ],
+   "slope_vs_aqua": {
+    "slope": 0.022,
+    "ci95": [
+     -0.001,
+     0.051
+    ],
+    "months": 116
+   },
+   "slope_vs_viirs": {
+    "slope": 0.043,
+    "ci95": [
+     0.016,
+     0.072
+    ],
+    "months": 116
+   }
+  },
+  {
+   "dn": "D",
+   "floor_MW": 200,
+   "aqua": 35301,
+   "viirs": 18219,
+   "share_of_aqua_kept": 0.052,
+   "ratio": 0.516,
+   "ratio_ci95": [
+    0.506,
+    0.528
+   ],
+   "slope_vs_aqua": {
+    "slope": -0.032,
+    "ci95": [
+     -0.056,
+     0.003
+    ],
+    "months": 94
+   },
+   "slope_vs_viirs": {
+    "slope": 0.014,
+    "ci95": [
+     -0.016,
+     0.049
+    ],
+    "months": 94
+   }
+  },
+  {
+   "dn": "N",
+   "floor_MW": 0,
+   "aqua": 63993,
+   "viirs": 659245,
+   "share_of_aqua_kept": 1.0,
+   "ratio": 10.302,
+   "ratio_ci95": [
+    9.563,
+    10.976
+   ],
+   "slope_vs_aqua": {
+    "slope": -0.243,
+    "ci95": [
+     -0.278,
+     -0.206
+    ],
+    "months": 119
+   },
+   "slope_vs_viirs": {
+    "slope": -0.236,
+    "ci95": [
+     -0.3,
+     -0.182
+    ],
+    "months": 119
+   }
+  },
+  {
+   "dn": "N",
+   "floor_MW": 5,
+   "aqua": 62984,
+   "viirs": 176309,
+   "share_of_aqua_kept": 0.984,
+   "ratio": 2.799,
+   "ratio_ci95": [
+    2.696,
+    2.885
+   ],
+   "slope_vs_aqua": {
+    "slope": -0.024,
+    "ci95": [
+     -0.047,
+     -0.001
+    ],
+    "months": 119
+   },
+   "slope_vs_viirs": {
+    "slope": -0.004,
+    "ci95": [
+     -0.028,
+     0.02
+    ],
+    "months": 119
+   }
+  },
+  {
+   "dn": "N",
+   "floor_MW": 10,
+   "aqua": 49288,
+   "viirs": 85856,
+   "share_of_aqua_kept": 0.77,
+   "ratio": 1.742,
+   "ratio_ci95": [
+    1.703,
+    1.78
+   ],
+   "slope_vs_aqua": {
+    "slope": 0.025,
+    "ci95": [
+     0.008,
+     0.039
+    ],
+    "months": 116
+   },
+   "slope_vs_viirs": {
+    "slope": 0.045,
+    "ci95": [
+     0.031,
+     0.058
+    ],
+    "months": 116
+   }
+  },
+  {
+   "dn": "N",
+   "floor_MW": 20,
+   "aqua": 30706,
+   "viirs": 38807,
+   "share_of_aqua_kept": 0.48,
+   "ratio": 1.264,
+   "ratio_ci95": [
+    1.224,
+    1.306
+   ],
+   "slope_vs_aqua": {
+    "slope": 0.013,
+    "ci95": [
+     -0.025,
+     0.048
+    ],
+    "months": 110
+   },
+   "slope_vs_viirs": {
+    "slope": 0.046,
+    "ci95": [
+     0.016,
+     0.077
+    ],
+    "months": 110
+   }
+  },
+  {
+   "dn": "N",
+   "floor_MW": 30,
+   "aqua": 21425,
+   "viirs": 24033,
+   "share_of_aqua_kept": 0.335,
+   "ratio": 1.122,
+   "ratio_ci95": [
+    1.076,
+    1.167
+   ],
+   "slope_vs_aqua": {
+    "slope": 0.041,
+    "ci95": [
+     -0.042,
+     0.095
+    ],
+    "months": 101
+   },
+   "slope_vs_viirs": {
+    "slope": 0.084,
+    "ci95": [
+     0.03,
+     0.12
+    ],
+    "months": 101
+   }
+  },
+  {
+   "dn": "N",
+   "floor_MW": 50,
+   "aqua": 12751,
+   "viirs": 12633,
+   "share_of_aqua_kept": 0.199,
+   "ratio": 0.991,
+   "ratio_ci95": [
+    0.942,
+    1.037
+   ],
+   "slope_vs_aqua": {
+    "slope": 0.058,
+    "ci95": [
+     -0.022,
+     0.131
+    ],
+    "months": 84
+   },
+   "slope_vs_viirs": {
+    "slope": 0.113,
+    "ci95": [
+     0.054,
+     0.157
+    ],
+    "months": 84
+   }
+  },
+  {
+   "dn": "N",
+   "floor_MW": 100,
+   "aqua": 5596,
+   "viirs": 4551,
+   "share_of_aqua_kept": 0.087,
+   "ratio": 0.813,
+   "ratio_ci95": [
+    0.744,
+    0.89
+   ],
+   "slope_vs_aqua": null,
+   "slope_vs_viirs": null
+  },
+  {
+   "dn": "N",
+   "floor_MW": 200,
+   "aqua": 2220,
+   "viirs": 1406,
+   "share_of_aqua_kept": 0.035,
+   "ratio": 0.633,
+   "ratio_ci95": [
+    0.556,
+    0.695
+   ],
+   "slope_vs_aqua": null,
+   "slope_vs_viirs": null
+  }
+ ],
+ "total_frp_ratio_D": 0.976,
+ "total_frp_ratio_N": 1.498
+}
