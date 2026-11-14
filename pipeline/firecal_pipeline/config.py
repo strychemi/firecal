@@ -43,5 +43,8 @@ class Config:
 def connect(path=":memory:"):
     import duckdb
     con = duckdb.connect(str(path))
-    con.execute("INSTALL h3 FROM community; LOAD h3;")
+    try:
+        con.execute("LOAD h3")  # already installed: no network needed
+    except duckdb.Error:
+        con.execute("INSTALL h3 FROM community; LOAD h3;")
     return con

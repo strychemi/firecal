@@ -84,8 +84,9 @@ Field rules:
   - `baseline_value` is the median or mean of those years;
   - `ratio` is `value / baseline_value` (`null` if the baseline is 0);
   - `rank` is 1 + the number of those years with a higher value; `of` is their count + 1;
-  - `percentile` is the share of those years with a lower value;
-  - `category` comes from `ratio`: below 0.5 "much lower than usual", below 0.8 "lower than usual", below 1.25 "about usual", below 2 "higher than usual", otherwise "much higher than usual".
+  - `percentile` is the share of those years with a lower value (`null` if there are no such years);
+  - `category` comes from `ratio`: below 0.5 "much lower than usual", below 0.8 "lower than usual", below 1.25 "about usual", below 2 "higher than usual", otherwise "much higher than usual" (`null` when `ratio` is `null`);
+  - when there are no other complete years, `baseline_value` is 0, `baseline_years` is empty and `rank` and `of` are both 1.
 - Numbers are rounded: `value`, `lower`, `upper`, `baseline_value` to 2 decimals, `frp` to 1, `ratio` to 3, `percentile` to 1.
 
 Errors return HTTP 400 with `{ "error": "message" }`.

@@ -4,20 +4,10 @@ Region: the exploratory box around Argentina, so the global data stay unexamined
 Unit: burning cell-day = (H3 res-8 cell, local solar date, day/night) with >= 1 hotspot.
 Run: uv run --python 3.13 --with duckdb ingest.py
 """
-import pathlib, shutil, tempfile, zipfile
+import pathlib, tempfile, zipfile
 import duckdb
 
-def extract_csv(z, name, tmp):
-    """Copy one zip member to a fixed file name inside tmp.
-
-    The member's own name is never used as a path, so entries like '../x' or
-    '/etc/x' cannot write outside tmp, and a quote in the name cannot break the
-    SQL string the path is placed in.
-    """
-    dest = pathlib.Path(tmp) / "member.csv"
-    with z.open(name) as src, open(dest, "wb") as out:
-        shutil.copyfileobj(src, out)
-    return dest
+from zips import extract_csv
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
