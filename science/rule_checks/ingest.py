@@ -4,8 +4,21 @@ Region: the exploratory box around Argentina, so the global data stay unexamined
 Unit: burning cell-day = (H3 res-8 cell, local solar date, day/night) with >= 1 hotspot.
 Run: uv run --python 3.13 --with duckdb ingest.py
 """
-import pathlib, sys, tempfile, zipfile
+import pathlib, shutil, tempfile, zipfile
 import duckdb
+
+def extract_csv(z, name, tmp):
+    """Copy one zip member to a fixed file name inside tmp.
+
+    The member's own name is never used as a path, so entries like '../x' or
+    '/etc/x' cannot write outside tmp, and a quote in the name cannot break the
+    SQL string the path is placed in.
+    """
+    dest = pathlib.Path(tmp) / "member.csv"
+    with z.open(name) as src, open(dest, "wb") as out:
+        shutil.copyfileobj(src, out)
+    return dest
+
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 RAW = ROOT / "data"
@@ -26,7 +39,7 @@ def load(zip_path, family):
         for name in z.namelist():
             if not name.endswith(".csv") or not any(c in name for c in COUNTRIES):
                 continue
-            p = z.extract(name, tmp)
+            p = extract_csv(z, name, tmp)
             if family == "modis":
                 sat = "CASE satellite WHEN 'Aqua' THEN 'aqua' ELSE 'terra' END"
                 keep = "type = 0 AND TRY_CAST(confidence AS INT) >= 30"
