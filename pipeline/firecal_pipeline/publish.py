@@ -1,7 +1,7 @@
 """silver + model -> gold/vN/: the files the API serves.
 
 monthly_res{4,5,6}.parquet  cell, year, month, source, value, raw, detections, frp   (sorted by cell)
-    value       S-NPP-equivalent burning cell-days (the model is applied here, and only here)
+    value       VIIRS-equivalent burning cell-days (the model is applied here, and only here)
     raw         burning cell-days counted by the satellite used that day, unconverted
     detections  hotspots counted by that satellite (filtered), unconverted
     frp         summed fire radiative power of those hotspots, MW, unconverted
@@ -103,7 +103,7 @@ def run(cfg: Config) -> None:
         "version": version,
         "created": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
         "region": {"bbox": cfg.bbox, "countries": cfg["data"]["countries"]},
-        "unit": "S-NPP-equivalent burning cell-days (H3 res-8 cell, local solar date, day/night)",
+        "unit": "VIIRS-equivalent burning cell-days (H3 res-8 cell, local solar date, day or night pass)",
         "series_start": eras[0]["start"][:7], "series_end": eras[-1]["end"][:7],
         "eras": eras,
         "resolutions": cfg["grid"]["app_resolutions"],

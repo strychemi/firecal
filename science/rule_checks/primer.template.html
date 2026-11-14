@@ -131,7 +131,7 @@ code{font:13px var(--mono)}
   <figure>
     <h3>Same fires, same year, two very different counts</h3>
     <div class="cmp" id="cmp"></div>
-    <figcaption>Burning places counted in our Argentina study area during 2020, by a MODIS instrument (on the Aqua satellite) and a VIIRS instrument (on the S-NPP satellite) passing overhead at the same time of day. The newer satellite counted <b id="cmpx"></b> times as many. Nothing about the fires differed.</figcaption>
+    <figcaption>Burning cell-days counted in our Argentina study area during 2020, by a MODIS instrument (on the Aqua satellite) and a VIIRS instrument (on the S-NPP satellite) passing overhead at the same time of day. The newer satellite counted <b id="cmpx"></b> times as many. Nothing about the fires differed.</figcaption>
   </figure>
   <p><b>The goal</b> is a fire calendar in which any two months since 2000 can be compared fairly. To get there, we convert the old satellite's counts into “what the new satellite would have counted”. People call this <b>harmonizing</b> the two records.</p>
   <p>Keep one question in mind as you read: <b>was August 2008 a worse fire month than August 2020?</b> Every step below moves toward answering that honestly.</p>
@@ -157,7 +157,7 @@ code{font:13px var(--mono)}
 
   <h3>Words you will meet</h3>
   <dl class="fits">
-    <dt>Burning place</dt><dd>We divide the map into small six-sided patches about 1 km across. A patch where a satellite saw fire on a given day counts as one. The technical name is a <b>cell-day</b>.</dd>
+    <dt>Burning cell-day</dt><dd>We divide the map into small six-sided patches about 1 km across (0.74 km² on average). Each day a satellite passes over twice, once in daylight and once at night. A patch where it saw fire on the daytime pass counts as one; fire on the night pass counts as another, so one patch can add two a day. Counts converted from the old satellite to the new one’s scale are <b>VIIRS-equivalent burning cell-days</b>. The app calls them <b>fire-days</b>.</dd>
     <dt>Multiplier</dt><dd>How many times more the new satellite counts than the old one. A multiplier of 3 means three times as many. Scientists call it the <b>ratio</b>.</dd>
     <dt>Error</dt><dd>How far our converted number is from what the new satellite really counted, as a percentage.</dd>
     <dt>Typical error</dt><dd>The error in an ordinary month: half of months do better and half do worse. Charts call it the <b>median error</b>.</dd>
@@ -175,7 +175,7 @@ code{font:13px var(--mono)}
   <span class="eyebrow">Step 1 of 9 · Decide what to count</span>
   <h2>One fire, three different counts</h2>
   <dl class="fits">
-    <dt>In plain words</dt><dd class="plain">A sharper camera turns one fire into more dots. So we do not count dots. We count places that burned.</dd>
+    <dt>In plain words</dt><dd class="plain">A sharper camera turns one fire into more dots. So we do not count dots. We count patches of land where fire was seen, once for each pass.</dd>
     <dt>Question</dt><dd>What should we count?</dd>
     <dt>Why the calendar needs it</dt><dd>August 2008 was recorded in 1 km pixels and August 2020 in 375 m pixels. Comparing pixel counts would compare the cameras, not the fires.</dd>
     <dt>Big idea</dt><dd>Idea 1 · A count depends on who is counting</dd>
@@ -189,9 +189,9 @@ code{font:13px var(--mono)}
   <figure>
     <h3>The same line of fire, counted three ways</h3>
     <div class="schem" id="schem"></div>
-    <figcaption>A drawing, to scale, of one line of fire crossing a square of land 4 km wide. Left and middle: the squares each satellite would flag. Right: the six-sided patches we count instead. For each patch we ask one yes-or-no question: did anything burn here today?</figcaption>
+    <figcaption>A drawing, to scale, of one line of fire crossing a square of land 4 km wide. Left and middle: the squares each satellite would flag. Right: the six-sided patches we count instead. For each patch we ask one yes-or-no question: did this pass see fire here?</figcaption>
   </figure>
-  <p>Counting burning places removes the square-size problem. What remains is a real difference: the new satellite spots small, weak fires that the old one cannot. That difference is what the rest of the path deals with.</p>
+  <p>Counting burning cell-days removes the square-size problem. What remains is a real difference: the new satellite spots small, weak fires that the old one cannot. That difference is what the rest of the path deals with.</p>
   <div class="math">
     <h4>The maths</h4>
     <p><b>Data it reads.</b> One row per hotspot: <code>latitude</code>, <code>longitude</code>, <code>acq_date</code>, <code>acq_time</code>, <code>daynight</code>, and the quality columns <code>confidence</code> and <code>type</code>.</p>
@@ -203,7 +203,7 @@ code{font:13px var(--mono)}
     </div>
     <p>A list of millions of hotspots becomes a small table: for each area, month, and day or night, one count <b>M</b> from the old satellite and one count <b>V</b> from the new one. Every later step reads this table.</p>
   </div>
-  <p class="key"><b>Key idea.</b> Count something that does not depend on how sharp the camera is. After this step, each satellite gives one tally of burning places per day.</p>
+  <p class="key"><b>Key idea.</b> Count something that does not depend on how sharp the camera is. After this step, each satellite gives two tallies of burning cell-days per day: one for its daytime pass and one for its night pass.</p>
   <p class="next"><b>Next question.</b> Both satellites now give tallies we can compare. But was each one actually counting on every day?</p>
 </section>
 
@@ -221,10 +221,10 @@ code{font:13px var(--mono)}
   <p class="rule"><b>The rule.</b> If a satellite reports nothing at all across the whole study area for a day, we treat that day as “no data”, not “no fire”. And when we compare the two satellites, we only use days when both were working. <b>Why it makes sense.</b> The study area is huge, so something is always burning somewhere. A completely empty day almost always means the satellite was off.</p>
   <div class="pair">
     <div><h4>Picture it this way</h4><p>A shop's till shows no sales on a Tuesday. Either nobody came in, or the shop was closed. The till roll looks the same both ways. You find out by checking whether the shop next door was busy that day.</p></div>
-    <div><h4>Worked example</h4><p>With round numbers for illustration: a normal July has 10,000 burning places, and the breakdown hides 2,600 of them, so July 2022 is recorded as 7,400. The next July is a normal 10,000. Beside the false 7,400 it looks <b>35 % worse than last year</b>. One gap has now spoiled two months.</p></div>
+    <div><h4>Worked example</h4><p>With round numbers for illustration: a normal July has 10,000 burning cell-days, and the breakdown hides 2,600 of them, so July 2022 is recorded as 7,400. The next July is a normal 10,000. Beside the false 7,400 it looks <b>35 % worse than last year</b>. One gap has now spoiled two months.</p></div>
   </div>
   <figure>
-    <h3>Burning places seen each day, 15 June to 5 September 2022</h3>
+    <h3>Burning cell-days seen each day, 15 June to 5 September 2022</h3>
     <div class="chart" id="c-outage"></div>
     <figcaption>Each bar is one day. The top row is the new satellite and the bottom row is the old one. The empty stretch in the top row is the breakdown. Counted as zeros, those days would make July 2022 look about a quarter quieter than it really was.</figcaption>
   </figure>
@@ -250,10 +250,10 @@ code{font:13px var(--mono)}
     <dt>Why the calendar needs it</dt><dd>This is the step that puts August 2008 on the same scale as August 2020. It is the only thing we build. Every later step checks it.</dd>
     <dt>Big idea</dt><dd>Idea 1 · A count depends on who is counting</dd>
   </dl>
-  <p>Take the years when both satellites were flying. Add up every burning place the new satellite saw. Add up every burning place the old one saw. Divide the first total by the second. The answer is the <b>multiplier</b>.</p>
+  <p>Take the years when both satellites were flying. Add up every burning cell-day the new satellite saw. Add up every burning cell-day the old one saw. Divide the first total by the second. The answer is the <b>multiplier</b>.</p>
   <p>We do that sum twice, once for daytime and once for night, because the new satellite's advantage is much bigger at night, when fires are small and cool.</p>
   <figure>
-    <h3>For every burning place the old satellite saw, the new one saw…</h3>
+    <h3>For every burning cell-day the old satellite saw, the new one saw…</h3>
     <div class="tiles">
       <div class="tile"><b id="rD"></b><span>by day</span></div>
       <div class="tile"><b id="rN"></b><span>at night, when fires are smaller and cooler</span></div>
@@ -262,14 +262,14 @@ code{font:13px var(--mono)}
   </figure>
   <div class="pair">
     <div><h4>Picture it this way</h4><p>Two people listen for birds, and one has sharper hearing. At noon the birds are loud and both hear most of them. At night the calls are faint, and the sharper ear hears ten for every one the other catches. One “hearing number” cannot describe both.</p></div>
-    <div><h4>Worked example</h4><p>Suppose the old satellite saw 100 burning places by day and 10 at night. Converted: 100 × 3.05 + 10 × 10.3 = <b>408</b>. Now suppose it saw 50 by day and 60 at night: 50 × 3.05 + 60 × 10.3 = <b>771</b>. Both months have 110 in total, yet the answers are far apart. That is why we never mix day and night.</p></div>
+    <div><h4>Worked example</h4><p>Suppose the old satellite saw 100 burning cell-days by day and 10 at night. Converted: 100 × 3.05 + 10 × 10.3 = <b>408</b>. Now suppose it saw 50 by day and 60 at night: 50 × 3.05 + 60 × 10.3 = <b>771</b>. Both months have 110 in total, yet the answers are far apart. That is why we never mix day and night.</p></div>
   </div>
   <p>To convert, take the old satellite's count and multiply: by about 3 for daytime, by about 10 for night.</p>
   <p>We go one step further and give each area its own multiplier, because a grass fire and a forest fire do not look the same from space. The areas are six-sided regions about 120 km across.</p>
   <p>Some areas have very few fires, so a multiplier based only on their own data would be a wild guess. Those areas lean on the average for the whole study area.</p>
   <div class="pair">
     <div><h4>Picture it this way</h4><p>Think of changing money where the exchange rate differs from town to town. A town with thousands of trades has earned its own rate. A village with three trades has not, so it mostly uses the national rate. It is the same reason you trust “4.6 stars from 3,000 reviews” more than “4.9 stars from 3 reviews”.</p></div>
-    <div><h4>Worked example</h4><p>The whole-area daytime multiplier is 3.05. A quiet area where the old satellite saw 20 burning places and the new one saw 100 has its own multiplier of 5.0, but 20 is too few to trust. So we mix in 50 pretend sightings that behave like the average: (100 + 50 × 3.05) ÷ (20 + 50) = <b>3.61</b>. A busy area with 2,000 and 10,000 keeps almost all of its own: <b>4.95</b>.</p></div>
+    <div><h4>Worked example</h4><p>The whole-area daytime multiplier is 3.05. A quiet area where the old satellite saw 20 burning cell-days and the new one saw 100 has its own multiplier of 5.0, but 20 is too few to trust. So we mix in 50 pretend sightings that behave like the average: (100 + 50 × 3.05) ÷ (20 + 50) = <b>3.61</b>. A busy area with 2,000 and 10,000 keeps almost all of its own: <b>4.95</b>.</p></div>
   </div>
   <div class="math">
     <h4>The maths</h4>
@@ -304,10 +304,10 @@ code{font:13px var(--mono)}
   <p>The result: in an ordinary month the prediction is about <b>10 %</b> away from the truth. In the worst one month in ten, it is off by 20 % or more.</p>
   <div class="pair">
     <div><h4>Picture it this way</h4><p>A teacher who hands out the exam questions a week early learns nothing from the marks. To find out what the class really knows, the exam has to stay hidden until the studying is done. Each year takes a turn as the hidden exam.</p></div>
-    <div><h4>Worked example</h4><p>With round numbers for illustration: hide 2017. From the other nine years the daytime multiplier comes out at 3. One month, the old satellite saw 4,000 burning places by day, so we predict <b>12,000</b>. The new satellite really saw 13,300. We were about <b>10 % too low</b>, which is an ordinary miss.</p></div>
+    <div><h4>Worked example</h4><p>With round numbers for illustration: hide 2017. From the other nine years the daytime multiplier comes out at 3. One month, the old satellite saw 4,000 burning cell-days by day, so we predict <b>12,000</b> VIIRS-equivalent burning cell-days. The new satellite really saw 13,300. We were about <b>10 % too low</b>, which is an ordinary miss.</p></div>
   </div>
   <figure>
-    <h3>Burning places per month in the Argentina study area</h3>
+    <h3>Burning cell-days per month in the Argentina study area</h3>
     <div class="legend"><span><i class="" style="background:var(--s1)"></i>New satellite, as seen</span><span><i class="" style="background:var(--s2)"></i>Old satellite, converted</span><span><i class="" style="background:var(--s3)"></i>Old satellite, raw count</span></div>
     <div class="chart" id="c-series"></div>
     <figcaption>Hover for the numbers. Blue is what the new satellite saw. Orange is what we predicted from the old satellite, and each orange point was predicted without using its own year. Where blue and orange sit together, the conversion works. Green is the old satellite's raw count. The shaded years were kept completely aside.</figcaption>
@@ -338,7 +338,7 @@ code{font:13px var(--mono)}
   <p>In quiet months the new satellite saw more than we predicted. In the busiest months it saw less.</p>
   <div class="pair">
     <div><h4>Picture it this way</h4><p>Two fishing nets, one with fine mesh and one with coarse. On a day with only small fish, the fine net lands many times more. When a shoal of big fish arrives, both nets fill up and the gap narrows. Quiet months are small-fish days.</p></div>
-    <div><h4>Worked example</h4><p>Compare a month with 3,000 predicted burning places and a month with 30,000, ten times busier. Going from the first to the second, what the new satellite really saw, compared with our prediction, drops by <b>18 %</b> in the daytime. At night it drops by <b>half</b>.</p></div>
+    <div><h4>Worked example</h4><p>Compare a month with 3,000 predicted VIIRS-equivalent burning cell-days and a month with 30,000, ten times busier. Going from the first to the second, what the new satellite really saw, compared with our prediction, drops by <b>18 %</b> in the daytime. At night it drops by <b>half</b>.</p></div>
   </div>
   <figure>
     <h3>How wrong the prediction was, against how busy the month was</h3>
@@ -370,7 +370,7 @@ code{font:13px var(--mono)}
     <dt>Big idea</dt><dd>Idea 1 · A count depends on who is counting</dd>
   </dl>
   <p>Why does the multiplier tilt? Our guess: the new satellite sees a crowd of small, weak fires that the old one cannot see at all. Quiet months are mostly small fires, so the new satellite is far ahead. Busy months have big fires that both can see.</p>
-  <p>A good guess can be tested. Every fire sighting comes with a measure of how much heat the fire gives off, in megawatts (MW). One megawatt is roughly 500 electric kettles running at once. We set a minimum strength and counted only burning places at least that strong. If the guess is right, raising the minimum should make the tilt go away.</p>
+  <p>A good guess can be tested. Every fire sighting comes with a measure of how much heat the fire gives off, in megawatts (MW). One megawatt is roughly 500 electric kettles running at once. We set a minimum strength and counted only burning cell-days at least that strong. If the guess is right, raising the minimum should make the tilt go away.</p>
   <div class="pair">
     <div><h4>Picture it this way</h4><p>Two people count stars, and one wears glasses. Their totals differ wildly, and the gap changes from night to night with the haze. Ask both to count only the bright stars, and they agree. The disagreement was never about the bright ones.</p></div>
     <div><h4>Worked example</h4><p>At night, a minimum of 5 MW removes only <b>2 %</b> of what the old satellite saw, because it almost never spots anything that weak. The same minimum removes nearly <b>three quarters</b> of what the new satellite saw. In that one step the multiplier falls from 10.3 to 2.8.</p></div>
@@ -389,7 +389,7 @@ code{font:13px var(--mono)}
   <div class="math">
     <h4>The maths</h4>
     <p><b>Data it reads.</b> The hotspot rows again, this time with <code>frp</code>, the fire's strength in megawatts.</p>
-    <p>The strength <b>P</b> of a burning place is the summed <code>frp</code> of its hotspots on the strongest pass that day. <b>V<sub>≥f</sub></b> and <b>M<sub>≥f</sub></b> count only burning places with P of at least <b>f</b> megawatts.</p>
+    <p>The strength <b>P</b> of a burning cell-day is the summed <code>frp</code> of its hotspots on its strongest overpass, taken separately for the daytime and night passes. <b>V<sub>≥f</sub></b> and <b>M<sub>≥f</sub></b> count only burning cell-days with P of at least <b>f</b> megawatts.</p>
     <div class="eq">
       <div><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><msub><mi>P</mi><mrow><mi>c</mi><mo separator="true">,</mo><mi>d</mi></mrow></msub><mo>=</mo><munder><mrow><mi>max</mi><mo>⁡</mo></mrow><mtext>passes</mtext></munder><mtext> </mtext><munder><mo>∑</mo><mtext>hotspots</mtext></munder><mtext>frp</mtext></mrow><annotation encoding="application/x-tex">P_{c,d} = \max_{\text{passes}}\ \sum_{\text{hotspots}} \text{frp}</annotation></semantics></math></span></div>
       <div><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mi>r</mi><mo stretchy="false">(</mo><mi>f</mi><mo stretchy="false">)</mo><mo>=</mo><mfrac><mrow><mo>∑</mo><msub><mi>V</mi><mrow><mo>≥</mo><mi>f</mi></mrow></msub></mrow><mrow><mo>∑</mo><msub><mi>M</mi><mrow><mo>≥</mo><mi>f</mi></mrow></msub></mrow></mfrac></mrow><annotation encoding="application/x-tex">r(f) = \dfrac{\sum V_{\ge f}}{\sum M_{\ge f}}</annotation></semantics></math></span></div>
@@ -563,7 +563,7 @@ code{font:13px var(--mono)}
   <p>The first plan was to see which stand-in works better in the areas with the fewest fires. But those areas have so few fires that only 0.3 % of their months could be scored at all. A better test takes an area with plenty of fires, pretends we know nothing about it, predicts it with the stand-in alone, and compares that with the truth.</p>
   <div class="pair">
     <div><h4>Picture it this way</h4><p>To judge a stand-in teacher, send them to a class whose usual results you know well. Sending them to a class of two pupils tells you nothing, because one bad morning for one pupil swings the average. The quietest areas are the class of two.</p></div>
-    <div><h4>Worked example</h4><p>In a quiet area one month, the new satellite saw 4 burning places and we predicted 6. That is a <b>50 % error caused by two patches of land</b>, and it says nothing about the stand-in. Hiding a busy area and predicting it blind gave a typical error of 19.3 % with the whole-area average and <b>14.0 %</b> with the surrounding region's average.</p></div>
+    <div><h4>Worked example</h4><p>In a quiet area one month, the new satellite saw 4 burning cell-days and we predicted 6. That is a <b>50 % error caused by two patches of land</b>, and it says nothing about the stand-in. Hiding a busy area and predicting it blind gave a typical error of 19.3 % with the whole-area average and <b>14.0 %</b> with the surrounding region's average.</p></div>
   </div>
   <figure>
     <h3>Typical error when a whole area is hidden and predicted blind (113 areas)</h3>
@@ -718,7 +718,7 @@ function scatter(id, key, resKey){
     const x = lin(x0, x1, m.l, w - m.r), y = lin(r0, r1, H - m.b, m.t);
     for (const p of [-50, -25, 0, 25, 50, 100, 200, 400]){ const v = Math.log(1 + p / 100); if (v < r0 || v > r1) continue; E('line', {x1: m.l, x2: w - m.r, y1: y(v), y2: y(v), stroke: p ? 'var(--grid)' : 'var(--axis)'}, s); E('text', {x: m.l - 6, y: y(v) + 4, 'text-anchor': 'end', text: sg(p, 0) + ' %', class: 'num'}, s); }
     for (const t of [300, 1000, 3000, 10000, 30000, 100000]){ const v = Math.log(t); if (v < x0 || v > x1) continue; E('text', {x: x(v), y: H - m.b + 15, 'text-anchor': 'middle', text: t >= 1000 ? t / 1000 + 'k' : t, class: 'num'}, s); }
-    E('text', {x: (m.l + w - m.r) / 2, y: H - 5, 'text-anchor': 'middle', text: 'how busy the month was (predicted burning places)', class: 'mu'}, s);
+    E('text', {x: (m.l + w - m.r) / 2, y: H - 5, 'text-anchor': 'middle', text: 'how busy the month was (predicted VIIRS-equivalent burning cell-days)', class: 'mu'}, s);
     for (const p of P){ const c = E('circle', {cx: x(p.lx), cy: y(p.r), r: 3.5, fill: 'var(--s1)', opacity: .6, stroke: 'var(--surface)', 'stroke-width': 1}, s), h = E('circle', {cx: x(p.lx), cy: y(p.r), r: 9, fill: 'transparent'}, s);
       h.addEventListener('pointerenter', ev => { c.style.opacity = 1; showTip(ev, `<b>${MON[p.m - 1]} ${p.y}</b><br>Predicted: ${fmt(p.pred)}<br>Observed: ${fmt(p.obs)} <span class="m">(${sg((p.obs / p.pred - 1) * 100, 0)} %)</span>`); });
       h.addEventListener('pointerleave', () => { c.style.opacity = .6; hideTip(); }); }
@@ -829,7 +829,7 @@ frp('#c-frD', 'D', 'ratio'); frp('#c-frN', 'N', 'ratio'); frp('#c-fsD', 'D', 'sl
 
 /* Start here: one year, two counts */
 (function(){ const S = D.series; let a = 0, v = 0; S.ym.forEach((d, i) => { if (d.startsWith('2020')){ a += S.aqua[i]; v += S.viirs[i]; } });
-  for (const [name, val, c] of [['Older satellite (MODIS)', a, 'var(--s3)'], ['Newer satellite (VIIRS)', v, 'var(--s1)']]){ const d = document.createElement('div'); d.innerHTML = `<span>${name}: <b>${fmt(val)}</b> burning places</span><i style="background:${c};width:${(val / v * 100).toFixed(1)}%"></i>`; $('#cmp').appendChild(d); }
+  for (const [name, val, c] of [['Older satellite (MODIS)', a, 'var(--s3)'], ['Newer satellite (VIIRS)', v, 'var(--s1)']]){ const d = document.createElement('div'); d.innerHTML = `<span>${name}: <b>${fmt(val)}</b> burning cell-days</span><i style="background:${c};width:${(val / v * 100).toFixed(1)}%"></i>`; $('#cmp').appendChild(d); }
   $('#cmpx').textContent = (v / a).toFixed(1); })();
 
 const drawAll = () => charts.forEach(([el, fn]) => fn(el));

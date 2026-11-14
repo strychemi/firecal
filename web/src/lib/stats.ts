@@ -39,10 +39,10 @@ export function computeStats(series: MonthRow[], selected: YearMonth, baseline: 
 	if (cur.value === 0 && base === 0) {
 		sentence = `No fire was detected in ${name}, and the same month is usually fire-free here.`;
 	} else if (ratio === null) {
-		sentence = `${name} had ${n} burning places; the same month is usually fire-free here.`;
+		sentence = `${name} had ${n} fire-days; the same month is usually fire-free here.`;
 	} else {
 		sentence =
-			`${name} had ${n} burning places, ${ratio.toFixed(1)}× the usual ` +
+			`${name} had ${n} fire-days, ${ratio.toFixed(1)}× the usual ` +
 			`${MONTH_NAMES[Number(mon) - 1]} (${word} of ${vals.length} years), ` +
 			`${ordinal(rank)} highest of ${vals.length + 1} years.`;
 	}

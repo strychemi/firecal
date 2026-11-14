@@ -152,9 +152,9 @@ class Reference:
         if cur["value"] == 0 and base == 0:
             sentence = f"No fire was detected in {name}, and the same month is usually fire-free here."
         elif ratio is None:
-            sentence = f"{name} had {cur['value']:,.0f} burning places; the same month is usually fire-free here."
+            sentence = f"{name} had {cur['value']:,.0f} fire-days; the same month is usually fire-free here."
         else:
-            sentence = (f"{name} had {cur['value']:,.0f} burning places, {ratio:.1f}× the usual "
+            sentence = (f"{name} had {cur['value']:,.0f} fire-days, {ratio:.1f}× the usual "
                         f"{MONTHS[int(mon) - 1]} ({word} of {len(vals)} years), "
                         f"{ordinal(rank)} highest of {len(vals) + 1} years.")
         return {"month": selected, "value": cur["value"], "lower": cur["lower"], "upper": cur["upper"],

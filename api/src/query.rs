@@ -210,9 +210,9 @@ fn stats(series: &[MonthOut], selected: &str, baseline: &str) -> Result<Value> {
         _ if cur.value == 0.0 && base == 0.0 => {
             format!("No fire was detected in {name}, and the same month is usually fire-free here.")
         }
-        None => format!("{name} had {} burning places; the same month is usually fire-free here.", thousands(cur.value)),
+        None => format!("{name} had {} fire-days; the same month is usually fire-free here.", thousands(cur.value)),
         Some(r) => format!(
-            "{name} had {} burning places, {r:.1}× the usual {mname} ({word} of {n} years), {} highest of {} years.",
+            "{name} had {} fire-days, {r:.1}× the usual {mname} ({word} of {n} years), {} highest of {} years.",
             thousands(cur.value),
             ordinal(rank),
             n + 1
