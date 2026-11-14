@@ -1,0 +1,276 @@
+/*
+  Colour tokens. Values come from the dataviz skill's reference palette.
+  Era colours (categorical slots 1-3) were validated with validate_palette.js
+  --pairs all in both modes; light aqua is below 3:1 on the surface, so era
+  bars are also direct-labelled and every chart has a table view.
+  Sequential = blue 100->700 (flipped in dark). Diverging = blue <-> red with a
+  grey midpoint; the red arm is lightness-matched to the blue steps.
+*/
+:root {
+	color-scheme: light;
+	--page: #f9f9f7;
+	--surface: #fcfcfb;
+	--text: #0b0b0b;
+	--text-2: #52514e;
+	--muted: #6b6a66;
+	--grid: #e1e0d9;
+	--axis: #c3c2b7;
+	--border: rgba(11, 11, 11, 0.1);
+	--wash: rgba(11, 11, 11, 0.04);
+	--focus: #256abf;
+	--accent: #1c5cab;
+	--accent-ink: #ffffff;
+	--warn-bg: #fff4d6;
+	--warn-border: #e5b748;
+
+	--era-terra: #2a78d6;
+	--era-aqua: #eb6834;
+	--era-viirs: #1baf7a;
+	--era-shade-a: rgba(11, 11, 11, 0.035);
+	--era-shade-b: rgba(11, 11, 11, 0);
+
+	--line: #2a78d6;
+	--band: rgba(42, 120, 214, 0.2);
+
+	--seq-0: #efeee9;
+	--seq-1: #cde2fb;
+	--seq-2: #9ec5f4;
+	--seq-3: #6da7ec;
+	--seq-4: #3987e5;
+	--seq-5: #256abf;
+	--seq-6: #184f95;
+	--seq-7: #0d366b;
+
+	--div-mlo: #1c5cab;
+	--div-lo: #86b6ef;
+	--div-mid: #f0efec;
+	--div-hi: #ef9790;
+	--div-mhi: #a32c2d;
+	--div-ink-strong: #ffffff;
+	--div-ink-soft: #0b0b0b;
+
+	--hatch: rgba(11, 11, 11, 0.55);
+	--cell-ring: #0b0b0b;
+
+	--radius: 10px;
+	--font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme='light']) {
+		color-scheme: dark;
+		--page: #0d0d0d;
+		--surface: #1a1a19;
+		--text: #f0efec;
+		--text-2: #c3c2b7;
+		--muted: #9a9890;
+		--grid: #2c2c2a;
+		--axis: #383835;
+		--border: rgba(255, 255, 255, 0.1);
+		--wash: rgba(255, 255, 255, 0.05);
+		--focus: #86b6ef;
+		--accent: #3987e5;
+		--accent-ink: #0b0b0b;
+		--warn-bg: #3a2f12;
+		--warn-border: #8a6a1c;
+
+		--era-terra: #3987e5;
+		--era-aqua: #d95926;
+		--era-viirs: #199e70;
+		--era-shade-a: rgba(255, 255, 255, 0.045);
+
+		--line: #5598e7;
+		--band: rgba(85, 152, 231, 0.25);
+
+		--seq-0: #232322;
+		--seq-1: #0d366b;
+		--seq-2: #184f95;
+		--seq-3: #256abf;
+		--seq-4: #3987e5;
+		--seq-5: #6da7ec;
+		--seq-6: #9ec5f4;
+		--seq-7: #cde2fb;
+
+		--div-mlo: #6da7ec;
+		--div-lo: #184f95;
+		--div-mid: #383835;
+		--div-hi: #8e2525;
+		--div-mhi: #ea817a;
+		--div-ink-strong: #0b0b0b;
+		--div-ink-soft: #f0efec;
+
+		--hatch: rgba(255, 255, 255, 0.6);
+		--cell-ring: #f0efec;
+	}
+}
+:root[data-theme='dark'] {
+	color-scheme: dark;
+	--page: #0d0d0d;
+	--surface: #1a1a19;
+	--text: #f0efec;
+	--text-2: #c3c2b7;
+	--muted: #9a9890;
+	--grid: #2c2c2a;
+	--axis: #383835;
+	--border: rgba(255, 255, 255, 0.1);
+	--wash: rgba(255, 255, 255, 0.05);
+	--focus: #86b6ef;
+	--accent: #3987e5;
+	--accent-ink: #0b0b0b;
+	--warn-bg: #3a2f12;
+	--warn-border: #8a6a1c;
+	--era-terra: #3987e5;
+	--era-aqua: #d95926;
+	--era-viirs: #199e70;
+	--era-shade-a: rgba(255, 255, 255, 0.045);
+	--line: #5598e7;
+	--band: rgba(85, 152, 231, 0.25);
+	--seq-0: #232322;
+	--seq-1: #0d366b;
+	--seq-2: #184f95;
+	--seq-3: #256abf;
+	--seq-4: #3987e5;
+	--seq-5: #6da7ec;
+	--seq-6: #9ec5f4;
+	--seq-7: #cde2fb;
+	--div-mlo: #6da7ec;
+	--div-lo: #184f95;
+	--div-mid: #383835;
+	--div-hi: #8e2525;
+	--div-mhi: #ea817a;
+	--div-ink-strong: #0b0b0b;
+	--div-ink-soft: #f0efec;
+	--hatch: rgba(255, 255, 255, 0.6);
+	--cell-ring: #f0efec;
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html {
+	-webkit-text-size-adjust: 100%;
+}
+
+body {
+	margin: 0;
+	background: var(--page);
+	color: var(--text);
+	font-family: var(--font);
+	font-size: 16px;
+	line-height: 1.5;
+}
+
+h1,
+h2,
+h3 {
+	line-height: 1.2;
+	margin: 0;
+}
+
+a {
+	color: var(--accent);
+}
+
+:focus-visible {
+	outline: 2px solid var(--focus);
+	outline-offset: 2px;
+}
+
+button,
+input,
+select {
+	font: inherit;
+	color: inherit;
+}
+
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+.card {
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	padding: 16px;
+}
+
+.btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	min-height: 36px;
+	padding: 6px 12px;
+	border: 1px solid var(--border);
+	border-radius: 8px;
+	background: var(--surface);
+	cursor: pointer;
+	font-size: 0.9rem;
+}
+.btn:hover {
+	background: var(--wash);
+}
+.btn[aria-pressed='true'],
+.btn.primary {
+	background: var(--accent);
+	color: var(--accent-ink);
+	border-color: var(--accent);
+}
+.btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.seg {
+	display: inline-flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	border: 0;
+	padding: 0;
+	margin: 0;
+}
+
+.tnum {
+	font-variant-numeric: tabular-nums;
+}
+
+table.data {
+	border-collapse: collapse;
+	font-size: 0.85rem;
+	width: 100%;
+}
+table.data th,
+table.data td {
+	text-align: right;
+	padding: 4px 8px;
+	border-bottom: 1px solid var(--grid);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+table.data th:first-child,
+table.data td:first-child {
+	text-align: left;
+}
+table.data thead th {
+	position: sticky;
+	top: 0;
+	background: var(--surface);
+	color: var(--text-2);
+	font-weight: 600;
+}
+
+.table-scroll {
+	max-height: 360px;
+	overflow: auto;
+	margin-top: 8px;
+}

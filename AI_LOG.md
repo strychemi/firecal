@@ -19,7 +19,7 @@ Commits written with AI help carry a `Co-Authored-By: Claude …` line naming th
 
 ## Log
 
-### 2026-11-14, session 1 (15:12–21:31): method, rule checks, explainer, design
+### 2026-11-14, session 1 (15:12–22:35): method, rule checks, explainer, design
 
 **15:12–15:45 · Harmonization approach** (Opus 5.5)
 - *Asked:* how to approach MODIS–VIIRS harmonization with the highest scientific rigour.
@@ -50,6 +50,12 @@ Commits written with AI help carry a `Co-Authored-By: Claude …` line naming th
 - *AI did:* wrote `PREREGISTRATION.md` and `ARCHITECTURE.md`, committed them and the rule-check work, pushed branches, and opened pull requests #1 and #2. The team reviewed and merged both. The AI then deleted the merged branches at the team's request.
 
 **21:31 · This log started.**
+
+**21:38–22:35 · First working prototype** (Opus 5.5)
+- *Asked:* build a prototype to iterate on: the Argentina pipeline for 2000–2025 writing the published data, a frontend built against a saved example response, and a minimal Rust API with `query` and `meta`.
+- *AI did:* wrote `firecal.toml` and the Python + DuckDB pipeline in `pipeline/` (ingest, cell-days, fit and validation, publish, and a Python reference implementation of the API that writes example responses). It wrote the API contract (`docs/api.md`) and the Rust API in `api/`, and checked the API against the Python reference with `pipeline/tests/test_api_parity.py` (10 requests, 4 rejected requests and `meta`, all matching). A second AI agent, working in parallel from a written brief, built the SvelteKit frontend in `web/` against the example responses. The AI then ran the full app in a browser with live data.
+- *Checks:* the Aqua multipliers and scores reproduce the earlier rule checks exactly (day 3.05, night 10.3, typical error 9.95 %). Known satellite outages appear as gaps or filled days (for example Terra, 2001-06-15 to 07-02).
+- *Not verified:* screen readers, browsers other than the in-app one, and file downloads through the browser's save dialog.
 
 **Errors the AI made in this session, and how they were caught**
 - Claimed the in-sample join gap is zero by construction. Wrong with shrinkage (night gap −6.5 %); corrected by the AI.
