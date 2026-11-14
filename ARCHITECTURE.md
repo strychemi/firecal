@@ -8,7 +8,7 @@
 
 | The challenge asks for | Component | How |
 |---|---|---|
-| Harmonize MODIS and VIIRS so the sensor of origin no longer matters | Pipeline: `fit`, `publish` | Count burning cell-days (H3 res 8, local solar date, day/night). Convert Aqua MODIS to S-NPP-equivalent counts with per-area day/night multipliers fitted on 2013–2022. Validate by leaving one year out. Judge every change by `PREREGISTRATION.md`. |
+| Harmonize MODIS and VIIRS so the sensor of origin no longer matters | Pipeline: `fit`, `publish` | Count burning cell-days (H3 res 8, local solar date, day/night). Convert MODIS to VIIRS-equivalent counts with per-area day/night multipliers fitted on 2013–2022. Validate by leaving one year out. Judge every change by `PREREGISTRATION.md`. |
 | Consistent series from the early 2000s to the present | Pipeline, recent-data job | Terra from 2000-11, Aqua from 2002-08, S-NPP as observed from 2012-02, then NOAA-20 after S-NPP's last day. One satellite per day, never summed. Recent months from the FIRMS API. |
 | Web app taking harmonized data as input | API + frontend | The app reads only the published `gold/` data. |
 | Select a region and a date range | Frontend map and form → `POST /api/query` | Draw a box or polygon, or enter latitude/longitude (box, or point and radius). Date-range picker. |
@@ -28,7 +28,7 @@
 | Anomalies against multi-year averages | Toggle between mean (as the challenge words it) and median (steadier against extreme years); median by default, always labelled |
 | Number of fires detected | Each satellite's raw hotspot count shown beside the harmonized calendar |
 
-**Hotspots vs burning places.** The challenge speaks of "number of hotspots". We harmonize burning cell-days instead, because a raw hotspot count mostly reflects pixel size: VIIRS reports about 5× as many hotspots as Aqua for the same fires. The app shows the harmonized cell-day calendar as the main view and each satellite's raw hotspot count as "fires detected", and explains the difference in one line.
+**Hotspots vs burning cell-days.** The challenge speaks of "number of hotspots". We harmonize VIIRS-equivalent burning cell-days instead, because a raw hotspot count mostly reflects pixel size: VIIRS reports about 5× as many hotspots as Aqua for the same fires. The app shows the harmonized calendar as the main view, labelled "fire-days", and each satellite's raw hotspot count as "fires detected", and explains the difference in one line.
 
 ## 2. System overview
 
@@ -74,7 +74,7 @@ SvelteKit static build (served by the same Rust binary) ── MapLibre map + ch
 
 | File | Contents |
 |---|---|
-| `monthly_res4.parquet`, `monthly_res5.parquet`, `monthly_res6.parquet` | One row per hexagon per month with any fire, sorted by cell: `cell, year, month, source, value, raw, detections, frp`. `value` is S-NPP-equivalent burning cell-days; `raw` is the source satellite's own count; `detections` is its hotspot count. |
+| `monthly_res4.parquet`, `monthly_res5.parquet`, `monthly_res6.parquet` | One row per hexagon per month with any fire, sorted by cell: `cell, year, month, source, value, raw, detections, frp`. `value` is VIIRS-equivalent burning cell-days; `raw` is the source satellite's own count; `detections` is its hotspot count. |
 | `month_to_date.parquet` | Same columns for days 1–D of the current month, for every year. Absent when no month is in progress. |
 | `misses.parquet` | Past misses `ln(V / V̂)` by predicted-count bin, from leave-one-year-out. Used to build error ranges for any area. |
 | `hotspots/year=YYYY/parent=…/*.parquet` | Filtered hotspot rows, split by year and coarse parent hexagon, for the CSV export. |

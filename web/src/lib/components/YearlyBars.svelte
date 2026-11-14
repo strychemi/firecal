@@ -154,7 +154,7 @@
 		const b = bars[active];
 		const yr = b.yr;
 		const rows: TipRow[] = [
-			{ value: fmt(yr.value), label: 'burning places, converted' },
+			{ value: fmt(yr.value), label: 'fire-days, converted' },
 			{ value: fmt(yr.raw), label: 'raw satellite counts' }
 		];
 		for (const s of yr.bySource)
@@ -173,7 +173,7 @@
 <ChartFrame
 	id="yearly"
 	{title}
-	subtitle="Burning places per year. Switch to raw satellite counts to see the jump in 2012 when the record moves from MODIS to VIIRS, whose smaller pixels see more small fires. Converted counts put both on the VIIRS scale."
+	subtitle="Fire-days per year. Switch to raw satellite counts to see the jump in 2012 when the record moves from MODIS to VIIRS, whose smaller pixels see more small fires. Converted counts put both on the VIIRS scale."
 	{filename}
 	svg={svgEl}
 	{busy}

@@ -87,7 +87,7 @@
 		active = nearest(e.clientX - r.left);
 	}
 	function describe(m: MonthRow) {
-		let s = `${monthLabel(m.month)}: ${fmt(m.value)} burning places`;
+		let s = `${monthLabel(m.month)}: ${fmt(m.value)} fire-days`;
 		if (m.lower !== null && m.upper !== null) s += `, 80 % range ${fmt(m.lower)} to ${fmt(m.upper)}`;
 		s += `, ${SOURCE_LABEL[m.source]}`;
 		if (!m.complete) s += ', incomplete month';
@@ -111,7 +111,7 @@
 	const tip = $derived.by(() => {
 		if (active === null || !months[active]) return null;
 		const m = months[active];
-		const rows: TipRow[] = [{ value: fmt(m.value), label: 'burning places (converted)', key: 'var(--line)' }];
+		const rows: TipRow[] = [{ value: fmt(m.value), label: 'fire-days (converted)', key: 'var(--line)' }];
 		if (m.lower !== null && m.upper !== null) rows.push({ value: `${fmt(m.lower)}–${fmt(m.upper)}`, label: '80 % range' });
 		rows.push({ value: fmt(m.raw), label: 'raw satellite count' });
 		return {
@@ -123,19 +123,19 @@
 		};
 	});
 
-	const title = 'Monthly burning places';
+	const title = 'Monthly fire-days';
 </script>
 
 <ChartFrame
 	id="monthly"
 	{title}
-	subtitle="Converted burning places each month for the selected dates. The shaded band is the 80 % range for months converted from MODIS; VIIRS months are observed directly, so they have no band."
+	subtitle="Converted fire-days each month for the selected dates. The shaded band is the 80 % range for months converted from MODIS; VIIRS months are observed directly, so they have no band."
 	{filename}
 	svg={svgEl}
 	{busy}
 >
 	{#snippet legend()}
-		<span class="li"><svg width="18" height="10" aria-hidden="true"><line x1="0" x2="18" y1="5" y2="5" stroke="var(--line)" stroke-width="2" /></svg>Burning places (converted)</span>
+		<span class="li"><svg width="18" height="10" aria-hidden="true"><line x1="0" x2="18" y1="5" y2="5" stroke="var(--line)" stroke-width="2" /></svg>Fire-days (converted)</span>
 		{#if hasBand}
 			<span class="li"><span class="sw band"></span>80 % range</span>
 		{/if}

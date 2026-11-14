@@ -23,7 +23,7 @@
 
 	<div class="facts">
 		<div class="fact">
-			<span class="label">Burning places</span>
+			<span class="label">Fire-days</span>
 			<span class="big">{fmt(s.value)}</span>
 			{#if s.lower !== null && s.upper !== null}
 				<span class="small">80 % range {fmt(s.lower)}–{fmt(s.upper)}</span>

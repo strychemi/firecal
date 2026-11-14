@@ -2,7 +2,7 @@
 
 The Rust API (`api/`) serves this contract. `pipeline/firecal_pipeline/reference.py` implements the same contract in Python: it writes the example responses in `web/static/example/` and is the oracle the Rust tests compare against.
 
-All counts are **burning cell-days**: one H3 resolution-8 cell, on one local solar date, for one day/night pass, with at least one hotspot. `value` is converted to what S-NPP VIIRS would have counted; `raw`, `detections` and `frp` are the satellite's own numbers, never converted.
+All counts are **burning cell-days**: one H3 resolution-8 cell (about 0.74 km²), on one local solar date, for one day or night pass, with at least one hotspot, so a cell can count twice a day. `value` is in **VIIRS-equivalent burning cell-days**: observed by VIIRS from February 2012 (S-NPP, with NOAA-20 on S-NPP outage days) and converted from MODIS before that; `raw`, `detections` and `frp` are the satellite's own numbers, never converted.
 
 ## `GET /api/meta`
 
@@ -11,7 +11,7 @@ All counts are **burning cell-days**: one H3 resolution-8 cell, on one local sol
   "data_version": "v1",
   "series_start": "2000-11",
   "series_end": "2025-12",
-  "unit": "S-NPP-equivalent burning cell-days (...)",
+  "unit": "VIIRS-equivalent burning cell-days (...)",
   "region": { "bbox": [-76, -56, -50, -20], "countries": ["Argentina", "..."] },
   "eras": [{ "start": "2000-11-01", "end": "2002-07-31", "source": "terra_harmonized", "chain": ["terra", "aqua"] }],
   "gaps": [{ "start": "2001-06-15", "end": "2001-07-02", "days": 18 }],
@@ -69,7 +69,7 @@ Response:
     "baseline": "median", "baseline_value": 162.0, "baseline_years": [2000, 2001, "..."],
     "ratio": 0.302, "rank": 22, "of": 26, "percentile": 16.0,
     "category": "much lower than usual",
-    "sentence": "December 2025 had 49 burning places, 0.3× the usual December (median of 25 years), 22nd highest of 26 years."
+    "sentence": "December 2025 had 49 fire-days, 0.3× the usual December (median of 25 years), 22nd highest of 26 years."
   }
 }
 ```

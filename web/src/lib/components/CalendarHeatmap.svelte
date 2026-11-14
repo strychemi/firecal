@@ -25,8 +25,8 @@
 
 	type Mode = 'value' | 'raw' | 'detections' | 'frp' | 'anomaly';
 	const MODES: { id: Mode; label: string; unit: string }[] = [
-		{ id: 'value', label: 'Burning places (converted)', unit: 'burning places' },
-		{ id: 'raw', label: 'Raw satellite counts', unit: 'burning places, as the satellite saw them' },
+		{ id: 'value', label: 'Fire-days (converted)', unit: 'fire-days' },
+		{ id: 'raw', label: 'Raw satellite counts', unit: 'fire-days, as the satellite saw them' },
 		{ id: 'detections', label: 'Hotspots detected', unit: 'hotspots' },
 		{ id: 'frp', label: 'Fire power (FRP)', unit: 'MW total fire radiative power' },
 		{ id: 'anomaly', label: 'Compared with usual', unit: '' }
@@ -108,7 +108,7 @@
 		if (mode === 'anomaly') {
 			const a = anom.get(m.month)!;
 			parts.push(
-				`${fmt(m.value)} burning places, ${a.category}` +
+				`${fmt(m.value)} fire-days, ${a.category}` +
 					(a.ratio !== null ? ` (${a.ratio.toFixed(1)}× the median of ${a.years} years)` : '')
 			);
 		} else {
@@ -128,7 +128,7 @@
 		if (mode === 'anomaly') {
 			const a = anom.get(m.month)!;
 			rows.push({ value: `${CATEGORY_GLYPH[a.category]} ${a.category}`, label: '' });
-			rows.push({ value: fmt(m.value), label: 'burning places' });
+			rows.push({ value: fmt(m.value), label: 'fire-days' });
 			rows.push({ value: fmt(a.baseline), label: `median of ${a.years} years` });
 			if (a.ratio !== null) rows.push({ value: `${a.ratio.toFixed(2)}×`, label: 'the median' });
 		} else {

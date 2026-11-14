@@ -20,7 +20,7 @@ celldays_resolution = 8          # H3 res 8 for burning cell-days
 app_resolutions = [4, 5, 6]      # H3 levels published for the app
 
 [harmonization]
-target = "snpp"                  # counts are converted to S-NPP-equivalent burning cell-days
+target = "snpp"                  # counts are converted to VIIRS-equivalent burning cell-days (fitted against S-NPP)
 stratum_resolution = 3           # per-area multipliers on H3 res-3 parents
 shrinkage_k = 50                 # pseudo-count pulling sparse areas toward the study-area multiplier
 calibration_first_year = 2013

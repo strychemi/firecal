@@ -22,9 +22,11 @@
 		<div>
 			<h3>What is counted</h3>
 			<p>
-				<strong>Counts are burning places, not raw hotspots.</strong> A burning place is one small hexagon (about 0.7 km²,
-				H3 level 8) that had at least one hotspot in one day or night pass. We count places because newer satellites have
-				smaller pixels and split one fire into more hotspots, so raw hotspot counts jump when the satellite changes.
+				<strong>Counts are fire-days, not raw hotspots.</strong> A fire-day is one small hexagon (about 0.7 km²,
+				H3 level 8) where a satellite detected fire in one day or night pass of one local day, so a hexagon can count
+				twice a day. We count fire-days because newer satellites have smaller pixels and split one fire into more hotspots,
+				so raw hotspot counts jump when the satellite changes. Before February 2012 the counts are converted from MODIS
+				to what VIIRS would have seen; the technical unit is VIIRS-equivalent burning cell-days.
 			</p>
 			<h3>One satellite per day</h3>
 			<p>
