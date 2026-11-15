@@ -5,6 +5,7 @@ raw_dir = "data"                 # FIRMS yearly "all countries" zips
 out_dir = "data"                 # bronze/ silver/ model/ gold/ are created under here
 first_year = 2000
 last_year = 2025
+keep_versions = 3                # published versions kept by `prune` (scripts/refresh.sh); each is ~190 MB
 # Country files to read from each zip (names as in the FIRMS file names).
 countries = ["Argentina", "Bolivia", "Brazil", "Chile", "Paraguay", "Uruguay", "Falkland_Islands"]
 # Clip box [min_lon, min_lat, max_lon, max_lat].

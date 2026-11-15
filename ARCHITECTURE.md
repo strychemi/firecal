@@ -138,7 +138,7 @@ The frontend is developed against a saved example of the `/api/query` response, 
 ## 7. Operations
 
 - **One container:** the Rust binary serves the API and the built frontend; `gold/` is mounted as a volume.
-- **Recent data:** a daily job fetches new FIRMS days with the key from its own environment, then runs `cells` → `publish` for the affected months and updates `gold/CURRENT`. Prototype: run by hand (`download`, then `all`), and it republishes the whole series.
+- **Recent data:** a daily job fetches new FIRMS days with the key from its own environment, then runs `cells` → `publish` for the affected months and updates `gold/CURRENT`. Prototype: `scripts/refresh.sh` (`mise run refresh`), run by hand. It republishes the whole series and keeps the newest three versions. Deployed, the server's scheduler runs the same script daily, with the key in that job's environment only.
 - **Snapshots:** a frozen, checksummed copy of `gold/` is used for the submission, so the demo, slides and video show the same numbers.
 - **Fallback:** a script saves the API's responses for every preset as JSON. If hosting fails during judging, the frontend runs from those files.
 

@@ -34,11 +34,8 @@ dir = "{{config_root}}/pipeline"
 run = "uv run python -m firecal_pipeline download"
 
 [tasks.refresh]
-description = "Bring the data up to date: download recent days, then rebuild"
-run = [
-  { task = "download" },
-  { task = "data" },
-]
+description = "Bring the data up to date: download, rebuild, publish, prune old versions (see scripts/refresh.sh)"
+run = "scripts/refresh.sh"
 
 [tasks.example]
 description = "Rewrite the example API responses in web/static/example from the current data"

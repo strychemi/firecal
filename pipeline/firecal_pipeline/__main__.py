@@ -1,6 +1,7 @@
-"""firecal pipeline: python -m firecal_pipeline {download,ingest,cells,fit,publish,example,all}
+"""firecal pipeline: python -m firecal_pipeline {download,ingest,cells,fit,publish,example,prune,all}
 
-"all" runs every step except download, which needs a FIRMS MAP_KEY (see download.py)."""
+"all" runs every step except download, which needs a FIRMS MAP_KEY (see download.py), and prune,
+which deletes old published versions (scripts/refresh.sh runs it)."""
 import argparse
 
 from .config import Config
@@ -8,7 +9,7 @@ from .config import Config
 
 def main() -> None:
     ap = argparse.ArgumentParser(prog="firecal")
-    ap.add_argument("step", choices=["download", "ingest", "cells", "fit", "publish", "example", "all"])
+    ap.add_argument("step", choices=["download", "ingest", "cells", "fit", "publish", "example", "prune", "all"])
     ap.add_argument("--force", action="store_true", help="rebuild bronze files that already exist")
     args = ap.parse_args()
     cfg = Config.load()
@@ -29,6 +30,9 @@ def main() -> None:
         elif step == "publish":
             from . import publish
             publish.run(cfg)
+        elif step == "prune":
+            from . import publish
+            publish.prune(cfg)
         elif step == "example":
             from . import reference
             reference.write_examples(cfg)

@@ -28,7 +28,7 @@ mise run api        # build and run the API, which serves the app: http://127.0.
 **Recent data (optional).** The zips end with `last_year` in `firecal.toml`. To add the days since, up to two days ago:
 1. Get a free [FIRMS MAP_KEY](https://firms.modaps.eosdis.nasa.gov/api/map_key/).
 2. Put it in `.env` at the repo root (`cp .env.example .env`; `.env` is git-ignored).
-3. Run `mise run refresh` (download, then rebuild).
+3. Run `mise run refresh`. It downloads the new days, rebuilds and publishes a new data version (a running API switches to it within 10 seconds), and deletes all but the newest three versions (`keep_versions` in `firecal.toml`; each is about 190 MB). Each run's log is in `data/logs/`.
 
 `download` writes one CSV per product and UTC day to `data/firms_api/`: standard-processing data where FIRMS has it, near-real-time after that. Running `refresh` again brings the series up to date. It fetches only new days, the last few near-real-time days again, and days whose standard-processing version has since appeared. The key is used only in the requests to FIRMS; mise does not load `.env`. When the series ends partway through a month, the app compares that month so far with the same days in earlier years.
 
