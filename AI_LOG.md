@@ -7,7 +7,7 @@ The Space Apps rules ask every team to describe how it used AI. This file record
 | Tool | Models | Used for |
 |---|---|---|
 | Claude Code (Claude desktop app, Code tab) | Claude Opus 5.5 (`claude-opus-5-5`), Claude Fable 5.2 (`claude-fable-5-2`) | Method design, data analysis scripts, the explainer page, project documents, the pipeline, API and app code, git and GitHub operations |
-| GitHub Copilot pull request reviewer | GitHub's choice | Automatic review comments on pull requests #5–#9; Claude Code fixed the valid ones and replied on each thread |
+| GitHub Copilot pull request reviewer | GitHub's choice | Automatic review comments on pull requests #5–#15; Claude Code fixed the valid ones and replied on each thread |
 
 Commits written with AI help carry a `Co-Authored-By: Claude …` line naming the model.
 
@@ -131,3 +131,45 @@ All work in this part was done with Opus 5.5.
 - The methods page would have listed NOAA-20 under "Converted satellite" with the scores of the rejected conversion. Caught by the AI before committing.
 - The publish step still gave NOAA-20 a fixed multiplier of 1, so a conversion the rule kept would have been silently ignored (caught by Copilot).
 - `ARCHITECTURE.md` presented the global endpoint table without saying so, and wrote `gold/current` for the real `gold/CURRENT` file (caught by Copilot).
+
+### 2026-11-15, session 1 continued (04:47–06:50): local checks, refresh, real data only
+
+All work in this part was done with Opus 5.5.
+
+**04:47–05:05 · Status, and where the checks run**
+- *Decided by the team:* set the public demo aside until the other objectives are done.
+- *AI did:* proposed GitHub Actions checks that ran the pipeline on a committed sample of FIRMS rows. *Decided by the team:* fire data does not go into the repo, and the checks run locally instead.
+
+**05:05–05:28 · Local checks and mise** (#13)
+- *AI did:* wrote `scripts/check.sh`. It type-checks and builds the frontend, builds the API, runs the whole pipeline on a small sample, and compares the Rust API with the Python reference on the sample and on the full data. The sample is real FIRMS rows for a box near the Paraná Delta, built from local data and git-ignored.
+- *Found:* building the sample exposed a real bug. Ingest crashed when no recent file had a `type` column, which happens once every recent day is near-real-time. Fixed in the same pull request.
+- *Decided by the team:* adopt mise as the task runner and pinned-tool manager, committing the checks first and mise second. The AI pinned Node, pnpm, Rust, uv and Python, and turned the README's commands into tasks.
+- *Asked:* whether the local check equals a CI run on the production data. The AI explained the differences: same steps, but it runs only on this machine, and only when someone runs it.
+
+**05:28–05:40 · Keeping the data current**
+- *AI did:* began with a macOS launchd job to run the refresh daily on this machine. *Decided by the team, after asking for a plain explanation and alternatives:* drop the launchd job. Deployed, the server's scheduler runs the same script, with the key in that job's environment only.
+- *AI did:* wrote `scripts/refresh.sh` (`mise run refresh`): download, ingest, cells, publish, then a new `prune` step that keeps the newest `keep_versions` data versions plus the one in use.
+
+**05:40–06:11 · Real data only** (#14)
+- *Asked:* what the example data was, then to drop it and test against a running backend, with the tests first.
+- *AI did:* added 11 Playwright browser tests. They load the app from the Rust API and check every number on screen against the API's answer for the same request, including presets, dates, custom areas, calendar clicks, the three downloads and error messages. `check.sh` runs them on the sample and on the full data. The AI committed the tests while example mode still existed, then removed it: the saved responses, the fallback to them, the browser copy of the stats rules, the example-only parts of the page and the pipeline's `example` step.
+- *Found:* the sample box is so small that every past month counts as incomplete, so the sample never exercises the "usual" comparison. The full-data run covers it.
+
+**06:11–06:25 · Review comments**
+- Copilot's two comments were valid. The AI fixed both, tested the fixes and replied on each thread. *Decided by the team:* resolve the threads, then merge.
+
+**06:25–06:50 · Dependabot alerts** (#15)
+- *Asked:* check three Dependabot alerts on `main` (image-size high, fflate moderate, deepmerge low).
+- *AI did:* traced each through `pnpm why` and searched the built app for each library's name and its own error messages. None are in the app. image-size and fflate come in with deck.gl's 3D-tiles and texture loaders, which the app does not use. deepmerge only merges the project's own build config.
+- *Decided by the team:* pin the patched versions and dismiss the deepmerge alert, which has no patched release. The AI pinned fflate 0.7.5 and image-size 2.0.3 and dismissed the alert as "not used". GitHub closed the other two when #15 merged.
+
+**Checks in this part:** `mise run check` passed before each push: parity with 0 failures on the sample and on the full data, and, from #14 on, 11 of 11 browser tests on both. The new refresh lock and `prune` were tested on throwaway files and folders. *Not verified:* a full `mise run refresh` on the real data (no new version has been published with it yet), drawing an area on the map in the browser tests (the box and circle forms run the same search), and the pinned image-size version with the tool that uses it, which the app never runs.
+
+**Errors the AI made in this part, and how they were caught**
+- The AI proposed committing a sample of fire data so the checks could run on GitHub. Caught by the team.
+- `check.sh` stopped early after a passing step, because stopping the API returned a non-zero status under `set -e`. Caught by the AI's first run.
+- The check's wait for the API never failed, and could have tested another server already on the port (caught by Copilot; the AI added the second part).
+- A preview server left on port 8080 served an old API build, so `mise run parity` failed. Caught by the AI, which stopped it.
+- Two refresh runs could both clear a stale lock and run at once (caught by Copilot). Fixed with a lock the operating system releases when the run exits.
+- `keep_versions = 0` pruned nothing (caught by Copilot). While testing the fix, the AI found that with no `gold/CURRENT` file it would have deleted every version. It now deletes nothing in that case.
+- One browser test first failed on whitespace in its own assertion, not on the app. Caught by the run.
