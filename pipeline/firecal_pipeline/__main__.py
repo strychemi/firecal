@@ -1,6 +1,7 @@
-"""firecal pipeline: python -m firecal_pipeline {download,ingest,cells,fit,publish,prune,all}
+"""firecal pipeline: python -m firecal_pipeline {download,granules,ingest,cells,fit,publish,prune,all}
 
-"all" runs every step except download, which needs a FIRMS MAP_KEY (see download.py), and prune,
+"all" runs every step except download, which needs a FIRMS MAP_KEY (see download.py), granules, which
+downloads NASA granule records (see granules.py), and prune,
 which deletes old published versions (scripts/refresh.sh runs it)."""
 import argparse
 
@@ -9,7 +10,7 @@ from .config import Config
 
 def main() -> None:
     ap = argparse.ArgumentParser(prog="firecal")
-    ap.add_argument("step", choices=["download", "ingest", "cells", "fit", "publish", "prune", "all"])
+    ap.add_argument("step", choices=["download", "granules", "ingest", "cells", "fit", "publish", "prune", "all"])
     ap.add_argument("--force", action="store_true", help="rebuild bronze files that already exist")
     args = ap.parse_args()
     cfg = Config.load()
@@ -18,6 +19,9 @@ def main() -> None:
         if step == "download":
             from . import download
             download.run(cfg)
+        elif step == "granules":
+            from . import granules
+            granules.download(cfg)
         elif step == "ingest":
             from . import ingest
             ingest.run(cfg, args.force)

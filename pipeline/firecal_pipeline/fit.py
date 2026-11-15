@@ -3,7 +3,8 @@
 Baseline model from PREREGISTRATION.md section 2, fitted separately for Aqua and Terra:
 day/night multipliers per H3 res-3 area, shrunk toward the study-area multiplier,
     r = sum V / sum M,    r_s = (V_s + k r) / (M_s + k),    V_hat = r_s * M
-fitted on calibration years, on days both satellites have data.
+fitted on calibration years, on fair units: H3 res-3 cell, local solar date and pass that both
+satellites observed (PREREGISTRATION.md §7, 2026-11-15; silver/observed.parquet from granules.py).
 
 NOAA-20 (used on S-NPP outage days) is fitted the same way on 2018-2022, its overlap with S-NPP, and
 compared with no conversion (multiplier 1) by the rule in PREREGISTRATION.md section 7 (2026-11-15).
@@ -32,21 +33,27 @@ MIN_BIN_N = 30
 
 
 def load(cfg: Config, model: str) -> pd.DataFrame:
-    """Monthly counts on matched days, at the finest grouping any score needs."""
+    """Monthly counts on fair units, at the finest grouping any score needs."""
     silver = cfg.out / "silver"
     con = connect()
     sr = int(cfg["harmonization"]["stratum_resolution"])
+    sats = f"('{model}', 'snpp')"
     return con.execute(f"""
-        WITH cov AS (SELECT * FROM read_parquet('{silver}/coverage.parquet') WHERE n_raw > 0),
-             matched AS (SELECT d FROM cov WHERE sat IN ('{model}', 'snpp') GROUP BY d HAVING count(DISTINCT sat) = 2)
+        WITH cd AS (SELECT *, printf('%x', h3_cell_to_parent(cell8, 3)) AS u3
+                    FROM read_parquet('{silver}/cell_day.parquet') WHERE sat IN {sats}),
+             obs AS (SELECT * FROM read_parquet('{silver}/observed.parquet') WHERE sat IN {sats}),
+             units AS (SELECT DISTINCT u3, d, dn FROM cd),
+             seen AS (SELECT u.*, o.sat FROM units u JOIN obs o ON o.r3 = u.u3 AND o.d = u.d AND o.dn = u.dn
+                      UNION ALL
+                      SELECT u.*, o.sat FROM units u JOIN obs o ON o.r3 IS NULL AND o.d = u.d AND o.dn = u.dn),
+             fair AS (SELECT u3, d, dn FROM seen GROUP BY ALL HAVING count(DISTINCT sat) = 2)
         SELECT year(d) AS y, month(d) AS mo, dn, sat,
                printf('%x', h3_cell_to_parent(cell8, {sr})) AS r3,
                printf('%x', h3_cell_to_parent(cell8, 4)) AS r4,
                CAST(floor(h3_cell_to_lat(cell8) / 2) AS INT) AS blat,
                CAST(floor(h3_cell_to_lng(cell8) / 2) AS INT) AS blon,
                count(*)::BIGINT AS n
-        FROM read_parquet('{silver}/cell_day.parquet') JOIN matched USING (d)
-        WHERE sat IN ('{model}', 'snpp') GROUP BY ALL""").df()
+        FROM cd JOIN fair USING (u3, d, dn) GROUP BY ALL""").df()
 
 
 def fit(g: pd.DataFrame, model: str, years, k: float) -> dict:

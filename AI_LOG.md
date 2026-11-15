@@ -217,3 +217,31 @@ All work in this part was done with Opus 5.5.
 - To check whether FIRMS's API serves the newer labels, the AI wrote a one-off script that read the FIRMS key from `.env`, outside the download step that is approved to use it. Claude Code's permission check blocked it before it ran. The team chose to skip the check.
 - The README repeated the shared SFTP login (caught by Copilot).
 - Duplicate label rows would have been resolved silently (caught by Copilot).
+
+### 2026-11-15, session 1 continued (16:00–17:00): the outage rule on Argentina
+
+**16:00–16:20 · Granule records** (branch `outage-unit`)
+- *Asked:* build the outage rule on Argentina first.
+- *AI did:* added a `granules` step that downloads NASA's public records of each satellite's 5- and 6-minute swath slices touching the study box, month by month for the fit years (564 requests to NASA's CMR, no login, 31 MB). `cells` now writes which outage-check units (resolution-3 cell, local date, pass) each satellite observed, and `fit` uses only units both observed.
+- *Checks:* on four sample months no detection fell outside its satellite's footprints; shifting the detections 30° east put 96 % outside, so the check can fail.
+- *Asked:* what the step is and where the data comes from. The AI explained in plain terms.
+
+**16:20–16:45 · Two problems in NASA's catalogue, each settled by the team before any fit**
+- An Aqua footprint over Antarctica touches the box. The AI's first version read footprints as flat latitude/longitude shapes and stopped on it. Footprints are now tested on the sphere, as NASA defines them, which also covers the poles and the date line for the global run.
+- The pre-registered footprint check then failed for NOAA-20: 1.03 % of its detections fell outside. All but 4 had no record at their time. The catalogue holds 43 NOAA-20 records for April 2018 and 5 for May, against about 480 in a normal month. *Asked:* explain in plain terms, and why check NASA's data at all. *Decided by the team:* treat missing records with the fallback, one pass at a time, and have the check count only detections outside a record that exists.
+- The pre-fit check found the reverse case: passes NASA records but FIRMS does not hold, for example NOAA-20 from January to March 2018, before FIRMS's NOAA-20 record starts. Counted as observed, they would enter the fit as zero fire. *Asked:* whether the rules were getting too complex. The AI said the rule reduces to two conditions and recommended keeping both, noting that dropping the granule records was a fair simplification and that the choice had to be made before any fit. *Decided by the team:* keep both. A unit counts as observed only if a record covers it and FIRMS has that satellite's data on that pass.
+- Each change was written into `PREREGISTRATION.md` §7 before the fit, with what had been seen.
+
+**16:45–17:00 · Check and refit**
+- *Found:* every known outage is caught to the day, including the partial first days. Against the old whole-box rule, 3.5 % of the Aqua comparison's units and 2.7 % of Terra's lose fair status, holding about 2.5 % of S-NPP's cell-days; none gain it.
+- Refit, reported not pass/fail: Aqua's night multiplier moved from 10.37 to 9.96 and its whole-area typical error from 10.56 % to 9.41 %; held-out error from 10.80 % to 9.10 %, while the held-out gap widened from 3.56 % to 4.91 %. Terra's whole-area error moved from 18.57 % to 17.12 %. The NOAA-20 conversion is still rejected. Outcome rows, including the one for the MODIS labels, are in §7. Published as data version v9.
+
+- The AI pointed out that the two rule rows, though written before the fit, were not yet committed, so git would show them landing with the results. *Decided by the team:* commit the rule rows first, then the rest. Both commits still come after the fit ran; the rows' own text records the order.
+
+**Checks in this part:** `mise run check` passed: parity 0 failures and 11 of 11 browser tests, on the sample and on the full data. The sample has no granule records, so it runs on the per-pass fallback.
+
+**Errors the AI made in this part, and how they were caught**
+- The AI assumed no footprint near the box would cross a pole. The pipeline stopped on the first one; caught by the AI's own guard.
+- An empty table of units had no column types and failed on the sample; caught by the AI's test run.
+- The check script had an ambiguous column name; caught when it ran.
+

@@ -33,6 +33,11 @@ description = "Download recent days from the FIRMS API (needs FIRMS_MAP_KEY in .
 dir = "{{config_root}}/pipeline"
 run = "uv run python -m firecal_pipeline download"
 
+[tasks.granules]
+description = "Download NASA granule records (where each satellite observed) for the fit years; no login needed"
+dir = "{{config_root}}/pipeline"
+run = "uv run python -m firecal_pipeline granules"
+
 [tasks.refresh]
 description = "Bring the data up to date: download, rebuild, publish, prune old versions (see scripts/refresh.sh)"
 run = "scripts/refresh.sh"

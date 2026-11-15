@@ -13,7 +13,7 @@ NASA Space Apps 2026 · *Harmonization of MODIS and VIIRS Hot Spots*. Prototype:
 
 ## Run it
 
-Requirements: [mise](https://mise.jdx.dev), which installs the pinned Node, pnpm, Rust, uv and Python from `mise.toml`, plus the FIRMS yearly "all countries" archives (`modis_YYYY_all_countries.zip`, `viirs-snpp_…`, `viirs-jpss1_…`) in `data/`, plus the MODIS labels below.
+Requirements: [mise](https://mise.jdx.dev), which installs the pinned Node, pnpm, Rust, uv and Python from `mise.toml`, plus the FIRMS yearly "all countries" archives (`modis_YYYY_all_countries.zip`, `viirs-snpp_…`, `viirs-jpss1_…`) in `data/`, plus the MODIS labels and granule records below.
 
 **MODIS labels.** FIRMS's MODIS archive carries older (version-2) hotspot type labels through 2017, so the pipeline takes the labels for 2000–2017 from the producer's version-3 monthly files (PREREGISTRATION.md §7). They are NASA data from the MODIS fire team's server at the University of Maryland, about 1.3 GB, reached by SFTP with the login the team publishes in its [user guide](https://www.earthdata.nasa.gov/s3fs-public/2023-09/MODIS_C6_C6.1_Fire_User_Guide_1.0.pdf). Section 4.3, "University of Maryland SFTP Server", gives the login:
 
@@ -26,15 +26,18 @@ sftp -o IdentityAgent=none -o PubkeyAuthentication=no fire@fuoco.geog.umd.edu
 
 `ingest` stops with an error if a year's files are missing, or if under 99.9 % of FIRMS rows find their label.
 
+**Granule records.** The fit uses only places and times both satellites actually observed (PREREGISTRATION.md §7). Which ones those are comes from NASA's public records of each satellite's 5- and 6-minute swath slices ("granules"), downloaded once with `mise run granules`: about 600 requests to NASA's Common Metadata Repository, no login, roughly 10 minutes, saved to `data/granules/`. `cells` stops with an error if a month is missing, or if more than 0.1 % of a satellite's detections fall outside its recorded footprints.
+
 ```bash
 mise install        # the pinned tools
 mise run setup      # frontend and pipeline dependencies
+mise run granules   # NASA granule records for the fit (once)
 mise run data       # build the published data (about a minute for Argentina)
 mise run web:build  # build the frontend
 mise run api        # build and run the API, which serves the app: http://127.0.0.1:8080
 ```
 
-`mise tasks` lists every task. The pipeline steps behind `data` are `ingest` (zips, plus any recent days from `download` → `data/bronze/`), `cells` (burning cell-days → `data/silver/`), `fit` (multipliers and validation → `data/model/`) and `publish` (→ `data/gold/vN/`, and `data/gold/CURRENT`).
+`mise tasks` lists every task. The pipeline steps behind `data` are `ingest` (zips, plus any recent days from `download` → `data/bronze/`), `cells` (burning cell-days, and the places and times each satellite observed → `data/silver/`), `fit` (multipliers and validation → `data/model/`) and `publish` (→ `data/gold/vN/`, and `data/gold/CURRENT`).
 
 **Recent data (optional).** The zips end with `last_year` in `firecal.toml`. To add the days since, up to two days ago:
 1. Get a free [FIRMS MAP_KEY](https://firms.modaps.eosdis.nasa.gov/api/map_key/).
