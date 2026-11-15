@@ -273,3 +273,25 @@ All work in this part was done with Opus 5.5.
 - Copilot noted that the second half of the fallback ("detections but no granule units at all") ignored the continent. Valid. Its suggested fix, deciding per continent from granule units at fire cells, would let a partial outage over one continent switch on the fallback there, which counts the satellite as observing the whole continent. The AI instead read the clause per continent and from the records: a pass uses the fallback if none of the satellite's detections in that continent lies inside a granule footprint. Rebuilt, Argentina now matches v9 exactly (the S-NPP pass of 2024-04-25 no longer uses the fallback), and the global multipliers, validation and report are unchanged to the digit, so the §7 outcome row stands.
 - *Asked:* why the small-area score uses 2° squares rather than H3. The AI found no written reason; the definition came from session 1's checks. Squares shrink toward the poles, so northern continents are scored on fewer block-months; paired comparisons share the squares, so this mostly widens luck ranges. *Decided by the team:* skip an H3 check for now and note the limit in the docs; revisit if a northern upgrade result is borderline.
 
+
+### 2026-11-15, session 1 continued (20:12–20:40): upgrade 1, the resolution-2 stand-in
+
+**20:12–20:17 · Status, estimates and the rule**
+- *Asked:* where the project stands, how long §5 and the optional items would take, then to draft the stand-in rule. The AI estimated 5–7 hours for the three §5 upgrades.
+- *Found while drafting:* as written, rule 1 (a 0.5-point small-area gain, leaving one year out) would reject the stand-in almost everywhere, because leaving one year out barely creates areas without data. The AI drafted a §7 row that makes rule 6 the test and rules 1–5 no-harm checks, and wrote down the Argentina test's details, which were in code. It also set two new thresholds: at least 20 data-rich areas per continent, and at most 0.5 points of extra gap where the baseline already fails rule 4. *Decided by the team:* commit as drafted. Committed at 20:17, before any stand-in was run on global data.
+
+**20:17–20:40 · Code, run and adoption**
+- *AI did:* the res-2 parent multiplier in `fit` (used only where an area has no multiplier of its own on that pass), and in `report` the leave-area-out test and the paired no-harm checks, with their own random generator so the baseline's luck ranges are unchanged. Argentina first: the baseline report was unchanged and rule 6 gave 19.2 → 14.5 % (session 1: 19.3 → 14.0 %, before the fair-unit and label changes).
+- *Found:* rule 6 passes in Africa, Asia, North America, Oceania and South America and fails in Europe, where the continent's multiplier is already good (13.5 %). The no-harm checks pass everywhere it was kept. *Decided by the team:* adopt and record.
+- *AI did:* the kept continents go in the config (`standin_areas`); `fit` writes the parent multipliers to `model.json` and `publish` falls back to them before the study-area multiplier. Argentina follows South America and was published as v10 (9 res-4 cell-months change). Methods page and ARCHITECTURE updated; outcome row in §7.
+- *Found after adopting:* the stand-in reaches at most 0.07 % of MODIS cell-days before 2013 on any continent. An area has its own multiplier if either satellite saw fire there in 2013–2022, and S-NPP sees fire in nearly every area that burns. The AI had said earlier that the stand-in matters mostly before 2013; it does, but for very few fire days. Recorded in the outcome row.
+
+**Checks in this part:** `mise run check` passed (parity 0 failures and 11 of 11 browser tests, on the sample and on the Argentina v10 data). The global refit kept every multiplier, and validation moved by at most 0.01 points.
+
+**Errors the AI made in this part, and how they were caught**
+- The AI overstated where the stand-in would matter before measuring its reach; caught by the AI's own count after adopting, and corrected in the outcome row and to the team.
+
+**20:45–21:00 · Review comments** (#20)
+- Copilot noted that `publish` reads a top-level `models` that the global `model.json` doesn't have, and that publishing the global run needs continent-scoped lookups. Valid but not new in this PR: the global setup was never meant to publish. The AI made `publish` stop with a clear message on per-continent models and said so in the README; continent-scoped publishing is left for the global app.
+- Copilot noted that `rule6` divides by zero if a hidden area holds all of the continent's Aqua cell-days on a pass. Valid in principle; it doesn't happen in any continent (every result is finite). The AI made that case report "cannot be tested" instead. Argentina's report is identical byte for byte.
+- Copilot noted that the Methods page said "a place with no fires", while the stand-in applies where neither satellite saw fire on the shared passes. Valid; reworded.

@@ -78,6 +78,12 @@ def run(cfg: Config) -> None:
     out = gold / version
     out.mkdir()
     model = json.loads((model_dir / "model.json").read_text())
+    if "models" not in model:
+        # The global run fits each continent separately ("continents" in model.json), and a res-3 cell can carry a
+        # multiplier in each continent it spans. Publishing that needs continent-scoped lookups, planned with the
+        # global app; until then the global setup stops after fit and report.
+        raise SystemExit("publish: model.json has per-continent models (the global run); publishing them is not "
+                         "supported yet. The global setup runs ingest, cells, fit and report only.")
     eras = resolve_eras(cfg)
     through = dt.date.fromisoformat(eras[-1]["end"])
     month_end = (through.replace(day=28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
@@ -99,13 +105,18 @@ def run(cfg: Config) -> None:
         SELECT cal.d, cal.source, arg_min(o.sat, o.rank) AS sat, min(o.rank) AS rank
         FROM cal LEFT JOIN options o USING (d) GROUP BY ALL""")
 
-    # Multipliers: per (model satellite, day/night, res-3 area), with the study-area value as fallback.
+    # Multipliers: per (model satellite, day/night, res-3 area); an area without one uses its res-2 parent's
+    # where model.json has them (the resolution-2 stand-in), otherwise the study-area value.
     con.execute("CREATE TABLE ratio(sat VARCHAR, dn VARCHAR, r3 UBIGINT, r DOUBLE)")
+    con.execute("CREATE TABLE parent_ratio(sat VARCHAR, dn VARCHAR, r2 UBIGINT, r DOUBLE)")
     con.execute("CREATE TABLE region_ratio(sat VARCHAR, dn VARCHAR, r DOUBLE)")
     for sat, m in model["models"].items():
         con.executemany("INSERT INTO region_ratio VALUES (?, ?, ?)", [[sat, dn, r] for dn, r in m["region"].items()])
         con.executemany("INSERT INTO ratio VALUES (?, ?, h3_string_to_h3(?), ?)",
                         [[sat, dn, s, r] for dn, d in m["strata"].items() for s, r in d.items()])
+        parents = [[sat, dn, s, r] for dn, d in m.get("parents", {}).items() for s, r in d.items()]
+        if parents:
+            con.executemany("INSERT INTO parent_ratio VALUES (?, ?, h3_string_to_h3(?), ?)", parents)
     sr = int(model["stratum_resolution"])
     con.execute(f"""
         CREATE TABLE harmonized AS
@@ -113,10 +124,11 @@ def run(cfg: Config) -> None:
                -- S-NPP is the target. NOAA-20 uses its multipliers only when model.json has them (the
                -- pre-registered rule kept the conversion); otherwise it counts as S-NPP.
                CASE WHEN c.sat = 'snpp' OR (c.sat = 'noaa20' AND rr.r IS NULL) THEN 1.0
-                    ELSE coalesce(r.r, rr.r) END AS value
+                    ELSE coalesce(r.r, pr.r, rr.r) END AS value
         FROM read_parquet('{silver}/cell_day.parquet') c
         JOIN days d ON d.d = c.d AND d.sat = c.sat
         LEFT JOIN ratio r ON r.sat = c.sat AND r.dn = c.dn AND r.r3 = h3_cell_to_parent(c.cell8, {sr})
+        LEFT JOIN parent_ratio pr ON pr.sat = c.sat AND pr.dn = c.dn AND pr.r2 = h3_cell_to_parent(c.cell8, {sr - 1})
         LEFT JOIN region_ratio rr ON rr.sat = c.sat AND rr.dn = c.dn""")
     assert con.execute("SELECT count(*) FROM harmonized WHERE value IS NULL").fetchone()[0] == 0
 

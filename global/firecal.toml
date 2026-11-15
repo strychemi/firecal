@@ -36,6 +36,10 @@ stratum_resolution = 3           # per-area multipliers on H3 res-3 parents
 shrinkage_k = 50                 # pseudo-count pulling sparse areas toward the study-area multiplier
 calibration_first_year = 2013
 calibration_last_year = 2022
+# Resolution-2 stand-in (PREREGISTRATION.md §7, 2026-11-15): kept where rule 6 and the no-harm checks
+# passed (model/report.json); rejected in Europe; Antarctica cannot be fitted.
+parent_k = 200
+standin_areas = ["Africa", "Asia", "North_America", "Oceania", "South_America"]
 # One satellite per day, never summed. Each era lists its satellites in order of preference;
 # a day uses the first one with any detection in the study box (the outage rule in PREREGISTRATION.md).
 # end = "latest": the last local date with complete data (recent days from the FIRMS API when
