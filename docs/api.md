@@ -17,7 +17,8 @@ All counts are **burning cell-days**: one H3 resolution-8 cell (about 0.74 km²)
   "gaps": [{ "start": "2001-06-15", "end": "2001-07-02", "days": 18 }],
   "days_filled_by": { "noaa20": 36, "terra": 9 },
   "validation": { "aqua": { "whole_area_typical_error_pct": 9.95, "small_area_typical_error_pct": 22.23, "backward_join_gap_pct": 2.0 } },
-  "presets": [{ "id": "parana-delta", "name": "Paraná Delta", "note": "...", "bbox": [-60.8, -34.3, -58.3, -32.0] }]
+  "presets": [{ "id": "parana-delta", "name": "Paraná Delta", "note": "...", "bbox": [-60.8, -34.3, -58.3, -32.0] }],
+  "export_limit": 250000
 }
 ```
 
@@ -96,3 +97,33 @@ Field rules:
 - Numbers are rounded: `value`, `lower`, `upper`, `baseline_value` to 2 decimals, `frp` to 1, `ratio` to 3, `percentile` to 1.
 
 Errors return HTTP 400 with `{ "error": "message" }`.
+
+## `POST /api/export.csv`
+
+The filtered hotspots behind a search, one row per detection, as CSV.
+
+Request: `{ "area": ..., "start": "YYYY-MM", "end": "YYYY-MM" }`. The area forms, hexagon choice and month defaults are the same as `/api/query`, so the export covers exactly the hexagons and months the counts cover. Dates are local solar dates: a detection belongs to the month of its local solar date.
+
+Response: `200`, `text/csv; charset=utf-8`, with `Content-Disposition: attachment; filename="firecal-hotspots-START_END.csv"`. Rows are sorted by UTC time, then latitude, longitude and satellite.
+
+```
+hex_id,latitude,longitude,acq_date,acq_time,local_solar_date,satellite,instrument,daynight,confidence,frp,in_calendar
+86c2c5007ffffff,-33.63694,-58.37142,2020-08-01,0433,2020-08-01,snpp,VIIRS,N,n,0.9,true
+```
+
+| Column | Meaning |
+|---|---|
+| `hex_id` | H3 index (hex string) of the detection's hexagon at the response level, the same hexagons as `cells` in `/api/query` |
+| `latitude`, `longitude` | Detection centre, 5 decimals |
+| `acq_date`, `acq_time` | UTC date and time (`HHMM`), as FIRMS reports them |
+| `local_solar_date` | UTC + longitude / 15 hours, the date used for counting |
+| `satellite` | `terra`, `aqua`, `snpp` or `noaa20` |
+| `instrument` | `MODIS` (Terra, Aqua) or `VIIRS` (S-NPP, NOAA-20) |
+| `daynight` | `D` or `N`, FIRMS's flag |
+| `confidence` | FIRMS's value: 0–100 for MODIS, `n` or `h` for VIIRS |
+| `frp` | Fire radiative power, MW, 1 decimal |
+| `in_calendar` | `true` if the detection is from the satellite the calendar counts that day; summing these by month gives the `detections` field of `/api/query` |
+
+Only detections that pass the filters are included (`type = 0`; MODIS confidence ≥ 30; VIIRS nominal or high), from every satellite, including those not used for the calendar that day.
+
+A search with more than `max_export_rows` (`export_limit` in `/api/meta`, 250,000) detections is refused with HTTP 413 and `{ "error": "message", "rows": 11465418, "limit": 250000 }`. Bad requests return HTTP 400 as for `/api/query`.

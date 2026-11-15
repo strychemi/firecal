@@ -50,6 +50,8 @@ export interface Meta {
 	days_filled_by: Record<string, number>;
 	validation: Record<string, ValidationEntry>;
 	presets: Preset[];
+	/** Most rows the hotspot CSV export returns in one file. */
+	export_limit?: number;
 }
 
 export type Area =

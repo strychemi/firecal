@@ -1,6 +1,7 @@
 //! firecal API: serves the published gold/ data (docs/api.md) and the built frontend (web/build).
 mod config;
 mod data;
+mod export;
 mod query;
 
 use anyhow::Result;
@@ -23,6 +24,7 @@ struct AppState {
     data: RwLock<Arc<Data>>,
     presets: Vec<Preset>,
     max_hex: usize,
+    max_export_rows: usize,
 }
 
 type Shared = Arc<AppState>;
@@ -40,7 +42,7 @@ fn snapshot(state: &Shared) -> Arc<Data> {
 }
 
 async fn meta(State(state): State<Shared>) -> Json<serde_json::Value> {
-    Json(query::meta(&snapshot(&state), &state.presets))
+    Json(query::meta(&snapshot(&state), &state.presets, state.max_export_rows))
 }
 
 async fn run_query(
@@ -56,6 +58,44 @@ async fn run_query(
         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .map(Json)
         .map_err(|e| ApiError(StatusCode::BAD_REQUEST, e.to_string()))
+}
+
+/// POST /api/export.csv: the filtered hotspots for an area and dates, or 413 with the row count if over the cap.
+async fn run_export(
+    State(state): State<Shared>,
+    body: Result<Json<export::ExportRequest>, axum::extract::rejection::JsonRejection>,
+) -> Response {
+    let Json(req) = match body {
+        Ok(b) => b,
+        Err(e) => return ApiError(StatusCode::BAD_REQUEST, e.body_text()).into_response(),
+    };
+    let data = snapshot(&state);
+    let (presets, max_hex, cap) = (state.presets.clone(), state.max_hex, state.max_export_rows);
+    let out = tokio::task::spawn_blocking(move || export::export(&data, &presets, max_hex, cap, &req)).await;
+    match out {
+        Ok(Ok(x)) => (
+            [
+                (axum::http::header::CONTENT_TYPE, "text/csv; charset=utf-8".to_string()),
+                (axum::http::header::CONTENT_DISPOSITION, format!("attachment; filename=\"{}\"", x.filename)),
+            ],
+            x.csv,
+        )
+            .into_response(),
+        Ok(Err(export::ExportError::TooMany(n, cap))) => (
+            StatusCode::PAYLOAD_TOO_LARGE,
+            Json(serde_json::json!({
+                "error": format!(
+                    "This search has {} hotspots; one file holds at most {}. Narrow the dates or the area.",
+                    query::thousands(n as f64),
+                    query::thousands(cap as f64)
+                ),
+                "rows": n, "limit": cap,
+            })),
+        )
+            .into_response(),
+        Ok(Err(export::ExportError::Bad(e))) => ApiError(StatusCode::BAD_REQUEST, format!("{e:#}")).into_response(),
+        Err(e) => ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
 }
 
 /// Swap in a new data version when gold/CURRENT changes.
@@ -89,10 +129,16 @@ async fn main() -> Result<()> {
     let data = Data::load(&gold, &version)?;
     tracing::info!("serving data {version} from {}", gold.display());
 
-    let state: Shared = Arc::new(AppState { data: RwLock::new(Arc::new(data)), presets: cfg.presets, max_hex: cfg.api.max_hexagons });
+    let state: Shared = Arc::new(AppState {
+        data: RwLock::new(Arc::new(data)),
+        presets: cfg.presets,
+        max_hex: cfg.api.max_hexagons,
+        max_export_rows: cfg.api.max_export_rows,
+    });
     tokio::spawn(watch(state.clone(), gold));
 
-    let mut app = Router::new().route("/api/meta", get(meta)).route("/api/query", post(run_query));
+    let mut app = Router::new().route("/api/meta", get(meta)).route("/api/query", post(run_query))
+        .route("/api/export.csv", post(run_export));
     let web = root.join("web").join("build");
     if web.join("index.html").exists() {
         app = app.fallback_service(ServeDir::new(&web).fallback(ServeFile::new(web.join("index.html"))));

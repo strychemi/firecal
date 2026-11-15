@@ -53,7 +53,7 @@ fn round(x: f64, dp: i32) -> f64 {
     (x * f).round() / f
 }
 
-fn ring(area: &Area, presets: &[Preset]) -> Result<Vec<(f64, f64)>> {
+pub(crate) fn ring(area: &Area, presets: &[Preset]) -> Result<Vec<(f64, f64)>> {
     let bbox = |b: &[f64; 4]| {
         let [x0, y0, x1, y1] = *b;
         vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0)]
@@ -106,7 +106,7 @@ fn polygon_cells(ring: &[(f64, f64)], res: u8) -> Result<HashSet<CellIndex>> {
 }
 
 /// Finest published level that keeps the area at or under max_hex hexagons (docs/api.md).
-fn area_cells(ring: &[(f64, f64)], resolutions: &[u8], max_hex: usize) -> Result<(u8, HashSet<CellIndex>)> {
+pub(crate) fn area_cells(ring: &[(f64, f64)], resolutions: &[u8], max_hex: usize) -> Result<(u8, HashSet<CellIndex>)> {
     let mut levels = resolutions.to_vec();
     levels.sort_unstable_by(|a, b| b.cmp(a));
     for &res in &levels {
@@ -160,7 +160,7 @@ fn ordinal(n: usize) -> String {
     format!("{n}{suffix}")
 }
 
-fn thousands(x: f64) -> String {
+pub(crate) fn thousands(x: f64) -> String {
     let s = format!("{x:.0}");
     let (sign, digits) = s.strip_prefix('-').map_or(("", s.as_str()), |d| ("-", d));
     let mut out = String::new();
@@ -318,7 +318,7 @@ pub fn query(data: &Data, presets: &[Preset], max_hex: usize, req: &QueryRequest
     }))
 }
 
-pub fn meta(data: &Data, presets: &[Preset]) -> Value {
+pub fn meta(data: &Data, presets: &[Preset], export_limit: usize) -> Value {
     let m = &data.manifest;
     let mut validation = serde_json::Map::new();
     if let Some(obj) = data.validation.as_object() {
@@ -334,5 +334,6 @@ pub fn meta(data: &Data, presets: &[Preset]) -> Value {
         "data_version": data.version, "series_start": m["series_start"], "series_end": m["series_end"],
         "unit": m["unit"], "region": m["region"], "eras": m["eras"], "gaps": m["gaps"],
         "days_filled_by": m["days_filled_by"], "validation": validation, "presets": presets,
+        "export_limit": export_limit,
     })
 }
