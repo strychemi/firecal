@@ -352,3 +352,16 @@ All work in this part was done with Opus 5.5.
 - The parity list first used two presets only the global sample has, so it could not run on the full global data; caught when planning that run, and changed to boxes.
 
 **Seen, not changed:** for a continent-sized search the 80 % range can sit entirely below the converted value (Africa, January 2004: 700,316 with range 638,387–698,633), because the whole-continent miss table says the conversion overshoots there. And a month with no data (Antarctica before 2012) still gets a "0.0× the usual" sentence, as an incomplete month does in Argentina.
+
+### 2026-11-15, session 1 continued (22:25–22:45): upgrade 2, seasonal multipliers
+
+**22:25–22:31 · Estimate and the rule**
+- *Asked:* how long seasonal multipliers would take (the AI: 1–1.5 hours, about 2 if kept), then to draft the rule. The AI drafted a §7 row: a multiplier per area, season and pass, shrunk toward the area's current multiplier with `k = 50` (section 2's pseudo-count, not tuned); rules 1, 2 and 5 against the current version; rule 4 by the stand-in's convention (no more than 0.5 points further from zero where the current version fails it); rule 3 reported. The row records the AI's earlier guess of under 1 point, made without looking. *Decided by the team:* commit as drafted. Committed at 22:30, before any seasonal model was fitted.
+
+**22:31–22:45 · Run and adoption**
+- *AI did:* a `seasonal` step on the pattern of `tilt`. Argentina first: the current version's numbers matched earlier runs exactly.
+- *Found:* kept in Africa, Asia, North America, Oceania and South America, with small-area gains of 0.8–3.8 points (Africa 23.5 → 19.7 %); rejected in Europe, where the night join moved 3 points further from zero. The AI's guess was wrong: the gains are several times larger.
+- *Asked:* whether anything could run in parallel (the AI proposed a demo-hosting session, as a card) and whether API or static hosting is better. The AI recommended keeping the API for the submission (it works, is parity-tested and meets every objective, including the hotspot export) and moving to static files on a CDN afterwards, which the additive data model suits.
+- *Decided by the team:* adopt and record. The AI added `seasonal_areas` to both configs, `seasons` in `model.json`, and a seasonal join in `publish` by calendar month. Argentina refitted to exactly the test's numbers (whole-area 7.57 %, small-area 20.37 %) and published as v12; the global data refitted and republished. Methods page, ARCHITECTURE, README and the §7 outcome row updated.
+
+**Checks in this part:** `mise run check` passed all five stages (parity 0 failures and 11 of 11 browser tests on the sample, on Argentina v12 and on a global sample). The global refit matches the seasonal test's numbers on every continent; global data published as v3.

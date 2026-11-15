@@ -53,6 +53,9 @@
 			<p>
 				MODIS months are converted to what S-NPP VIIRS would have counted, using day and night multipliers fitted only on
 				places and passes both satellites observed (2013–2022), from NASA's records of where each one looked.
+				Each area has a multiplier for each season, because the kind of fire, and so how many fires VIIRS sees
+				for each one MODIS sees, changes through the year{#if global} (except in Europe, where seasons did not pass
+				the tests){/if}.
 				{#if global}
 					Each continent is fitted on its own, and each fire-day takes its own continent's multiplier; a search
 					uses the error ranges and days with data of the continent holding most of its fire-days. Antarctica has

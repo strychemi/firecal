@@ -11,7 +11,7 @@ from .config import Config
 
 def main() -> None:
     ap = argparse.ArgumentParser(prog="firecal")
-    ap.add_argument("step", choices=["download", "granules", "ingest", "cells", "coverage", "fit", "report", "tilt", "publish", "prune", "all"])
+    ap.add_argument("step", choices=["download", "granules", "ingest", "cells", "coverage", "fit", "report", "tilt", "seasonal", "publish", "prune", "all"])
     ap.add_argument("--force", action="store_true", help="rebuild bronze files that already exist")
     args = ap.parse_args()
     cfg = Config.load()
@@ -41,6 +41,9 @@ def main() -> None:
         elif step == "tilt":
             from . import tilt
             tilt.run(cfg)
+        elif step == "seasonal":
+            from . import seasonal
+            seasonal.run(cfg)
         elif step == "publish":
             from . import publish
             publish.run(cfg)
