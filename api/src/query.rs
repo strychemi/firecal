@@ -136,12 +136,19 @@ fn model_of(source: &str) -> Option<&'static str> {
     }
 }
 
-fn range_for(data: &Data, source: &str, value: f64) -> (Option<f64>, Option<f64>) {
+/// 80 % range: the miss table of the size of area nearest the search's area on a log scale
+/// (PREREGISTRATION.md §7, 2026-11-15), and the bin containing `value`.
+fn range_for(data: &Data, source: &str, value: f64, area_km2: f64) -> (Option<f64>, Option<f64>) {
     let Some(model) = model_of(source) else { return (None, None) };
     if value <= 0.0 {
         return (None, None);
     }
-    match data.misses.iter().find(|b| b.model == model && b.lo <= value && value < b.hi) {
+    let dist = |b: &&crate::data::MissBin| (b.area_km2.ln() - area_km2.ln()).abs();
+    let Some(size) = data.misses.iter().filter(|b| b.model == model).min_by(|a, b| dist(a).total_cmp(&dist(b)))
+    else {
+        return (None, None);
+    };
+    match data.misses.iter().find(|b| b.model == model && b.size == size.size && b.lo <= value && value < b.hi) {
         Some(b) => (Some(value * b.q10.exp()), Some(value * b.q90.exp())),
         None => (None, None),
     }
@@ -241,6 +248,7 @@ fn stats(series: &[MonthOut], selected: &str, baseline: &str, to_date: Option<(&
 pub fn query(data: &Data, presets: &[Preset], max_hex: usize, req: &QueryRequest) -> Result<Value> {
     let ring = ring(&req.area, presets)?;
     let (res, cells) = area_cells(&ring, &data.resolutions, max_hex)?;
+    let area_km2: f64 = cells.iter().map(|c| c.area_km2()).sum();
     let table = data.cells.get(&res).context("resolution not loaded")?;
 
     let series_start = month_label(data.start, 0);
@@ -300,7 +308,7 @@ pub fn query(data: &Data, presets: &[Preset], max_hex: usize, req: &QueryRequest
         .map(|i| {
             let st = &data.status[i];
             let (value, raw, detections, frp) = sums[i];
-            let (lo, hi) = range_for(data, &st.source, value);
+            let (lo, hi) = range_for(data, &st.source, value, area_km2);
             MonthOut {
                 month: month_label(data.start, i),
                 source: st.source.clone(),

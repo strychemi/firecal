@@ -16,7 +16,8 @@ B = 4,000 times, seed 20261114, recompute the statistic on the pooled resampled 
   Rule 5    80 % range coverage of small-area months (2-degree blocks, day and night together), averaged over
             left-out years; pass at 75-85 %. As in checks.py: the range is the 10th-90th percentile of
             ln(V / V_hat) from the other calibration years, in 5 bins of predicted count (quintiles of ln V_hat).
-            The app's own ranges (fit.py: all area sizes pooled, fixed bins) are reported beside it.
+            The app's own ranges (fit.py: one table per size of area, the same method) are judged beside it,
+            for res-4 cells, res-3 cells and 2-degree blocks (PREREGISTRATION.md §7, 2026-11-15).
 
 Known limit of the small-area score: 2-degree blocks shrink toward the poles (area ~ cos latitude; at 60 degrees
 half the equator's), so northern blocks reach 50 cell-days less often and northern continents are scored on fewer,
@@ -241,16 +242,20 @@ def area_report(rng, g: pd.DataFrame, model: str, cfg: Config) -> dict:
     half = len(cal) // 2
     back = F.predict(g, model, F.fit(g, model, cal[half:], k), cal[:half])
     mm = F.misses(loyo)
-    app_cover = F.coverage(mm, "block", cal) if (mm.level == "block").any() else None
+    app_cover = F.coverage_by_size(mm, cal)  # the app's ranges, by size of area (§7, 2026-11-15)
     return {
         "whole_area": score(rng, loyo, "region", 100, cal),
         "small_area_2deg": score(rng, loyo, "block", 50, cal),
         "rule3_tilt": tilt_rule(rng, loyo, cal),
         "rule4_backward_gap": {"fit": [cal[half], cal[-1]], "predict": [cal[0], cal[half - 1]],
                                **gap_rule(rng, back, cal[:half])},
-        "rule5_range_coverage": {**coverage_rule(loyo, cal), "app_ranges_block_pct": app_cover},
+        "rule5_range_coverage": {**coverage_rule(loyo, cal), "app_ranges_by_size_pct": app_cover},
         "fair_cell_days": {s: int(g[g.sat == s].n.sum()) for s in (model, "snpp")},
     }
+
+
+def app_ranges(r: dict) -> dict:
+    return r["rule5_range_coverage"]["app_ranges_by_size_pct"]
 
 
 def run(cfg: Config) -> None:
@@ -287,5 +292,6 @@ def run(cfg: Config) -> None:
                   f"tilt D {t.get('D', {}).get('b')} {t.get('D', {}).get('status')}, "
                   f"N {t.get('N', {}).get('b')} {t.get('N', {}).get('status')}  "
                   f"gap {gp.get('all', {}).get('gap_pct')} {gp.get('all', {}).get('status')}  "
-                  f"cover {r['rule5_range_coverage']['block_pct']}", flush=True)
+                  f"cover {r['rule5_range_coverage']['block_pct']}  app ranges {json.dumps(app_ranges(r))}",
+                  flush=True)
     (cfg.dir("model") / "report.json").write_text(json.dumps(out, indent=1))

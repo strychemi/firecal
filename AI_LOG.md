@@ -295,3 +295,23 @@ All work in this part was done with Opus 5.5.
 - Copilot noted that `publish` reads a top-level `models` that the global `model.json` doesn't have, and that publishing the global run needs continent-scoped lookups. Valid but not new in this PR: the global setup was never meant to publish. The AI made `publish` stop with a clear message on per-continent models and said so in the README; continent-scoped publishing is left for the global app.
 - Copilot noted that `rule6` divides by zero if a hidden area holds all of the continent's Aqua cell-days on a pass. Valid in principle; it doesn't happen in any continent (every result is finite). The AI made that case report "cannot be tested" instead. Argentina's report is identical byte for byte.
 - Copilot noted that the Methods page said "a place with no fires", while the stand-in applies where neither satellite saw fire on the shared passes. Valid; reworded.
+
+### 2026-11-15, session 1 continued (21:00–21:20): the app's error ranges, and Terra's orbit drift
+
+**21:00–21:02 · Priorities and the rule**
+- *Asked:* what is left, which item gives the most leverage, why a global app would take 4–8 hours, and whether most teams will go global. The AI recommended fixing the app's error ranges first (an hour's work, and the one place the app told users something untrue), then the tilt correction, then a global app. It said it could not know what other teams will build. *Decided by the team:* start with the error ranges.
+- *AI did:* drafted a §7 row: one miss table per size of area (res-4, res-3, 2° block, study area) with rule 5's quintile bins; a search uses the size nearest its area; pass at 75–85 % for the three smaller sizes; the Methods page states coverage by size either way. The row says the 2° block result was already known (rule 5 uses this method). *Decided by the team:* commit as drafted. Committed at 21:02, before the new ranges were computed for the hexagon sizes.
+
+**21:02–21:15 · Code and runs**
+- *AI did:* `fit` writes the per-size tables with each size's typical area; the Rust API and the Python reference pick the table by the search's area (the sum of its hexagons' areas); `report` judges the app's ranges by size. Argentina published as v11.
+- *Found:* every size passes on every continent, for Aqua and Terra, at 79.8–80.0 %, against 70–78 % for the old pooled ranges. Whole-study-area coverage is 68–75 %, reported only.
+- *Asked:* whether some items could run in parallel. The AI said the global app touches the same files as this branch and should wait for it to merge; a Terra orbit-drift check only reads data. *Decided by the team:* do the Terra check here.
+- *Found (Terra):* both MODIS satellites drifted about 70 minutes from 2021, Terra earlier and Aqua later; S-NPP did not. Terra's daytime ratio to S-NPP climbs every year with the drift on every continent (Africa +116 % by 2025), which explains its held-out errors; Aqua drifted across the flat top of the daily fire cycle and changed little. The app is unaffected: Terra and Aqua are converted only for years before the drift. Written up in `docs/terra_drift.md`. *Decided by the team:* keep Terra for 2000-11 to 2002-07, and add the note to this PR.
+
+**Checks in this part:** `mise run check` passed (parity 0 failures and 11 of 11 browser tests, on the sample and on Argentina v11). The parity test compares the Rust API's ranges with the Python reference's for the same searches. The global multipliers and every other report field are unchanged.
+
+**Errors the AI made in this part, and how they were caught**
+- None found in the results. The Terra check used all cell-days rather than fair units because the global fit was using the memory; the write-up says so.
+
+**21:30 · Review comment** (#21)
+- Copilot noted that a bin can be empty if quantile edges repeat (many identical predictions), leaving its range as NaN. Valid in principle; no current table has an empty bin (Argentina 40 rows, global 240). The AI made an empty bin borrow the nearest non-empty bin's range, as the old fixed-bin table did, and checked on a forced case. Argentina's tables and validation are unchanged byte for byte.
