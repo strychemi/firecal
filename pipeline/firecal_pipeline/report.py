@@ -18,6 +18,12 @@ B = 4,000 times, seed 20261114, recompute the statistic on the pooled resampled 
             ln(V / V_hat) from the other calibration years, in 5 bins of predicted count (quintiles of ln V_hat).
             The app's own ranges (fit.py: all area sizes pooled, fixed bins) are reported beside it.
 
+Known limit of the small-area score: 2-degree blocks shrink toward the poles (area ~ cos latitude; at 60 degrees
+half the equator's), so northern blocks reach 50 cell-days less often and northern continents are scored on fewer,
+noisier block-months. Paired comparisons share the blocks, so this mostly widens luck ranges there rather than
+biasing a decision. If an upgrade's result in a northern continent is borderline, check it on an equal-area H3 grid,
+with that check's rule written into PREREGISTRATION.md §7 first.
+
 Rules 1, 2 and 6 compare versions, so they apply when an upgrade is tested (§5), not to the baseline alone.
 """
 import json

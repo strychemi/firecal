@@ -269,3 +269,7 @@ All work in this part was done with Opus 5.5.
 - The global fit crashed on Antarctica, which has almost no fire; caught by the run.
 - A first per-granule loop would have taken an estimated 2–3 hours globally; the AI vectorized it before the run and checked the result was identical on Argentina.
 
+**19:25–20:10 · Review comment and a question about the score grid** (#19)
+- Copilot noted that the second half of the fallback ("detections but no granule units at all") ignored the continent. Valid. Its suggested fix, deciding per continent from granule units at fire cells, would let a partial outage over one continent switch on the fallback there, which counts the satellite as observing the whole continent. The AI instead read the clause per continent and from the records: a pass uses the fallback if none of the satellite's detections in that continent lies inside a granule footprint. Rebuilt, Argentina now matches v9 exactly (the S-NPP pass of 2024-04-25 no longer uses the fallback), and the global multipliers, validation and report are unchanged to the digit, so the §7 outcome row stands.
+- *Asked:* why the small-area score uses 2° squares rather than H3. The AI found no written reason; the definition came from session 1's checks. Squares shrink toward the poles, so northern continents are scored on fewer block-months; paired comparisons share the squares, so this mostly widens luck ranges. *Decided by the team:* skip an H3 check for now and note the limit in the docs; revisit if a northern upgrade result is borderline.
+

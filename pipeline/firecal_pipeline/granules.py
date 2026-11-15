@@ -22,7 +22,10 @@ test the conversion (fit.py, fair_ctes).
 
 Fallback (rule 7, part 7, as settled in §7 on 2026-11-15): a pass on which a satellite has a detection in a
 continent at a time with no granule record of that satellite uses the whole continent as its unit, observed by
-that satellite (passes.fallback). So does a pass on which the satellite has detections but no granule units.
+that satellite (passes.fallback). So does a pass on which none of the satellite's detections in that continent
+lies inside a granule footprint ("detections but no granule units at all" in the rule's wording, which dates from
+Argentina, where every cell of the box was a unit; read per continent and from the records, so that a partial
+outage, which leaves some fire cells uncovered, is never turned into a fallback).
 Without a [data] granules_dir (the local check sample) every pass uses the fallback.
 
 Consistency check (rule 7, part 5, as settled in §7 on 2026-11-15): the cells step stops if more than 0.1 % of
@@ -268,6 +271,7 @@ def build(cfg: Config, con, silver) -> None:
                     WHERE year(local_date) BETWEEN {ys[0]} AND {ys[-1]} GROUP BY ALL""")
     con.execute("CREATE OR REPLACE TABLE obs(sat VARCHAR, r3 UBIGINT, d DATE, dn VARCHAR)")
     con.execute("CREATE OR REPLACE TABLE norecord(sat VARCHAR, continent VARCHAR, d DATE, dn VARCHAR)")
+    con.execute("CREATE OR REPLACE TABLE covered(sat VARCHAR, continent VARCHAR, d DATE, dn VARCHAR)")
     if granule_dir(cfg) is None:
         print("observed: no granules_dir; every pass uses the whole-area fallback", flush=True)
     else:
@@ -291,6 +295,8 @@ def build(cfg: Config, con, silver) -> None:
                 m = det[~rec]
                 con.register("missing_df", m[["continent", "d", "dn"]].drop_duplicates().assign(sat=sat))
                 con.execute("INSERT INTO norecord SELECT sat, continent, CAST(d AS DATE), dn FROM missing_df")
+                con.register("covered_df", det[rec & ok][["continent", "d", "dn"]].drop_duplicates().assign(sat=sat))
+                con.execute("INSERT INTO covered SELECT sat, continent, CAST(d AS DATE), dn FROM covered_df")
                 n, bad, missing = n + len(det), bad + int((rec & ~ok).sum()), missing + len(m)
                 units, grans = units + len(u), grans + len(g)
             print(f"observed {sat}: {grans} granules, {units} units with fire; of {n} detections, {bad} "
@@ -299,10 +305,12 @@ def build(cfg: Config, con, silver) -> None:
             if n and bad / n > MAX_OUTSIDE:
                 raise SystemExit(f"observed: {sat} has more than {100 * MAX_OUTSIDE} % of detections outside its "
                                  "granule footprints (PREREGISTRATION.md §7, rule 7 part 5); investigate before fitting")
-    # Fallback: a pass with a detection lacking a granule record, or a satellite pass with no granule units at all.
+    # Fallback, per satellite, continent, date and pass: a detection there lacks a granule record, or none of
+    # the detections there lies inside a granule footprint (the records hold nothing usable for that pass).
     con.execute("""CREATE OR REPLACE TABLE pass AS
                    SELECT p.*, (p.sat, p.continent, p.d, p.dn) IN (SELECT (sat, continent, d, dn) FROM norecord)
-                               OR (p.sat, p.d, p.dn) NOT IN (SELECT DISTINCT (sat, d, dn) FROM obs) AS fallback
+                               OR (p.sat, p.continent, p.d, p.dn) NOT IN (SELECT (sat, continent, d, dn) FROM covered)
+                               AS fallback
                    FROM passes p""")
     for row in con.execute("""SELECT sat, count(*), count(*) FILTER (WHERE fallback) FROM pass
                               GROUP BY ALL ORDER BY sat""").fetchall():
