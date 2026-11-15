@@ -56,6 +56,7 @@ FIRECAL_ROOT=../global uv run python -m firecal_pipeline cells
 FIRECAL_ROOT=../global uv run python -m firecal_pipeline fit
 FIRECAL_ROOT=../global uv run python -m firecal_pipeline report     # rule statuses with luck ranges → data/global/model/report.json
 FIRECAL_ROOT=../global uv run python -m firecal_pipeline tilt       # tilt correction test (rejected) → data/global/model/tilt_report.json
+FIRECAL_ROOT=../global uv run python -m firecal_pipeline seasonal   # seasonal multipliers test (kept, not Europe) → data/global/model/seasonal_report.json
 FIRECAL_ROOT=../global uv run python -m firecal_pipeline publish    # → data/global/gold/vN/ and gold/CURRENT, about 30 s
 ```
 

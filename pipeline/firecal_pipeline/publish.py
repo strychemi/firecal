@@ -163,6 +163,9 @@ def run(cfg: Config) -> None:
     con.execute("CREATE TABLE ratio(continent VARCHAR, sat VARCHAR, dn VARCHAR, r3 UBIGINT, r DOUBLE)")
     con.execute("CREATE TABLE parent_ratio(continent VARCHAR, sat VARCHAR, dn VARCHAR, r2 UBIGINT, r DOUBLE)")
     con.execute("CREATE TABLE region_ratio(continent VARCHAR, sat VARCHAR, dn VARCHAR, r DOUBLE)")
+    # Seasonal multipliers (PREREGISTRATION.md §7, upgrade 2), where kept: per area, pass and season (DJF, MAM,
+    # JJA, SON by calendar month). An area-season without one uses the area's multiplier as above.
+    con.execute("CREATE TABLE season_ratio(continent VARCHAR, sat VARCHAR, dn VARCHAR, r3 UBIGINT, q VARCHAR, r DOUBLE)")
     for cont, ms in models.items():
         for sat, m in ms.items():
             con.executemany("INSERT INTO region_ratio VALUES (?, ?, ?, ?)", [[cont, sat, dn, r] for dn, r in m["region"].items()])
@@ -171,6 +174,10 @@ def run(cfg: Config) -> None:
             parents = [[cont, sat, dn, s, r] for dn, d in m.get("parents", {}).items() for s, r in d.items()]
             if parents:
                 con.executemany("INSERT INTO parent_ratio VALUES (?, ?, ?, h3_string_to_h3(?), ?)", parents)
+            seasons = [[cont, sat, dn, s, q, r] for dn, d in m.get("seasons", {}).items()
+                       for s, qs in d.items() for q, r in qs.items()]
+            if seasons:
+                con.executemany("INSERT INTO season_ratio VALUES (?, ?, ?, h3_string_to_h3(?), ?, ?)", seasons)
     sr = int(model["stratum_resolution"])
     # A view: the global run has 350 M cell-days, too many to hold in memory; each output below reads it once.
     con.execute(f"""
@@ -179,14 +186,19 @@ def run(cfg: Config) -> None:
                -- S-NPP is the target. NOAA-20 uses its multipliers only when model.json has them (the
                -- pre-registered rule kept the conversion); otherwise it counts as S-NPP.
                CASE WHEN c.sat = 'snpp' OR (c.sat = 'noaa20' AND rr.r IS NULL) THEN 1.0
-                    ELSE coalesce(r.r, pr.r, rr.r) END AS value
+                    ELSE coalesce(sr_.r, r.r, pr.r, rr.r) END AS value
         FROM cell_day c
         JOIN days d ON d.continent = c.continent AND d.d = c.d AND d.sat = c.sat
         LEFT JOIN ratio r ON r.continent = c.continent AND r.sat = c.sat AND r.dn = c.dn
                          AND r.r3 = h3_cell_to_parent(c.cell8, {sr})
         LEFT JOIN parent_ratio pr ON pr.continent = c.continent AND pr.sat = c.sat AND pr.dn = c.dn
                                  AND pr.r2 = h3_cell_to_parent(c.cell8, {sr - 1})
-        LEFT JOIN region_ratio rr ON rr.continent = c.continent AND rr.sat = c.sat AND rr.dn = c.dn""")
+        LEFT JOIN region_ratio rr ON rr.continent = c.continent AND rr.sat = c.sat AND rr.dn = c.dn
+        LEFT JOIN season_ratio sr_ ON sr_.continent = c.continent AND sr_.sat = c.sat AND sr_.dn = c.dn
+                                   AND sr_.r3 = h3_cell_to_parent(c.cell8, {sr})
+                                   AND sr_.q = CASE WHEN month(c.d) IN (12, 1, 2) THEN 'DJF'
+                                                    WHEN month(c.d) IN (3, 4, 5) THEN 'MAM'
+                                                    WHEN month(c.d) IN (6, 7, 8) THEN 'JJA' ELSE 'SON' END""")
 
     # Everything the app shows is summed from one pass at the finest app level, per continent (written to disk:
     # the global table does not fit in memory).

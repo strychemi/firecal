@@ -348,17 +348,21 @@ def fit_area(g_all: dict, cfg: Config, label: str, area: str = "study_area") -> 
         cal = [y for y in cfg.calibration_years if y >= FIRST_YEAR.get(model, 0)]
         g = g_all[model]
         pk = parent_k(cfg, area) if model != "noaa20" else None  # NOAA-20 stays at multiplier 1 either way
+        fit_fn, pred_fn = fit, predict
+        if model != "noaa20" and area in h.get("seasonal_areas", []):  # PREREGISTRATION.md §7, upgrade 2
+            from . import seasonal
+            fit_fn, pred_fn = seasonal.fit_seasonal, seasonal.predict_seasonal
         if not fittable(g, model, cal):
             validation[model] = {"status": "cannot be fitted: a training set has no fair cell-days of both "
                                            "satellites on a pass"}
             print(f"{label} {model}: {validation[model]['status']}", flush=True)
             continue
-        loyo = pd.concat([predict(g, model, fit(g, model, [t for t in cal if t != y], k, pk), [y]) for y in cal])
+        loyo = pd.concat([pred_fn(g, model, fit_fn(g, model, [t for t in cal if t != y], k, pk), [y]) for y in cal])
         mm = misses(loyo)
         half = len(cal) // 2
-        back = predict(g, model, fit(g, model, cal[half:], k, pk), cal[:half])
-        final = fit(g, model, cal, k, pk)
-        test = predict(g, model, final, held)
+        back = pred_fn(g, model, fit_fn(g, model, cal[half:], k, pk), cal[:half])
+        final = fit_fn(g, model, cal, k, pk)
+        test = pred_fn(g, model, final, held)
         validation[model] = {
             "leave_one_year_out": {"whole_area": typical_error(loyo, "region", 100),
                                    "small_area_2deg": typical_error(loyo, "block", 50),
@@ -392,6 +396,11 @@ def fit_area(g_all: dict, cfg: Config, label: str, area: str = "study_area") -> 
         }
         if "parents" in final:
             models[model]["parents"] = {dn: {s: round(r, 4) for s, r in d.items()} for dn, d in final["parents"].items()}
+        if "seasons" in final:  # {dn: {r3: {season: r}}}
+            sea = {}
+            for (dn, r3, q), r in final["seasons"].items():
+                sea.setdefault(dn, {}).setdefault(r3, {})[q] = round(r, 4)
+            models[model]["seasons"] = sea
         if model != "noaa20":  # VIIRS months carry no error range
             tables.append(size_tables(mm, typical_areas(g)).assign(model=model))
         print(label, model, json.dumps(validation[model]["leave_one_year_out"]), "multipliers", models[model]["region"], flush=True)
