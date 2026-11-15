@@ -10,6 +10,7 @@ last_year = 2025
 keep_versions = 3                # newest published versions kept by `prune` (scripts/refresh.sh), plus gold/CURRENT; 0 keeps only CURRENT. Each is ~190 MB
 # Every country file in each zip; each is assigned a continent from continents.toml.
 countries = "all"
+continents = "continents.toml"   # continent of each country file (PREREGISTRATION.md §7)
 # Clip box [min_lon, min_lat, max_lon, max_lat]: the whole globe.
 clip_bbox = [-180.0, -90.0, 180.0, 90.0]
 # MODIS hotspot types for first_year..modis_labels_through come from the producer's MCD14ML Collection 6

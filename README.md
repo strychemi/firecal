@@ -46,6 +46,19 @@ mise run api        # build and run the API, which serves the app: http://127.0.
 
 `download` writes one CSV per product and UTC day to `data/firms_api/`: standard-processing data where FIRMS has it, near-real-time after that. Running `refresh` again brings the series up to date. It fetches only new days, the last few near-real-time days again, and days whose standard-processing version has since appeared. The key is used only in the requests to FIRMS; mise does not load `.env`. When the series ends partway through a month, the app compares that month so far with the same days in earlier years.
 
+**Global run.** `global/firecal.toml` runs the same pipeline over every country, with each continent fitted and judged as its own study area (`global/continents.toml`; PREREGISTRATION.md §4 and §7). It reads the same FIRMS zips and MODIS label files and writes to `data/global/`. The Argentina app is unaffected.
+
+```bash
+cd pipeline
+FIRECAL_ROOT=../global uv run python -m firecal_pipeline granules   # about an hour, once
+FIRECAL_ROOT=../global uv run python -m firecal_pipeline ingest
+FIRECAL_ROOT=../global uv run python -m firecal_pipeline cells
+FIRECAL_ROOT=../global uv run python -m firecal_pipeline fit
+FIRECAL_ROOT=../global uv run python -m firecal_pipeline report     # rule statuses with luck ranges → data/global/model/report.json
+```
+
+The `report` step also works on Argentina (`uv run python -m firecal_pipeline report`).
+
 **Frontend work:** `mise run web:dev` serves the app with live reload and sends its API requests to the API on :8080, so run `mise run api` alongside it. The app has no data of its own.
 
 **Without mise:** each task in `mise.toml` is a plain command you can run yourself, for example `cd pipeline && uv run python -m firecal_pipeline all`.

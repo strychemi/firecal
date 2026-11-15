@@ -1,8 +1,9 @@
 """bronze -> silver: burning cell-days and daily coverage.
 
-silver/cell_day.parquet   sat, d, dn, cell8, n_hot, frp       (filtered hotspots only)
+silver/cell_day.parquet   sat, d, dn, cell8, continent, n_hot, frp   (filtered hotspots only)
 silver/coverage.parquet   sat, d, n_raw                       (any detection in the box, unfiltered)
-silver/observed.parquet   sat, r3, d, dn, src                 (outage-check units each satellite observed)
+silver/observed.parquet   sat, r3, d, dn                      (outage-check units with fire each satellite observed)
+silver/passes.parquet     sat, continent, d, dn, fallback     (passes FIRMS holds; whole-area fallback passes)
 
 Coverage picks the satellite for each published day: one with no detection anywhere in the study box
 that day has no data (PREREGISTRATION.md, rule 7). Observed decides which units the fit may use
@@ -17,7 +18,7 @@ def run(cfg: Config) -> None:
     silver = cfg.dir("silver")
     con = connect()
     con.execute(f"CREATE VIEW b AS SELECT * FROM read_parquet('{bronze}/*/*.parquet')")
-    con.execute(f"""COPY (SELECT sat, local_date AS d, dn, cell8, count(*)::INTEGER AS n_hot, sum(frp) AS frp
+    con.execute(f"""COPY (SELECT sat, local_date AS d, dn, cell8, continent, count(*)::INTEGER AS n_hot, sum(frp) AS frp
                           FROM b WHERE keep GROUP BY ALL ORDER BY cell8, d)
                     TO '{silver}/cell_day.parquet' (FORMAT parquet, COMPRESSION zstd)""")
     con.execute(f"""COPY (SELECT sat, local_date AS d, count(*)::INTEGER AS n_raw FROM b GROUP BY ALL ORDER BY sat, d)

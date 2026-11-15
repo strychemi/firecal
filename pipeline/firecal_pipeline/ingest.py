@@ -3,7 +3,12 @@
 Bronze keeps every hotspot inside the clip box (filtered or not, so outage detection can see
 raw detections) with one schema for all products:
 
-    sat, lat, lon, acq_utc, local_date, dn, frp, confidence, type, keep, cell8
+    sat, lat, lon, acq_utc, local_date, dn, frp, confidence, type, keep, cell8, continent
+
+`continent` comes from the FIRMS country file through [data] continents (the global run,
+global/continents.toml; PREREGISTRATION.md §7). Without that setting every row is "study_area".
+Recent days from the FIRMS API carry no country: they get "study_area" too, and the global run does
+not use them.
 
 Recent days (after [data] last_year) come from the FIRMS area API files written by download.py and
 go to bronze/{product}/recent.parquet. Near-real-time files have no FIRMS `type` column, so for
@@ -28,6 +33,7 @@ import json
 import pathlib
 import shutil
 import tempfile
+import tomllib
 import zipfile
 
 import pandas as pd
@@ -125,6 +131,32 @@ def keep_expr(cfg: Config, product: str, type_col: str = "type") -> str:
     return " AND ".join(parts) or "TRUE"
 
 
+STUDY_AREA = "study_area"
+
+
+def continents(cfg: Config) -> dict | None:
+    """The continent table, or None when the run has a single study area."""
+    name = cfg["data"].get("continents")
+    return None if name is None else tomllib.loads((cfg.base / name).read_text())
+
+
+def file_country(name: str, product: str, year: int) -> str:
+    return pathlib.PurePosixPath(name).name.removeprefix(f"{product}_{year}_").removesuffix(".csv")
+
+
+def continent_sql(table: dict | None, country: str) -> str:
+    """SQL for one country file's continent (the split countries by longitude)."""
+    if table is None:
+        return f"'{STUDY_AREA}'"
+    split = table.get("split_at_lon", {}).get(country)
+    if split:
+        return f"CASE WHEN longitude < {float(split['lon'])} THEN '{split['west']}' ELSE '{split['east']}' END"
+    for cont, names in table["continent"].items():
+        if country in names:
+            return f"'{cont}'"
+    raise SystemExit(f"ingest: country file {country!r} has no continent in {table and 'continents.toml'}")
+
+
 def ingest_year(cfg: Config, product: str, year: int, force: bool = False) -> pathlib.Path | None:
     zpath = cfg.raw_dir / f"{product}_{year}_all_countries.zip"
     out = cfg.dir(f"bronze/{product}") / f"{year}.parquet"
@@ -137,12 +169,17 @@ def ingest_year(cfg: Config, product: str, year: int, force: bool = False) -> pa
     sat = PRODUCTS[product][1]
     keep = keep_expr(cfg, product)
     countries = cfg["data"]["countries"]
+    table = continents(cfg)
     con = connect()
     con.execute("""CREATE TABLE b(sat VARCHAR, lat DOUBLE, lon DOUBLE, acq_utc TIMESTAMP, local_date DATE,
-                   dn VARCHAR, frp DOUBLE, confidence VARCHAR, type INTEGER, keep BOOLEAN, cell8 UBIGINT)""")
+                   dn VARCHAR, frp DOUBLE, confidence VARCHAR, type INTEGER, keep BOOLEAN, cell8 UBIGINT,
+                   continent VARCHAR)""")
     with zipfile.ZipFile(zpath) as z, tempfile.TemporaryDirectory() as tmp:
         for name in z.namelist():
-            if not any(name.endswith(f"_{c}.csv") for c in countries):
+            if not name.endswith(".csv"):
+                continue
+            country = file_country(name, product, year)
+            if countries != "all" and country not in countries:
                 continue
             p = extract_csv(z, name, tmp)
             con.execute(f"""
@@ -150,7 +187,7 @@ def ingest_year(cfg: Config, product: str, year: int, force: bool = False) -> pa
                 SELECT {sat}, latitude, longitude, t,
                        CAST(t + to_seconds(CAST(round(longitude / 15.0 * 3600) AS BIGINT)) AS DATE),
                        daynight, frp, confidence, type, {keep},
-                       h3_latlng_to_cell(latitude, longitude, {res})
+                       h3_latlng_to_cell(latitude, longitude, {res}), {continent_sql(table, country)}
                 FROM (SELECT *, strptime(acq_date || ' ' || lpad(acq_time, 4, '0'), '%Y-%m-%d %H%M') AS t
                       FROM read_csv('{p}', header = true,
                            types = {{'acq_time': 'VARCHAR', 'acq_date': 'VARCHAR', 'confidence': 'VARCHAR',
@@ -210,7 +247,7 @@ def ingest_recent(cfg: Config, product: str, availability: dict, static: pathlib
                   FROM {csv})
             WHERE longitude BETWEEN {x0} AND {x1} AND latitude BETWEEN {y0} AND {y1})
         SELECT raw.sat, raw.lat, raw.lon, raw.acq_utc, raw.local_date, raw.dn, raw.frp, raw.confidence, raw.type,
-               {keep} AS keep, raw.cell8
+               {keep} AS keep, raw.cell8, '{STUDY_AREA}' AS continent
         FROM raw LEFT JOIN static s ON s.cell8 = raw.cell8
         WHERE raw.sat IS NOT NULL AND raw.local_date <= DATE '{through}'""")
     con.execute(f"COPY (SELECT DISTINCT * FROM b ORDER BY acq_utc) TO '{out}' (FORMAT parquet, COMPRESSION zstd)")
