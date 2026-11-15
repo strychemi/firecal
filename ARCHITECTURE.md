@@ -77,7 +77,7 @@ SvelteKit static build (served by the same Rust binary) ── MapLibre map + ch
 | `monthly_res4.parquet`, `monthly_res5.parquet`, `monthly_res6.parquet` | One row per hexagon per month with any fire, sorted by cell: `cell, year, month, source, value, raw, detections, frp`. `value` is VIIRS-equivalent burning cell-days; `raw` is the source satellite's own count; `detections` is its hotspot count. |
 | `month_to_date.parquet` | Same columns for days 1–D of the current month, for every year. Absent when no month is in progress. |
 | `misses.parquet` | Past misses `ln(V / V̂)` by predicted-count bin, from leave-one-year-out. Used to build error ranges for any area. |
-| `hotspots/year=YYYY/parent=…/*.parquet` | Filtered hotspot rows, split by year and coarse parent hexagon, for the CSV export. |
+| `hotspots.parquet` | Filtered hotspot rows with their level 4–6 hexagons and an `in_calendar` flag, for the CSV export. Prototype: one file (161 MB for Argentina); split by year and coarse parent hexagon before going global. |
 | `model.json`, `validation.json` | Multipliers and test results, shown on the methods page. |
 | `manifest.json` | Data version, coverage dates, satellites and outages filled, input file checksums, model version. |
 

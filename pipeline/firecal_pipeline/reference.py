@@ -69,6 +69,20 @@ def month_range(start: str, end: str) -> list[str]:
     return out
 
 
+EXPORT_HEADER = ("hex_id,latitude,longitude,acq_date,acq_time,local_solar_date,satellite,instrument,daynight,"
+                 "confidence,frp,in_calendar")
+
+
+class TooManyHotspots(Exception):
+    def __init__(self, rows: int, limit: int):
+        super().__init__(f"This search has {rows:,} hotspots; one file holds at most {limit:,}. Narrow the dates or the area.")
+        self.rows, self.limit = rows, limit
+
+
+def csv_field(s: str) -> str:
+    return '"' + s.replace('"', '""') + '"' if any(c in s for c in ',"\n') else s
+
+
 class Reference:
     def __init__(self, cfg: Config):
         self.cfg = cfg
@@ -90,7 +104,8 @@ class Reference:
         return {"data_version": self.version, "series_start": m["series_start"], "series_end": m["series_end"],
                 "unit": m["unit"], "region": m["region"], "eras": m["eras"], "gaps": m["gaps"],
                 "days_filled_by": m["days_filled_by"], "validation": v,
-                "presets": [{k: p[k] for k in ("id", "name", "note", "bbox")} for p in self.presets.values()]}
+                "presets": [{k: p[k] for k in ("id", "name", "note", "bbox")} for p in self.presets.values()],
+                "export_limit": int(self.cfg["api"].get("max_export_rows", 250000))}
 
     def range_for(self, source: str, value: float):
         model = MODEL_OF.get(source)
@@ -145,6 +160,35 @@ class Reference:
                          "ring": [[round(x, 5), round(y, 5)] for x, y in ring]},
                 "start": start, "end": end, "months": shown,
                 "stats": self.stats(series, selected, baseline), "cells": hexes}
+
+    def export(self, req: dict) -> str:
+        """POST /api/export.csv: the filtered hotspots behind a search, as CSV text."""
+        api = self.cfg["api"]
+        ring = area_ring(req["area"], self.presets)
+        res, cells = area_cells(ring, self.manifest["resolutions"], int(api["max_hexagons"]))
+        start = req.get("start") or self.manifest["series_start"]
+        end = req.get("end") or self.manifest["series_end"]
+        ey, em = int(end[:4]), int(end[5:])
+        upto = f"{ey + 1:04d}-01-01" if em == 12 else f"{ey:04d}-{em + 1:02d}-01"
+        con = duckdb.connect()
+        con.execute("CREATE TABLE sel(cell UBIGINT)")
+        con.executemany("INSERT INTO sel VALUES (?)", [[h3.str_to_int(c)] for c in cells])
+        frm = (f"FROM '{self.dir}/hotspots.parquet' h JOIN sel ON h.cell{res} = sel.cell "
+               "WHERE h.local_date >= CAST(? AS DATE) AND h.local_date < CAST(? AS DATE)")
+        n = con.execute(f"SELECT count(*) {frm}", [f"{start}-01", upto]).fetchone()[0]
+        limit = int(api.get("max_export_rows", 250000))
+        if n > limit:
+            raise TooManyHotspots(n, limit)
+        rows = con.execute(f"""
+            SELECT h.cell{res}, h.lat, h.lon, strftime(h.acq_utc, '%Y-%m-%d'), strftime(h.acq_utc, '%H%M'),
+                   strftime(h.local_date, '%Y-%m-%d'), h.sat, h.dn, h.confidence, h.frp, h.in_calendar
+            {frm} ORDER BY h.acq_utc, h.lat, h.lon, h.sat""", [f"{start}-01", upto]).fetchall()
+        out = [EXPORT_HEADER]
+        for cell, lat, lon, d, t, ld, sat, dn, conf, frp, used in rows:
+            inst = "MODIS" if sat in ("terra", "aqua") else "VIIRS"
+            out.append(f"{h3.int_to_str(cell)},{lat:.5f},{lon:.5f},{d},{t},{ld},{sat},{inst},{csv_field(dn)},"
+                       f"{csv_field(conf or '')},{'' if frp is None else f'{frp:.1f}'},{'true' if used else 'false'}")
+        return "\n".join(out) + "\n"
 
     def stats(self, series, selected: str, baseline: str) -> dict:
         cur = next(m for m in series if m["month"] == selected)

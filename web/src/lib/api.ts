@@ -2,7 +2,7 @@
 // example responses in static/example/ when the API is unreachable or when
 // VITE_EXAMPLES=1.
 import { reshapeExample } from './stats';
-import type { Meta, QueryRequest, QueryResponse } from './types';
+import type { Area, Meta, QueryRequest, QueryResponse, YearMonth } from './types';
 
 export type DataMode = 'api' | 'examples';
 
@@ -87,4 +87,28 @@ export async function query(req: QueryRequest, meta: Meta): Promise<QueryRespons
 	const start = req.start ?? meta.series_start;
 	const end = req.end ?? meta.series_end;
 	return reshapeExample(full, start, end, req.month ?? end, req.baseline ?? 'median');
+}
+
+/**
+ * POST /api/export.csv: the filtered hotspots for an area and dates, as a CSV blob.
+ * Throws HttpError with the server's message (413 when the search is over the row cap).
+ */
+export async function exportHotspots(req: { area: Area; start: YearMonth; end: YearMonth }): Promise<Blob> {
+	if (mode !== 'api') throw new Error('The hotspot export needs the live firecal API.');
+	const res = await fetch('/api/export.csv', {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify(req)
+	});
+	if (!res.ok) {
+		let msg = `${res.status} ${res.statusText}`;
+		try {
+			const body = await res.json();
+			if (body && typeof body.error === 'string') msg = body.error;
+		} catch {
+			/* not JSON */
+		}
+		throw new HttpError(res.status, msg);
+	}
+	return res.blob();
 }

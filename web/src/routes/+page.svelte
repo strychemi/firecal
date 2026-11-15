@@ -1,7 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import { onMount } from 'svelte';
-	import { CustomAreaUnavailable, fetchMeta, query, type DataMode } from '#lib/api.ts';
+	import { CustomAreaUnavailable, exportHotspots, fetchMeta, query, type DataMode } from '#lib/api.ts';
 	import { cellsToCsv, downloadBlob, monthsToCsv } from '#lib/download.ts';
 	import { monthLabel } from '#lib/format.ts';
 	import type { Area, Baseline, Meta, QueryResponse, YearMonth } from '#lib/types.ts';
@@ -116,6 +116,24 @@
 		if (!data) return;
 		downloadBlob(`${fileBase}-monthly.csv`, new Blob([monthsToCsv(data.months)], { type: 'text/csv' }));
 	}
+	let exporting = $state(false);
+	let exportMsg = $state('');
+	async function downloadHotspots() {
+		if (!data) return;
+		exporting = true;
+		exportMsg = '';
+		try {
+			// The area that produced the numbers on screen, even if a new one is still loading.
+			const shownArea = lastGood?.area ?? ($state.snapshot(area) as Area);
+			const blob = await exportHotspots({ area: shownArea, start: data.start, end: data.end });
+			downloadBlob(`${fileBase}-hotspots.csv`, blob);
+		} catch (e) {
+			exportMsg = e instanceof Error ? e.message : String(e);
+		} finally {
+			exporting = false;
+		}
+	}
+
 	function downloadHexCsv() {
 		if (!data?.cells) return;
 		downloadBlob(`${fileBase}-hexagons.csv`, new Blob([cellsToCsv(data)], { type: 'text/csv' }));
@@ -203,6 +221,9 @@
 				</p>
 				<div class="dl-row">
 					<button class="btn primary" type="button" onclick={downloadCsv}>Download CSV ({data.months.length} months)</button>
+					<button class="btn" type="button" onclick={downloadHotspots} disabled={exporting || mode === 'examples'} aria-describedby="hotspot-note">
+						{exporting ? 'Preparing hotspots…' : 'Hotspots CSV'}
+					</button>
 					<button class="btn" type="button" onclick={downloadHexCsv} disabled={!data.cells}>
 						Hexagon CSV for Kepler.gl{data.cells ? ` (${data.cells.length.toLocaleString('en-US')} hexagons)` : ''}
 					</button>
@@ -210,8 +231,19 @@
 				<p class="small">
 					The hexagon CSV has one row per hexagon with fire: its H3 index (<code>hex_id</code>), fire-days in {monthLabel(data.stats.month)}
 					and over the selected dates. Drop it on <a href="https://kepler.gl/demo" target="_blank" rel="noopener noreferrer">kepler.gl/demo</a>, which
-					draws the H3 column as hexagons. Each chart has its own SVG and PNG buttons. Raw hotspot export is not built yet.
+					draws the H3 column as hexagons. Each chart has its own SVG and PNG buttons.
 				</p>
+				<p class="small" id="hotspot-note">
+					{#if mode === 'examples'}
+						The hotspots CSV needs the live firecal API.
+					{:else}
+						The hotspots CSV lists every detection that passed the filters in this area, {monthLabel(data.start)} to {monthLabel(data.end)},
+						from every satellite: position, UTC and local solar time, satellite, day or night, confidence and fire power.
+						<code>in_calendar</code> is true for the detections from the satellite the calendar counts that day. Up to
+						{(meta.export_limit ?? 250000).toLocaleString('en-US')} rows per file; narrow the dates for large areas.
+					{/if}
+				</p>
+				{#if exportMsg}<p class="notice small" role="alert">{exportMsg}</p>{/if}
 			</section>
 		{/if}
 

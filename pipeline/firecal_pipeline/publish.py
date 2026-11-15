@@ -7,6 +7,7 @@ monthly_res{4,5,6}.parquet  cell, year, month, source, value, raw, detections, f
     frp         summed fire radiative power of those hotspots, MW, unconverted
 month_status.parquet        year, month, source, days, days_with_data, days_filled
 misses.parquet, model.json, validation.json   copied from model/
+hotspots.parquet            cell4/5/6, lat, lon, acq_utc, local_date, sat, dn, confidence, frp, in_calendar
 manifest.json               version, coverage, eras, gaps, row counts, input fingerprint
 
 One satellite per day, never summed: each day uses the first satellite in its era's chain with any
@@ -86,6 +87,19 @@ def run(cfg: Config) -> None:
                   FROM harmonized GROUP BY ALL ORDER BY cell, year, month)
             TO '{path}' (FORMAT parquet, COMPRESSION zstd)""")
         rows[f"res{res}"] = con.execute(f"SELECT count(*), count(DISTINCT cell) FROM '{path}'").fetchone()
+
+    # Filtered hotspot rows for the CSV export, with the app's hexagon at each level and whether the
+    # detection came from the satellite the calendar counts that day.
+    first, last = eras[0]["start"], eras[-1]["end"]
+    con.execute(f"""
+        COPY (SELECT h3_cell_to_parent(b.cell8, 4) AS cell4, h3_cell_to_parent(b.cell8, 5) AS cell5,
+                     h3_cell_to_parent(b.cell8, 6) AS cell6, b.lat, b.lon, b.acq_utc, b.local_date, b.sat, b.dn,
+                     b.confidence, b.frp, coalesce(d.sat = b.sat, false) AS in_calendar
+              FROM read_parquet('{cfg.out}/bronze/*/*.parquet') b LEFT JOIN days d ON d.d = b.local_date
+              WHERE b.keep AND b.local_date BETWEEN DATE '{first}' AND DATE '{last}'
+              ORDER BY cell4, b.acq_utc)
+        TO '{out}/hotspots.parquet' (FORMAT parquet, COMPRESSION zstd)""")
+    rows["hotspots"] = con.execute(f"SELECT count(*), count(DISTINCT cell6) FROM '{out}/hotspots.parquet'").fetchone()
 
     con.execute(f"""
         COPY (SELECT year(d)::SMALLINT AS year, month(d)::TINYINT AS month, any_value(source) AS source,

@@ -20,6 +20,12 @@ pub struct DataCfg {
 pub struct ApiCfg {
     pub max_hexagons: usize,
     pub bind: String,
+    #[serde(default = "default_max_export_rows")]
+    pub max_export_rows: usize,
+}
+
+fn default_max_export_rows() -> usize {
+    250_000
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

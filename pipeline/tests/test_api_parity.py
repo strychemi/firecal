@@ -10,7 +10,7 @@ import urllib.error
 import urllib.request
 
 from firecal_pipeline.config import Config
-from firecal_pipeline.reference import Reference
+from firecal_pipeline.reference import Reference, TooManyHotspots
 
 BASE = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8080"
 
@@ -32,6 +32,23 @@ BAD = [
     {"area": {"preset": "chaco"}, "start": "1999-01"},
     {"area": {"preset": "chaco"}, "baseline": "mode"},
 ]
+
+EXPORTS = [
+    {"area": {"preset": "parana-delta"}, "start": "2020-08", "end": "2020-08"},
+    {"area": {"bbox": [-58.6, -34.7, -58.3, -34.5]}},
+    {"area": {"point": [-71.3, -41.13], "radius_km": 40}, "start": "2015-01", "end": "2015-03"},
+    {"area": {"polygon": [[-62, -32], [-59, -31], [-58, -34], [-61.5, -35]]}, "start": "2004-09", "end": "2004-09"},
+    {"area": {"preset": "argentina-box"}},  # over the cap: must be refused with the same row count
+]
+
+
+def post_raw(path, req):
+    r = urllib.request.Request(BASE + path, json.dumps(req).encode(), {"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(r) as resp:
+            return resp.status, resp.read().decode()
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode()
 
 
 def post(req):
@@ -80,6 +97,24 @@ def main():
         status, got = post(req)
         ok = status == 400 and "error" in got
         print("ok  " if ok else "FAIL", "rejects", json.dumps(req), "->", status, got.get("error", "")[:80])
+        failures += not ok
+    for req in EXPORTS:
+        status, body = post_raw("/api/export.csv", req)
+        try:
+            want, want_status = ref.export(req), 200
+        except TooManyHotspots as e:
+            want, want_status = e, 413
+        if want_status == 413:
+            got = json.loads(body) if status == 413 else {}
+            ok = got.get("rows") == want.rows and got.get("limit") == want.limit and got.get("error") == str(want)
+            print("ok  " if ok else "FAIL", "export refuses", json.dumps(req), "->", status, body[:90])
+        else:
+            ok = status == 200 and body == want
+            print("ok  " if ok else "FAIL", "export", json.dumps(req), f"{body.count(chr(10)) - 1} rows")
+            if not ok and status == 200:
+                diff = next((i for i, (a, b) in enumerate(zip(body.splitlines(), want.splitlines())) if a != b), None)
+                print("      first differing line:", diff, body.splitlines()[diff] if diff is not None else "(lengths differ)",
+                      "|", want.splitlines()[diff] if diff is not None else "")
         failures += not ok
     meta = json.load(urllib.request.urlopen(BASE + "/api/meta"))
     problems = []

@@ -35,6 +35,7 @@ eras = [
 
 [api]
 max_hexagons = 3000              # finest level that keeps an area under this many hexagons
+max_export_rows = 250000        # hotspot CSV export: larger searches are refused with their row count
 bind = "127.0.0.1:8080"
 
 [[presets]]

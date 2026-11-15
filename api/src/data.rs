@@ -34,6 +34,8 @@ pub struct MissBin {
 
 pub struct Data {
     pub version: String,
+    /// gold/vN, for files read per request (hotspots.parquet)
+    pub dir: PathBuf,
     pub manifest: Value,
     pub validation: Value,
     pub start: (i32, u32),
@@ -135,6 +137,6 @@ impl Data {
             misses.push(MissBin { model: r.get(0)?, lo: r.get(1)?, hi: r.get(2)?, q10: r.get(3)?, q90: r.get(4)? });
         }
 
-        Ok(Self { version: version.to_string(), manifest, validation, start, n_months, resolutions, cells, status, misses })
+        Ok(Self { version: version.to_string(), dir, manifest, validation, start, n_months, resolutions, cells, status, misses })
     }
 }
