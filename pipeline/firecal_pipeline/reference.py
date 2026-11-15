@@ -185,8 +185,11 @@ class Reference:
             {frm} ORDER BY h.acq_utc, h.lat, h.lon, h.sat""", [f"{start}-01", upto]).fetchall()
         out = [EXPORT_HEADER]
         for cell, lat, lon, d, t, ld, sat, dn, conf, frp, used in rows:
+            hex_id = h3.int_to_str(cell)
+            if not h3.is_valid_cell(hex_id):
+                raise ValueError(f"hotspots.parquet has an invalid H3 cell {cell}")
             inst = "MODIS" if sat in ("terra", "aqua") else "VIIRS"
-            out.append(f"{h3.int_to_str(cell)},{lat:.5f},{lon:.5f},{d},{t},{ld},{sat},{inst},{csv_field(dn)},"
+            out.append(f"{hex_id},{lat:.5f},{lon:.5f},{d},{t},{ld},{sat},{inst},{csv_field(dn)},"
                        f"{csv_field(conf or '')},{'' if frp is None else f'{frp:.1f}'},{'true' if used else 'false'}")
         return "\n".join(out) + "\n"
 

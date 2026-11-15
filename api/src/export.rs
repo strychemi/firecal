@@ -108,7 +108,9 @@ pub fn export(data: &Data, presets: &[Preset], max_hex: usize, max_rows: usize, 
     let mut rows = stmt.query([&from, &to])?;
     while let Some(r) = rows.next()? {
         let cell: u64 = r.get(0)?;
-        let hex = CellIndex::try_from(cell).map(|c| c.to_string()).unwrap_or_default();
+        let hex = CellIndex::try_from(cell)
+            .map_err(|e| anyhow::anyhow!("hotspots.parquet has an invalid H3 cell {cell}: {e}"))?
+            .to_string();
         let (lat, lon): (f64, f64) = (r.get(1)?, r.get(2)?);
         let sat: String = r.get(6)?;
         let instrument = if sat == "terra" || sat == "aqua" { "MODIS" } else { "VIIRS" };
