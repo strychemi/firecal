@@ -32,6 +32,9 @@ def small_tilt(p: pd.DataFrame) -> dict:
     for dn, d in p.groupby("dn"):
         a = d.groupby(["y", "mo", "blat", "blon"])[["pred", "obs"]].sum()
         a = a[(a.pred > 0) & (a.obs > 0)]
+        if len(a) < 3:  # too few block-months to fit a line; reported only, so don't stop the run
+            out[dn] = None
+            continue
         out[dn] = round(float(np.polyfit(np.log(a.pred), np.log(a.obs / a.pred), 1)[0]), 3)
     return out
 

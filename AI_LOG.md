@@ -331,3 +331,6 @@ All work in this part was done with Opus 5.5.
 **Errors the AI made in this part, and how they were caught**
 - The AI described the tilt's direction backwards in an earlier answer; caught by the AI while drafting the rule.
 - The first global run stopped on Antarctica, which has too few fires for every validation fold to have class edges; caught by the run. Areas without edges for every fold are now marked as cannot be fitted.
+
+**22:10 · Review comment** (#22)
+- Copilot noted that the reported small-area tilt fits a line with `np.polyfit`, which fails with fewer than 2 points and would stop the whole `tilt` run for a metric that is only reported. Valid in principle; every study area has thousands of block-months. The AI made it report nothing below 3 points. Argentina's tilt report is unchanged byte for byte.
