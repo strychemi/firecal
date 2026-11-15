@@ -21,7 +21,15 @@ Requirements: [uv](https://docs.astral.sh/uv/), Rust (cargo), Node 24 with pnpm,
    cd pipeline && uv run python -m firecal_pipeline all
    ```
 
-   Steps: `ingest` (zips → `data/bronze/`), `cells` (burning cell-days → `data/silver/`), `fit` (multipliers and validation → `data/model/`), `publish` (→ `data/gold/vN/`, and `data/gold/CURRENT`), `example` (example API responses → `web/static/example/`).
+   Steps: `ingest` (zips, plus any recent days from `download` → `data/bronze/`), `cells` (burning cell-days → `data/silver/`), `fit` (multipliers and validation → `data/model/`), `publish` (→ `data/gold/vN/`, and `data/gold/CURRENT`), `example` (example API responses → `web/static/example/`).
+
+   Recent data (optional): the zips end with `last_year` in `firecal.toml`. To add the days since, up to two days ago, get a free [FIRMS MAP_KEY](https://firms.modaps.eosdis.nasa.gov/api/map_key/), put it in `.env` at the repo root (`cp .env.example .env`; `.env` is git-ignored), then download and rebuild:
+
+   ```bash
+   cd pipeline && uv run python -m firecal_pipeline download && uv run python -m firecal_pipeline all
+   ```
+
+   `download` writes one CSV per product and UTC day to `data/firms_api/`, using standard-processing data where FIRMS has it and near-real-time after that. Re-run it to bring the series up to date: it fetches only new days, the last few near-real-time days again, and days whose standard-processing version has since appeared. The key is used only in the requests to FIRMS. When the series ends partway through a month, the app compares that month so far with the same days in earlier years.
 
 2. Build the frontend:
 

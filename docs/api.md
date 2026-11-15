@@ -10,7 +10,9 @@ All counts are **burning cell-days**: one H3 resolution-8 cell (about 0.74 km²)
 {
   "data_version": "v2",
   "series_start": "2000-11",
-  "series_end": "2025-12",
+  "series_end": "2026-11",
+  "through": "2026-11-13",
+  "in_progress": { "month": "2026-11", "days": 13 },
   "unit": "VIIRS-equivalent burning cell-days (...)",
   "region": { "bbox": [-76, -56, -50, -20], "countries": ["Argentina", "..."] },
   "eras": [{ "start": "2000-11-01", "end": "2002-07-31", "source": "terra_harmonized", "chain": ["terra", "aqua"] }],
@@ -21,6 +23,9 @@ All counts are **burning cell-days**: one H3 resolution-8 cell (about 0.74 km²)
   "export_limit": 250000
 }
 ```
+
+- `through` is the last local solar date with data. Days after the yearly FIRMS archive come from the FIRMS area API: standard-processing data where FIRMS has it, near-real-time after that. A local date counts only once the UTC morning after it is in, so `through` is two days before the newest UTC date FIRMS has.
+- `in_progress` is set when the series ends partway through a month (`series_end`): that month and how many of its days (1..`days`) have data. It is `null` when `through` is a month's last day.
 
 ## `POST /api/query`
 
@@ -63,7 +68,7 @@ Response:
       "month": "2008-04", "source": "aqua_harmonized",
       "value": 13156.95, "lower": 11076.25, "upper": 15491.89,
       "raw": 2730, "detections": 2757, "frp": 135875.8,
-      "days": 30, "days_with_data": 30, "complete": true
+      "days": 30, "days_with_data": 30, "complete": true, "in_progress": false
     }
   ],
   "stats": {
@@ -71,7 +76,8 @@ Response:
     "baseline": "median", "baseline_value": 162.0, "baseline_years": [2000, 2001, "..."],
     "ratio": 0.302, "rank": 22, "of": 26, "percentile": 16.0,
     "category": "much lower than usual",
-    "sentence": "December 2025 had 49 fire-days, 0.3× the usual December (median of 25 years), 22nd highest of 26 years."
+    "sentence": "December 2025 had 49 fire-days, 0.3× the usual December (median of 25 years), 22nd highest of 26 years.",
+    "through": null
   },
   "cells": [
     { "h3": "86b2a6c07ffffff", "month": 2.0, "range": 311.47 }
@@ -86,14 +92,16 @@ Field rules:
 - `cells` has one entry per hexagon in the area with any fire in the selected `month` or from `start` to `end`, sorted by `h3` (the H3 index as a hex string, at `area.resolution`). `month` is its fire-days in the selected month and `range` its fire-days from `start` to `end`, both rounded to 2 decimals.
 - `source` is `terra_harmonized`, `aqua_harmonized` or `viirs`.
 - `lower` and `upper` form the 80 % range for converted months: `value × e^q10` to `value × e^q90`, with `q10` and `q90` taken from `misses.parquet` for that satellite's model and the bin containing `value`. They are `null` for VIIRS months (observed, not converted) and for months with `value` 0.
-- `complete` is false when the study box had days with no satellite data that month; such months are left out of baselines.
+- `days` is the number of days in the calendar month and `days_with_data` the days with satellite data in the study box. `complete` is false when they differ: days with no data, or the in-progress month. Such months are left out of baselines.
+- `in_progress` is true only for the in-progress month (meta `in_progress`).
 - `stats` compares the selected month with the same calendar month in every other complete year of the whole series (not limited by `start`/`end`):
   - `baseline_value` is the median or mean of those years;
   - `ratio` is `value / baseline_value` (`null` if the baseline is 0);
   - `rank` is 1 + the number of those years with a higher value; `of` is their count + 1;
   - `percentile` is the share of those years with a lower value (`null` if there are no such years);
   - `category` comes from `ratio`: below 0.5 "much lower than usual", below 0.8 "lower than usual", below 1.25 "about usual", below 2 "higher than usual", otherwise "much higher than usual" (`null` when `ratio` is `null`);
-  - when there are no other complete years, `baseline_value` is 0, `baseline_years` is empty and `rank` and `of` are both 1.
+  - when there are no other complete years, `baseline_value` is 0, `baseline_years` is empty and `rank` and `of` are both 1;
+  - when the selected month is the in-progress month, every year is counted on days 1..D only (D = meta `in_progress.days`): `value` is the month so far, the other years' values are their own days 1..D, and `through` is meta `through`. The sentence names the days: "November 1–13, 2026 had 7,312 fire-days, 1.1× the usual November 1–13 (median of 26 years), 13th highest of 27 years." Otherwise `through` is `null`.
 - Numbers are rounded: `value`, `lower`, `upper`, `baseline_value` to 2 decimals, `frp` to 1, `ratio` to 3, `percentile` to 1.
 
 Errors return HTTP 400 with `{ "error": "message" }`.

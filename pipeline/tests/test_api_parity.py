@@ -25,6 +25,11 @@ REQUESTS = [
     {"area": {"point": [-71.3, -41.13], "radius_km": 40}, "month": "2021-03"},
     {"area": {"point": [-60.0, -24.0], "radius_km": 250}, "month": "2001-06"},
     {"area": {"polygon": [[-62, -32], [-59, -31], [-58, -34], [-61.5, -35]]}, "month": "2011-08"},
+    # The in-progress month (the series' last; compared on days 1..D) and the same month a year earlier.
+    {"area": {"preset": "chaco"}, "baseline": "mean"},
+    {"area": {"bbox": [-58.6, -34.7, -58.3, -34.5]}, "start": "2026-01"},
+    {"area": {"point": [-71.3, -41.13], "radius_km": 40}},
+    {"area": {"preset": "parana-delta"}, "month": "2025-11"},
 ]
 BAD = [
     {"area": {"bbox": [-60, -30, -65, -26]}},
@@ -38,6 +43,7 @@ EXPORTS = [
     {"area": {"bbox": [-58.6, -34.7, -58.3, -34.5]}},
     {"area": {"point": [-71.3, -41.13], "radius_km": 40}, "start": "2015-01", "end": "2015-03"},
     {"area": {"polygon": [[-62, -32], [-59, -31], [-58, -34], [-61.5, -35]]}, "start": "2004-09", "end": "2004-09"},
+    {"area": {"preset": "parana-delta"}, "start": "2026-08", "end": "2026-11"},  # near-real-time rows
     {"area": {"preset": "argentina-box"}},  # over the cap: must be refused with the same row count
 ]
 

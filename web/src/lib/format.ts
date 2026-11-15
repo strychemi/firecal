@@ -1,4 +1,4 @@
-import type { Source, YearMonth } from './types';
+import type { MonthRow, Source, YearMonth } from './types';
 
 export const MONTH_NAMES = [
 	'January',
@@ -41,6 +41,18 @@ export function monthLabel(ym: YearMonth): string {
 export function monthShortLabel(ym: YearMonth): string {
 	const [y, m] = ym.split('-');
 	return `${MONTH_SHORT[Number(m) - 1]} ${y}`;
+}
+
+/** Why a month is not complete ('' when it is). */
+export function monthNote(m: MonthRow): string {
+	if (m.in_progress) return `in progress (${m.days_with_data} of ${m.days} days so far)`;
+	return m.complete ? '' : `incomplete (${m.days_with_data} of ${m.days} days with data)`;
+}
+
+/** "13 November 2026" from YYYY-MM-DD. */
+export function dayLabel(d: string): string {
+	const [y, m, day] = d.split('-');
+	return `${Number(day)} ${MONTH_NAMES[Number(m) - 1]} ${y}`;
 }
 
 export const SOURCE_LABEL: Record<Source, string> = {

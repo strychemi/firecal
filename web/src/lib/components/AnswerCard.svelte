@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { SOURCE_LABEL, fmt, monthLabel } from '#lib/format.ts';
+	import { SOURCE_LABEL, dayLabel, fmt, monthLabel } from '#lib/format.ts';
 	import { CATEGORY_GLYPH, CATEGORY_INK, CATEGORY_VAR } from '#lib/scales.ts';
 	import type { MonthRow, QueryResponse } from '#lib/types.ts';
 
@@ -15,15 +15,19 @@
 	const row = $derived<MonthRow | undefined>(data.months.find((m) => m.month === s.month));
 	const nYears = $derived(s.baseline_years.length);
 	const baselineWord = $derived(s.baseline === 'median' ? 'median' : 'average (mean)');
+	const monthName = $derived(monthLabel(s.month).split(' ')[0]);
+	// In progress: days 1..D, compared with the same days in other years.
+	const toDay = $derived(s.through ? Number(s.through.slice(8)) : null);
+	const span = $derived(toDay === null ? monthName : toDay === 1 ? `${monthName} 1` : `${monthName} 1–${toDay}`);
 </script>
 
 <section class="card answer" class:busy aria-labelledby="answer-title" aria-live="polite">
-	<h2 id="answer-title" class="eyebrow">{areaName} · {monthLabel(s.month)}</h2>
+	<h2 id="answer-title" class="eyebrow">{areaName} · {monthLabel(s.month)}{s.through ? ' so far' : ''}</h2>
 	<p class="sentence">{s.sentence}</p>
 
 	<div class="facts">
 		<div class="fact">
-			<span class="label">Fire-days</span>
+			<span class="label">Fire-days{s.through ? ' so far' : ''}</span>
 			<span class="big">{fmt(s.value)}</span>
 			{#if s.lower !== null && s.upper !== null}
 				<span class="small">80 % range {fmt(s.lower)}–{fmt(s.upper)}</span>
@@ -32,7 +36,7 @@
 			{/if}
 		</div>
 		<div class="fact">
-			<span class="label">Usual {monthLabel(s.month).split(' ')[0]}</span>
+			<span class="label">Usual {span}</span>
 			<span class="big">{fmt(s.baseline_value)}</span>
 			<span class="small">{baselineWord} of {nYears} {nYears === 1 ? 'year' : 'years'}</span>
 		</div>
@@ -58,9 +62,19 @@
 	</div>
 
 	<ul class="meta">
-		<li>Compared with {nYears} other complete {nYears === 1 ? 'year' : 'years'} of {monthLabel(s.month).split(' ')[0]} across the whole record.</li>
+		<li>
+			Compared with {nYears} other complete {nYears === 1 ? 'year' : 'years'} of {monthName} across the whole record{s.through
+				? `, counting only days ${span.slice(monthName.length + 1) || '1'} of each`
+				: ''}.
+		</li>
 		<li>Source: {SOURCE_LABEL[s.source]}.</li>
-		{#if row && !row.complete}
+		{#if s.through}
+			<li class="warn">
+				<span aria-hidden="true">◔</span> Month in progress: data through {dayLabel(s.through)}{row && row.days_with_data < (toDay ?? 0)
+					? `, with satellite data on ${row.days_with_data} of those ${toDay} days`
+					: ''}. Recent days use near-real-time hotspots, which can still change slightly.
+			</li>
+		{:else if row && !row.complete}
 			<li class="warn">
 				<span aria-hidden="true">⚠</span> Incomplete month: satellite data on {row.days_with_data} of {row.days} days, so the
 				count is likely too low.

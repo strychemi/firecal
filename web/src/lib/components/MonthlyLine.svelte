@@ -1,7 +1,7 @@
 <script lang="ts">
 	import ChartFrame from './ChartFrame.svelte';
 	import Tooltip, { type TipRow } from './Tooltip.svelte';
-	import { SOURCE_LABEL, SOURCE_SHORT, fmt, fmtTick, monthLabel, monthShortLabel } from '#lib/format.ts';
+	import { SOURCE_LABEL, SOURCE_SHORT, fmt, fmtTick, monthLabel, monthNote, monthShortLabel } from '#lib/format.ts';
 	import { linear, niceTicks } from '#lib/scales.ts';
 	import type { MonthRow, Source, YearMonth } from '#lib/types.ts';
 
@@ -90,7 +90,7 @@
 		let s = `${monthLabel(m.month)}: ${fmt(m.value)} fire-days`;
 		if (m.lower !== null && m.upper !== null) s += `, 80 % range ${fmt(m.lower)} to ${fmt(m.upper)}`;
 		s += `, ${SOURCE_LABEL[m.source]}`;
-		if (!m.complete) s += ', incomplete month';
+		if (!m.complete) s += `, ${monthNote(m)}`;
 		return s;
 	}
 	function onkey(e: KeyboardEvent) {
@@ -119,7 +119,7 @@
 			y: Math.min(y(m.value), H - 120),
 			heading: monthLabel(m.month),
 			rows,
-			foot: SOURCE_LABEL[m.source] + (m.complete ? '' : ` · incomplete (${m.days_with_data} of ${m.days} days)`)
+			foot: SOURCE_LABEL[m.source] + (m.complete ? '' : ` · ${monthNote(m)}`)
 		};
 	});
 
@@ -221,7 +221,7 @@
 						<td>{fmt(m.detections)}</td>
 						<td>{fmt(m.frp)}</td>
 						<td>{SOURCE_SHORT[m.source]}</td>
-						<td>{m.complete ? 'yes' : `no (${m.days_with_data}/${m.days} days)`}</td>
+						<td>{m.complete ? 'yes' : m.in_progress ? `in progress (${m.days_with_data}/${m.days} days)` : `no (${m.days_with_data}/${m.days} days)`}</td>
 					</tr>
 				{/each}
 			</tbody>

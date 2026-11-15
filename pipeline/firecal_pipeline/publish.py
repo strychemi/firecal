@@ -8,7 +8,9 @@ monthly_res{4,5,6}.parquet  cell, year, month, source, value, raw, detections, f
 month_status.parquet        year, month, source, days, days_with_data, days_filled
 misses.parquet, model.json, validation.json   copied from model/
 hotspots.parquet            cell4/5/6, lat, lon, acq_utc, local_date, sat, dn, confidence, frp, in_calendar
-manifest.json               version, coverage, eras, gaps, row counts, input fingerprint
+mtd_res{4,5,6}.parquet      cell, year, value: days 1..D of the in-progress month, in every year
+                            (only when the series ends partway through a month)
+manifest.json               version, coverage, eras, through, in_progress, gaps, row counts, input fingerprint
 
 One satellite per day, never summed: each day uses the first satellite in its era's chain with any
 detection in the study box. gold/CURRENT names the version the API should serve.
@@ -34,6 +36,21 @@ def fingerprint(cfg: Config) -> str:
     return h.hexdigest()
 
 
+def resolve_eras(cfg: Config) -> list[dict]:
+    """Replace end = "latest" with the last complete local date: the newest of the era's satellites in
+    bronze/recent.json (a day falls back down the chain), or December 31 of last_year without recent data."""
+    recent = cfg.out / "bronze" / "recent.json"
+    through = json.loads(recent.read_text())["through"] if recent.exists() else {}
+    eras = []
+    for e in cfg["harmonization"]["eras"]:
+        e = dict(e)
+        if e["end"] == "latest":
+            ends = [through[s] for s in e["chain"] if s in through]
+            e["end"] = max(ends) if ends else f"{cfg['data']['last_year']}-12-31"
+        eras.append(e)
+    return eras
+
+
 def run(cfg: Config) -> None:
     silver, model_dir = cfg.out / "silver", cfg.out / "model"
     gold = cfg.dir("gold")
@@ -41,7 +58,10 @@ def run(cfg: Config) -> None:
     out = gold / version
     out.mkdir()
     model = json.loads((model_dir / "model.json").read_text())
-    eras = cfg["harmonization"]["eras"]
+    eras = resolve_eras(cfg)
+    through = dt.date.fromisoformat(eras[-1]["end"])
+    month_end = (through.replace(day=28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
+    in_progress = None if through == month_end else {"month": through.strftime("%Y-%m"), "days": through.day}
     con = connect()
 
     # Which satellite each day uses.
@@ -87,6 +107,13 @@ def run(cfg: Config) -> None:
                   FROM harmonized GROUP BY ALL ORDER BY cell, year, month)
             TO '{path}' (FORMAT parquet, COMPRESSION zstd)""")
         rows[f"res{res}"] = con.execute(f"SELECT count(*), count(DISTINCT cell) FROM '{path}'").fetchone()
+        if in_progress:
+            # Month to date: the same days 1..D of the in-progress calendar month, in every year.
+            con.execute(f"""
+                COPY (SELECT h3_cell_to_parent(cell8, {res}) AS cell, year(d)::SMALLINT AS year, sum(value)::FLOAT AS value
+                      FROM harmonized WHERE month(d) = {through.month} AND day(d) <= {through.day}
+                      GROUP BY ALL ORDER BY cell, year)
+                TO '{out}/mtd_res{res}.parquet' (FORMAT parquet, COMPRESSION zstd)""")
 
     # Filtered hotspot rows for the CSV export, with the app's hexagon at each level and whether the
     # detection came from the satellite the calendar counts that day.
@@ -103,7 +130,7 @@ def run(cfg: Config) -> None:
 
     con.execute(f"""
         COPY (SELECT year(d)::SMALLINT AS year, month(d)::TINYINT AS month, any_value(source) AS source,
-                     count(*)::TINYINT AS days, count(sat)::TINYINT AS days_with_data,
+                     day(last_day(min(d)))::TINYINT AS days, count(sat)::TINYINT AS days_with_data,
                      count(*) FILTER (WHERE rank > 0)::TINYINT AS days_filled
               FROM days GROUP BY ALL ORDER BY ALL) TO '{out}/month_status.parquet' (FORMAT parquet)""")
     filled = con.execute("SELECT sat, count(*) FROM days WHERE rank > 0 GROUP BY sat ORDER BY sat").fetchall()
@@ -119,6 +146,7 @@ def run(cfg: Config) -> None:
         "region": {"bbox": cfg.bbox, "countries": cfg["data"]["countries"]},
         "unit": "VIIRS-equivalent burning cell-days (H3 res-8 cell, local solar date, day or night pass)",
         "series_start": eras[0]["start"][:7], "series_end": eras[-1]["end"][:7],
+        "through": eras[-1]["end"], "in_progress": in_progress,
         "eras": eras,
         "resolutions": cfg["grid"]["app_resolutions"],
         "rows": {k: {"rows": v[0], "cells": v[1]} for k, v in rows.items()},

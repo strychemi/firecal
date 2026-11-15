@@ -1,7 +1,7 @@
 <script lang="ts">
 	import ChartFrame from './ChartFrame.svelte';
 	import Tooltip, { type TipRow } from './Tooltip.svelte';
-	import { MONTH_SHORT, SOURCE_LABEL, fmt, fmt1, monthLabel } from '#lib/format.ts';
+	import { MONTH_SHORT, SOURCE_LABEL, fmt, fmt1, monthLabel, monthNote } from '#lib/format.ts';
 	import {
 		CATEGORY_GLYPH,
 		CATEGORY_INK,
@@ -68,7 +68,11 @@
 			const mi = Number(m.month.slice(5)) - 1;
 			const c: Cell = { m, x: LABEL_W + mi * CW, y: HEAD_H + yi * RH, fill: '' };
 			if (mode === 'anomaly') {
-				const a = anom.get(m.month)!;
+				const a = anom.get(m.month);
+				if (!a) {
+					c.fill = 'var(--seq-0)'; // in progress: compared on days 1..D in the answer card
+					return c;
+				}
 				c.fill = CATEGORY_VAR[a.category];
 				if (a.category !== 'about usual') {
 					c.glyph = CATEGORY_GLYPH[a.category];
@@ -105,8 +109,10 @@
 
 	function describe(m: MonthRow): string {
 		const parts = [`${monthLabel(m.month)}:`];
-		if (mode === 'anomaly') {
-			const a = anom.get(m.month)!;
+		const a = mode === 'anomaly' ? anom.get(m.month) : undefined;
+		if (mode === 'anomaly' && !a) {
+			parts.push(`${fmt(m.value)} fire-days so far; select it to compare with the same days in other years`);
+		} else if (a) {
 			parts.push(
 				`${fmt(m.value)} fire-days, ${a.category}` +
 					(a.ratio !== null ? ` (${a.ratio.toFixed(1)}× the median of ${a.years} years)` : '')
@@ -117,7 +123,7 @@
 		if (m.lower !== null && m.upper !== null && (mode === 'value' || mode === 'anomaly'))
 			parts.push(`80 % range ${fmt(m.lower)} to ${fmt(m.upper)}`);
 		parts.push(SOURCE_LABEL[m.source]);
-		if (!m.complete) parts.push(`incomplete: ${m.days_with_data} of ${m.days} days with data`);
+		if (!m.complete) parts.push(monthNote(m));
 		return parts.join(', ');
 	}
 
@@ -125,8 +131,11 @@
 		if (!activeCell) return null;
 		const m = activeCell.m;
 		const rows: TipRow[] = [];
-		if (mode === 'anomaly') {
-			const a = anom.get(m.month)!;
+		const a = mode === 'anomaly' ? anom.get(m.month) : undefined;
+		if (mode === 'anomaly' && !a) {
+			rows.push({ value: fmt(m.value), label: 'fire-days so far' });
+			rows.push({ value: 'Select it', label: 'to compare with the same days in other years' });
+		} else if (a) {
 			rows.push({ value: `${CATEGORY_GLYPH[a.category]} ${a.category}`, label: '' });
 			rows.push({ value: fmt(m.value), label: 'fire-days' });
 			rows.push({ value: fmt(a.baseline), label: `median of ${a.years} years` });
@@ -144,7 +153,7 @@
 			rows,
 			foot:
 				SOURCE_LABEL[m.source] +
-				(m.complete ? '' : ` · incomplete (${m.days_with_data} of ${m.days} days with data)`)
+				(m.complete ? '' : ` · ${monthNote(m)}`)
 		};
 	});
 
@@ -211,7 +220,7 @@
 		{#if incompleteCount}
 			<span class="li">
 				<svg width="14" height="14" aria-hidden="true"><rect width="14" height="14" rx="2" fill="var(--seq-0)" /><rect width="14" height="14" rx="2" fill="url(#hatch-legend)" /><defs><pattern id="hatch-legend" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="var(--hatch)" stroke-width="1.2" /></pattern></defs></svg>
-				Incomplete month (missing satellite days)
+				{months.some((m) => m.in_progress) ? 'Incomplete or in-progress month' : 'Incomplete month (missing satellite days)'}
 			</span>
 		{/if}
 	{/snippet}
@@ -294,8 +303,8 @@
 							<td>
 								{#if row}
 									{#if mode === 'anomaly'}
-										{@const a = anom.get(row.month)!}
-										{a.ratio === null ? '–' : `${a.ratio.toFixed(1)}×`}
+										{@const a = anom.get(row.month)}
+										{!a || a.ratio === null ? '–' : `${a.ratio.toFixed(1)}×`}
 									{:else}
 										{fmt(metric(row))}
 									{/if}{row.complete ? '' : '*'}
