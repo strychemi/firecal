@@ -32,28 +32,39 @@ BIN_EDGES = [0, 10, 30, 100, 300, 1000, 3000, 10000, 30000, np.inf]
 MIN_BIN_N = 30
 
 
+def fair_ctes(silver, model: str) -> str:
+    """SQL common table expressions ending in `fair` (continent, u3, d, dn); `cd` holds the cell-days."""
+    sats = f"('{model}', 'snpp')"
+    return f"""cd AS (SELECT *, h3_cell_to_parent(cell8, 3) AS u3
+                    FROM read_parquet('{silver}/cell_day.parquet') WHERE sat IN {sats}),
+             obs AS (SELECT * FROM read_parquet('{silver}/observed.parquet') WHERE sat IN {sats}),
+             pass AS (SELECT * FROM read_parquet('{silver}/passes.parquet') WHERE sat IN {sats}),
+             units AS (SELECT DISTINCT continent, u3, d, dn FROM cd),
+             seen AS (SELECT u.*, p.sat FROM units u
+                      JOIN pass p ON p.continent = u.continent AND p.d = u.d AND p.dn = u.dn
+                      LEFT JOIN obs o ON o.sat = p.sat AND o.r3 = u.u3 AND o.d = u.d AND o.dn = u.dn
+                      WHERE p.fallback OR o.sat IS NOT NULL),
+             fair AS (SELECT continent, u3, d, dn FROM seen GROUP BY ALL HAVING count(DISTINCT sat) = 2)"""
+
+
 def load(cfg: Config, model: str) -> pd.DataFrame:
-    """Monthly counts on fair units, at the finest grouping any score needs."""
+    """Monthly counts on fair units, at the finest grouping any score needs, with each row's continent.
+
+    A unit is a continent, H3 res-3 cell, local solar date and pass. A satellite observed it if FIRMS holds
+    the satellite's data on that pass in that continent (silver/passes.parquet) and either the pass uses the
+    whole-area fallback or a granule covers the cell (silver/observed.parquet). Fair: both satellites observed."""
     silver = cfg.out / "silver"
     con = connect()
     sr = int(cfg["harmonization"]["stratum_resolution"])
-    sats = f"('{model}', 'snpp')"
     return con.execute(f"""
-        WITH cd AS (SELECT *, printf('%x', h3_cell_to_parent(cell8, 3)) AS u3
-                    FROM read_parquet('{silver}/cell_day.parquet') WHERE sat IN {sats}),
-             obs AS (SELECT * FROM read_parquet('{silver}/observed.parquet') WHERE sat IN {sats}),
-             units AS (SELECT DISTINCT u3, d, dn FROM cd),
-             seen AS (SELECT u.*, o.sat FROM units u JOIN obs o ON o.r3 = u.u3 AND o.d = u.d AND o.dn = u.dn
-                      UNION ALL
-                      SELECT u.*, o.sat FROM units u JOIN obs o ON o.r3 IS NULL AND o.d = u.d AND o.dn = u.dn),
-             fair AS (SELECT u3, d, dn FROM seen GROUP BY ALL HAVING count(DISTINCT sat) = 2)
-        SELECT year(d) AS y, month(d) AS mo, dn, sat,
+        WITH {fair_ctes(silver, model)}
+        SELECT continent, year(d) AS y, month(d) AS mo, dn, sat,
                printf('%x', h3_cell_to_parent(cell8, {sr})) AS r3,
                printf('%x', h3_cell_to_parent(cell8, 4)) AS r4,
                CAST(floor(h3_cell_to_lat(cell8) / 2) AS INT) AS blat,
                CAST(floor(h3_cell_to_lng(cell8) / 2) AS INT) AS blon,
                count(*)::BIGINT AS n
-        FROM cd JOIN fair USING (u3, d, dn) GROUP BY ALL""").df()
+        FROM cd JOIN fair USING (continent, u3, d, dn) GROUP BY ALL""").df()
 
 
 def fit(g: pd.DataFrame, model: str, years, k: float) -> dict:
@@ -137,17 +148,30 @@ def coverage(m: pd.DataFrame, level: str, years) -> float:
     return round(float(np.mean(inside)) * 100, 1)
 
 
-def run(cfg: Config) -> None:
+def fittable(g: pd.DataFrame, model: str, cal) -> bool:
+    """Every leave-one-year-out training set has fair cell-days of both satellites on both passes."""
+    t = g[g.y.isin(cal)].groupby(["y", "dn", "sat"]).n.sum()
+    for y in cal:
+        train = t[t.index.get_level_values("y") != y].groupby(["dn", "sat"]).sum()
+        if any(train.get((dn, s), 0) <= 0 for dn in ("D", "N") for s in (model, "snpp")):
+            return False
+    return True
+
+
+def fit_area(g_all: dict, cfg: Config, label: str) -> tuple[dict, dict, list]:
+    """Fit and validate every model on one study area (Argentina's box, or one continent)."""
     h = cfg["harmonization"]
     k = float(h["shrinkage_k"])
     held = list(range(cfg.calibration_years[-1] + 1, cfg["data"]["last_year"] + 1))
-    out_dir = cfg.dir("model")
-    model_json = {"target": h["target"], "stratum_resolution": h["stratum_resolution"], "shrinkage_k": k,
-                  "calibration_years": [cfg.calibration_years[0], cfg.calibration_years[-1]], "models": {}}
-    validation, tables = {}, []
+    models, validation, tables = {}, {}, []
     for model in MODELS:
         cal = [y for y in cfg.calibration_years if y >= FIRST_YEAR.get(model, 0)]
-        g = load(cfg, model)
+        g = g_all[model]
+        if not fittable(g, model, cal):
+            validation[model] = {"status": "cannot be fitted: a training set has no fair cell-days of both "
+                                           "satellites on a pass"}
+            print(f"{label} {model}: {validation[model]['status']}", flush=True)
+            continue
         loyo = pd.concat([predict(g, model, fit(g, model, [t for t in cal if t != y], k), [y]) for y in cal])
         mm = misses(loyo)
         half = len(cal) // 2
@@ -178,17 +202,43 @@ def run(cfg: Config) -> None:
             validation[model]["decision"] = {"small_area_gain_pts": round(small_gain, 2),
                                              "whole_area_loss_pts": round(whole_loss, 2),
                                              "kept": bool(keep)}
-            print("noaa20 no conversion", json.dumps(base), "decision", validation[model]["decision"], flush=True)
+            print(label, "noaa20 no conversion", json.dumps(base), "decision", validation[model]["decision"], flush=True)
             if not keep:
-                print("noaa20 multipliers", final["region"], "(not used)", flush=True)
+                print(label, "noaa20 multipliers", final["region"], "(not used)", flush=True)
                 continue
-        model_json["models"][model] = {
+        models[model] = {
             "region": {dn: round(r, 4) for dn, r in final["region"].items()},
             "strata": {dn: {s: round(r, 4) for s, r in d.items()} for dn, d in final["strata"].items()},
         }
         if model != "noaa20":  # VIIRS months carry no error range
             tables.append(bin_table(mm).assign(model=model))
-        print(model, json.dumps(validation[model]["leave_one_year_out"]), "multipliers", model_json["models"][model]["region"], flush=True)
+        print(label, model, json.dumps(validation[model]["leave_one_year_out"]), "multipliers", models[model]["region"], flush=True)
+    return models, validation, tables
+
+
+def run(cfg: Config) -> None:
+    """One study area (Argentina): model.json as before. Continents (global run, PREREGISTRATION.md §7):
+    each continent is fitted as its own study area, under "continents" in model.json and validation.json."""
+    h = cfg["harmonization"]
+    out_dir = cfg.dir("model")
+    model_json = {"target": h["target"], "stratum_resolution": h["stratum_resolution"],
+                  "shrinkage_k": float(h["shrinkage_k"]),
+                  "calibration_years": [cfg.calibration_years[0], cfg.calibration_years[-1]]}
+    g_all = {model: load(cfg, model) for model in MODELS}
+    areas = sorted(set().union(*(set(g.continent) for g in g_all.values())))
+    if areas == ["study_area"]:
+        models, validation, tables = fit_area({m: g.drop(columns="continent") for m, g in g_all.items()}, cfg, "")
+        model_json["models"] = models
+        misses_df = pd.concat(tables)[["model", "lo", "hi", "q10", "q90", "n"]]
+    else:
+        model_json["continents"], validation, tables = {}, {"continents": {}}, []
+        for c in areas:
+            models, val, tab = fit_area({m: g[g.continent == c].drop(columns="continent") for m, g in g_all.items()},
+                                        cfg, c)
+            model_json["continents"][c] = {"models": models}
+            validation["continents"][c] = val
+            tables += [t.assign(continent=c) for t in tab]
+        misses_df = pd.concat(tables)[["continent", "model", "lo", "hi", "q10", "q90", "n"]]
     (out_dir / "model.json").write_text(json.dumps(model_json, indent=1))
     (out_dir / "validation.json").write_text(json.dumps(validation, indent=1))
-    pd.concat(tables)[["model", "lo", "hi", "q10", "q90", "n"]].to_parquet(out_dir / "misses.parquet", index=False)
+    misses_df.to_parquet(out_dir / "misses.parquet", index=False)

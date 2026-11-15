@@ -1,0 +1,52 @@
+# firecal global run (PREREGISTRATION.md §4): the same pipeline over every country, reported per continent.
+# Run any step with FIRECAL_ROOT=global, e.g. `FIRECAL_ROOT=global uv run python -m firecal_pipeline granules`.
+# Paths are relative to this folder. The Argentina prototype keeps using ../firecal.toml.
+
+[data]
+raw_dir = "../data"              # FIRMS yearly "all countries" zips (shared with the prototype)
+out_dir = "../data/global"       # bronze/ silver/ model/ gold/ are created under here
+first_year = 2000
+last_year = 2025
+keep_versions = 3                # newest published versions kept by `prune` (scripts/refresh.sh), plus gold/CURRENT; 0 keeps only CURRENT. Each is ~190 MB
+# Every country file in each zip; each is assigned a continent from continents.toml.
+countries = "all"
+continents = "continents.toml"   # continent of each country file (PREREGISTRATION.md §7)
+# Clip box [min_lon, min_lat, max_lon, max_lat]: the whole globe.
+clip_bbox = [-180.0, -90.0, 180.0, 90.0]
+# MODIS hotspot types for first_year..modis_labels_through come from the producer's MCD14ML Collection 6
+# version 3 monthly files (University of Maryland), downloaded to this folder (README, MODIS labels).
+modis_labels_dir = "../data/mcd14ml"
+modis_labels_through = 2017
+# NASA CMR granule records (when and where each satellite observed) for the fit years, from `granules`.
+# They decide which outage-check units both satellites observed (PREREGISTRATION.md §7, 2026-11-15).
+granules_dir = "../data/global/granules"
+
+[filters]
+vegetation_only = true           # FIRMS type = 0
+modis_min_confidence = 30        # MODIS confidence is 0-100
+viirs_confidence = ["n", "h"]    # VIIRS confidence is l / n / h
+
+[grid]
+celldays_resolution = 8          # H3 res 8 for burning cell-days
+app_resolutions = [4, 5, 6]      # H3 levels published for the app
+
+[harmonization]
+target = "snpp"                  # counts are converted to VIIRS-equivalent burning cell-days (fitted against S-NPP)
+stratum_resolution = 3           # per-area multipliers on H3 res-3 parents
+shrinkage_k = 50                 # pseudo-count pulling sparse areas toward the study-area multiplier
+calibration_first_year = 2013
+calibration_last_year = 2022
+# One satellite per day, never summed. Each era lists its satellites in order of preference;
+# a day uses the first one with any detection in the study box (the outage rule in PREREGISTRATION.md).
+# end = "latest": the last local date with complete data (recent days from the FIRMS API when
+# downloaded, otherwise December 31 of last_year).
+eras = [
+  { start = "2000-11-01", end = "2002-07-31", source = "terra_harmonized", chain = ["terra", "aqua"] },
+  { start = "2002-08-01", end = "2012-01-31", source = "aqua_harmonized",  chain = ["aqua", "terra"] },
+  { start = "2012-02-01", end = "latest",     source = "viirs",            chain = ["snpp", "noaa20"] },
+]
+
+[api]
+max_hexagons = 3000              # finest level that keeps an area under this many hexagons
+max_export_rows = 250000        # hotspot CSV export: larger searches are refused with their row count
+bind = "127.0.0.1:8080"

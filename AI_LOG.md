@@ -245,3 +245,31 @@ All work in this part was done with Opus 5.5.
 - An empty table of units had no column types and failed on the sample; caught by the AI's test run.
 - The check script had an ambiguous column name; caught when it ran.
 
+### 2026-11-15, session 1 continued (17:18–19:20): the global baseline
+
+**17:18–17:35 · Scope and rules**
+- *Asked:* where the project stands, then to scope the global run and estimate a global app. The AI measured before estimating: the global archive was already on disk (48 zips, 9.75 GB), a global VIIRS year ingests in 19 s, and global granule records come to about 4.6 million. It recommended a global report first and a global app later. *Decided by the team:* global report first.
+- *AI did:* recovered session 1's bootstrap from `science/rule_checks/checks.py`, because it was in code, not in `PREREGISTRATION.md`. It drafted a continent table (UN M49 regions, the Americas split, Russia split at 60° E) and a §7 row: each continent its own study area, scores and luck ranges as for Argentina. *Decided by the team:* commit as drafted. Committed before any global analysis; the row lists what had been seen (row counts and label matches from two timing runs, and global granule counts).
+- *Found:* NASA's catalogue lacks about half of Aqua's granule records from 2020-08-16; every other sampled day is complete. The fallback already covers this.
+
+**17:35–18:30 · Code for the global run**
+- *AI did:* added a separate global setup (`global/firecal.toml`, output in `data/global/`) so the Argentina app is unchanged; a continent on every bronze row; observed units tested one day at a time, only for cells with fire, with one matrix product per day; condition 2 and the fallback per continent (`silver/passes.parquet`); `fit` per continent; and a `report` step with the rule statuses and luck ranges.
+- *Checks:* rebuilding Argentina with the new code gave the same multipliers as v9 in every area and the same 4,337,847 observed units. Two held-out night gaps moved by 0.01 points and the pre-fit check moved by 21 units, all from one S-NPP pass (2024-04-25, night) that now uses the fallback: its fires sit at swath edges where no fire cell's centre is covered. `report` reproduced session 1's Argentina rule 5 figure, 79.9 %.
+- *Asked:* for a live progress bar. The AI put one in a Terminal tab that reads the job logs.
+
+**18:30–19:20 · Global run**
+- Ingest: 48 year files, 7.7 GB; MODIS labels matched 100 % in every year except 2011 (99.991 %, above the 99.9 % rule). Footprint check passed for every satellite (at most 0.0027 % outside). The first `fit` stopped on Antarctica, which has 3 Aqua cell-days in ten years; continents with a training set lacking either satellite on a pass are now marked as cannot be fitted.
+- *Found:* the conversion works about as well on every continent as in Argentina (Aqua whole-area typical error 6–15 %, Europe worst). The night multiplier ranges from 10.6 (South America) to 26.7 (Europe). Tilt fails almost everywhere, as in Argentina. The join between the records fails for Aqua in Europe and North America (night gaps of −23 % and −27 %) and in Asia at night. Error ranges pass everywhere, but the app's own ranges cover only 70–79 %. Terra's held-out years go badly wrong in some continents (Africa −41 %); the AI's guess is Terra's orbit drift, not checked. Results are in §7.
+- *Asked:* explain the results in plain terms.
+
+**Checks in this part:** `mise run check` passed (parity 0 failures and 11 of 11 browser tests, on the sample and the full Argentina data).
+
+**Errors the AI made in this part, and how they were caught**
+- Rule 5 at first used the app's error-range method (all area sizes pooled, fixed bins), not the rule's (small areas, 5 bins), and showed Argentina failing at 74.6 %. Caught by the AI comparing with session 1's 79.9 %.
+- The global fit crashed on Antarctica, which has almost no fire; caught by the run.
+- A first per-granule loop would have taken an estimated 2–3 hours globally; the AI vectorized it before the run and checked the result was identical on Argentina.
+
+**19:25–20:10 · Review comment and a question about the score grid** (#19)
+- Copilot noted that the second half of the fallback ("detections but no granule units at all") ignored the continent. Valid. Its suggested fix, deciding per continent from granule units at fire cells, would let a partial outage over one continent switch on the fallback there, which counts the satellite as observing the whole continent. The AI instead read the clause per continent and from the records: a pass uses the fallback if none of the satellite's detections in that continent lies inside a granule footprint. Rebuilt, Argentina now matches v9 exactly (the S-NPP pass of 2024-04-25 no longer uses the fallback), and the global multipliers, validation and report are unchanged to the digit, so the §7 outcome row stands.
+- *Asked:* why the small-area score uses 2° squares rather than H3. The AI found no written reason; the definition came from session 1's checks. Squares shrink toward the poles, so northern continents are scored on fewer block-months; paired comparisons share the squares, so this mostly widens luck ranges. *Decided by the team:* skip an H3 check for now and note the limit in the docs; revisit if a northern upgrade result is borderline.
+

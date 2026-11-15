@@ -1,38 +1,41 @@
 """The pre-fit check of the outage-check unit on Argentina (PREREGISTRATION.md §7, 2026-11-15, rule 7 part 6).
 
 Reads silver/ after `cells`; uses no fit result.
-  1. Known outages: units each satellite observed per day around S-NPP 2022-07-27..08-10, Aqua 2022-04-01..16
-     and the 2024 S-NPP days the whole-box rule marked as outages.
+  1. Known outages: units with fire each satellite observed per day (granule units on passes FIRMS holds,
+     silver/observed.parquet and passes.parquet) around S-NPP 2022-07-27..08-10, Aqua 2022-04-01..16 and the
+     2024 S-NPP days the whole-box rule marked as outages.
   2. Units that change fair status: units (res-3 cell, local date, pass) where either satellite has a burning
      cell-day, fair under the old rule (both satellites have a detection somewhere in the box that day) and/or
-     the new one (both observed the unit), with the cell-days they hold.
+     the new one (both observed the unit, as fit.py decides it), with the cell-days they hold.
 
     uv run python tests/outage_check.py
 """
 import datetime as dt
 
 from firecal_pipeline.config import Config, connect
+from firecal_pipeline.fit import fair_ctes
 from firecal_pipeline.granules import fit_years
 
 cfg = Config.load()
 silver = cfg.out / "silver"
 con = connect()
 ys = fit_years(cfg)
-con.execute(f"CREATE VIEW obs AS SELECT * FROM read_parquet('{silver}/observed.parquet')")
+con.execute(f"""CREATE VIEW obs AS SELECT o.* FROM read_parquet('{silver}/observed.parquet') o
+                SEMI JOIN read_parquet('{silver}/passes.parquet') p USING (sat, d, dn)""")
+con.execute(f"CREATE VIEW pass AS SELECT * FROM read_parquet('{silver}/passes.parquet')")
 con.execute(f"CREATE VIEW cov AS SELECT * FROM read_parquet('{silver}/coverage.parquet') WHERE n_raw > 0")
-con.execute(f"""CREATE VIEW cd AS SELECT *, printf('%x', h3_cell_to_parent(cell8, 3)) AS u3
-                FROM read_parquet('{silver}/cell_day.parquet') WHERE year(d) BETWEEN {ys[0]} AND {ys[-1]}""")
+
 
 
 def per_day(sat: str, a: str, z: str) -> None:
     rows = con.execute(f"""
         WITH days AS (SELECT CAST(t AS DATE) AS d FROM generate_series(DATE '{a}', DATE '{z}', INTERVAL 1 DAY) g(t))
-        SELECT days.d, count(*) FILTER (WHERE o.dn = 'D' AND o.src = 'granule') AS day_units,
-                  count(*) FILTER (WHERE o.dn = 'N' AND o.src = 'granule') AS night_units,
-                  count(*) FILTER (WHERE o.src = 'fallback') AS fallback,
+        SELECT days.d, count(*) FILTER (WHERE o.dn = 'D') AS day_units,
+                  count(*) FILTER (WHERE o.dn = 'N') AS night_units,
+                  (SELECT count(*) FROM pass p WHERE p.sat = '{sat}' AND p.d = days.d AND p.fallback) AS fallback,
                   (SELECT n_raw FROM cov c WHERE c.sat = '{sat}' AND c.d = days.d) AS detections
         FROM days LEFT JOIN obs o ON o.d = days.d AND o.sat = '{sat}' GROUP BY days.d ORDER BY days.d""").fetchall()
-    print(f"\n{sat} {a} .. {z}: observed units (day, night), fallback passes, unfiltered detections in the box")
+    print(f"\n{sat} {a} .. {z}: observed units with fire (day, night), fallback passes, unfiltered detections in the box")
     for d, du, nu, fb, n in rows:
         print(f"  {d}  {du:4d} {nu:4d}  {fb}  {n or 0}")
 
@@ -50,17 +53,14 @@ for d in gaps:
 print("\n2. Units changing fair status (units with a burning cell-day of either satellite)")
 for model in ("aqua", "terra", "noaa20"):
     r = con.execute(f"""
-        WITH units AS (SELECT u3, d, dn, count(*) FILTER (WHERE sat = '{model}') AS m, count(*) FILTER (WHERE sat = 'snpp') AS v
-                       FROM cd WHERE sat IN ('{model}', 'snpp') GROUP BY ALL),
+        WITH {fair_ctes(silver, model)},
+             tally AS (SELECT continent, u3, d, dn, count(*) FILTER (WHERE sat = '{model}') AS m,
+                              count(*) FILTER (WHERE sat = 'snpp') AS v
+                       FROM cd WHERE year(d) BETWEEN {ys[0]} AND {ys[-1]} GROUP BY ALL),
              old AS (SELECT d FROM cov WHERE sat IN ('{model}', 'snpp') GROUP BY d HAVING count(DISTINCT sat) = 2),
-             seen AS (SELECT u.u3, u.d, u.dn, o.sat FROM units u JOIN obs o ON o.r3 = u.u3 AND o.d = u.d AND o.dn = u.dn
-                      WHERE o.sat IN ('{model}', 'snpp')
-                      UNION ALL
-                      SELECT u.u3, u.d, u.dn, o.sat FROM units u JOIN obs o ON o.r3 IS NULL AND o.d = u.d AND o.dn = u.dn
-                      WHERE o.sat IN ('{model}', 'snpp')),
-             new AS (SELECT u3, d, dn FROM seen GROUP BY ALL HAVING count(DISTINCT sat) = 2),
-             t AS (SELECT u.*, u.d IN (SELECT d FROM old) AS was, (u.u3, u.d, u.dn) IN (SELECT (u3, d, dn) FROM new) AS now
-                   FROM units u)
+             t AS (SELECT u.*, u.d IN (SELECT d FROM old) AS was,
+                          (u.continent, u.u3, u.d, u.dn) IN (SELECT (continent, u3, d, dn) FROM fair) AS now
+                   FROM tally u)
         SELECT was, now, count(*), sum(m), sum(v) FROM t GROUP BY ALL ORDER BY was DESC, now DESC""").fetchall()
     tot = [sum(x[i] for x in r) for i in (2, 3, 4)]
     print(f"\n{model} vs snpp: {tot[0]:,} units, {tot[1]:,} {model} and {tot[2]:,} snpp cell-days")

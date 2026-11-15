@@ -4,23 +4,29 @@ A granule is one 5-minute (MODIS) or 6-minute (VIIRS) slice of a satellite's swa
 Repository (CMR) keeps a public record of every granule of the fire products FIRMS is built from: when it was
 observed, its footprint, and whether it is a day pass, night pass or both. No login is needed.
 
-    granules step:  data/granules/{sat}/{YYYY-MM}.parquet    gid, t0, t1, flag, polys
-                    (granules touching the study box, one file per satellite and month of the fit years)
-    cells step:     silver/observed.parquet                  sat, r3, d, dn, src
+    granules step:  {granules_dir}/{sat}/{YYYY-MM}.parquet   gid, t0, t1, flag, polys
+                    (granules touching the study box, or all of them for the global run; one file per
+                    satellite and month of the fit years)
+    cells step:     silver/observed.parquet                  sat, r3, d, dn
+                    silver/passes.parquet                    sat, continent, d, dn, fallback
 
-A satellite observed an outage-check unit (H3 resolution-3 cell r3, local solar date d, pass dn) if
+A satellite observed an outage-check unit (continent, H3 resolution-3 cell r3, local solar date d, pass dn) if
   1. one of its granules for that pass covers the cell's centre during that local solar date (a granule flagged
      BOTH counts for both passes), and
-  2. FIRMS has at least one of its detections, unfiltered, in the study box on that date and pass
-     (§7, second row of 2026-11-15: NASA can record a pass that FIRMS does not hold, as for NOAA-20 before
+  2. FIRMS has at least one of its detections, unfiltered, in that continent (Argentina: the study box) on that
+     date and pass (§7, 2026-11-15: NASA can record a pass that FIRMS does not hold, as for NOAA-20 before
      2018-04-01).
-Only units both satellites observed are used to fit or test the conversion (fit.py).
+observed.parquet holds condition 1 for units with fire (a burning cell-day of any satellite), the only ones
+the fit can use; passes.parquet holds condition 2. Only units both satellites observed are used to fit or
+test the conversion (fit.py, fair_ctes).
 
-Fallback (rule 7, part 7, as settled in §7 on 2026-11-15): a pass (local solar date and day/night) on which a
-satellite has a detection at a time with no granule record of that satellite uses the whole study box as its
-unit, observed by that satellite (src = 'fallback', r3 = NULL), in place of its granule units. So does a pass
-with detections but no granule units at all. Without a [data] granules_dir (the local check sample) every
-pass uses the fallback.
+Fallback (rule 7, part 7, as settled in §7 on 2026-11-15): a pass on which a satellite has a detection in a
+continent at a time with no granule record of that satellite uses the whole continent as its unit, observed by
+that satellite (passes.fallback). So does a pass on which none of the satellite's detections in that continent
+lies inside a granule footprint ("detections but no granule units at all" in the rule's wording, which dates from
+Argentina, where every cell of the box was a unit; read per continent and from the records, so that a partial
+outage, which leaves some fire cells uncovered, is never turned into a fallback).
+Without a [data] granules_dir (the local check sample) every pass uses the fallback.
 
 Consistency check (rule 7, part 5, as settled in §7 on 2026-11-15): the cells step stops if more than 0.1 % of
 a satellite's detections in the fit years have a granule record at their time but lie outside its footprint.
@@ -36,7 +42,6 @@ import time
 import urllib.parse
 import urllib.request
 
-import h3
 import numpy as np
 import pandas as pd
 
@@ -74,8 +79,9 @@ def fetch_month(sat: str, month: str, bbox) -> pd.DataFrame:
     y, m = map(int, month.split("-"))
     end = (dt.date(y, m, 28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
     q = {"collection_concept_id": COLLECTIONS[sat], "page_size": 2000,
-         "temporal": f"{month}-01T00:00:00Z,{end.isoformat()}T23:59:59Z",
-         "bounding_box": ",".join(str(v) for v in bbox)}
+         "temporal": f"{month}-01T00:00:00Z,{end.isoformat()}T23:59:59Z"}
+    if [float(v) for v in bbox] != [-180.0, -90.0, 180.0, 90.0]:  # the whole globe needs no spatial filter
+        q["bounding_box"] = ",".join(str(v) for v in bbox)
     url = f"{CMR}?{urllib.parse.urlencode(q)}"
     rows, after, hits = [], None, None
     while True:
@@ -153,44 +159,80 @@ def inside(points: np.ndarray, normals: np.ndarray) -> np.ndarray:
     return (points @ normals.T >= 0).all(-1)
 
 
-def universe(cfg: Config) -> pd.DataFrame:
-    """Resolution-3 cells that can hold a study-box detection: those covering the box plus a 1-degree margin."""
-    w, s, e, n = cfg.bbox
-    poly = h3.LatLngPoly([(s - 1, w - 1), (s - 1, e + 1), (n + 1, e + 1), (n + 1, w - 1)])
-    cells = sorted(h3.polygon_to_cells(poly, 3))
-    ll = np.array([h3.cell_to_latlng(c) for c in cells])
-    return pd.DataFrame({"r3": cells, "lat": ll[:, 0], "lon": ll[:, 1]})
-
-
-def load_month_files(cfg: Config, sat: str) -> pd.DataFrame:
+def load_year(cfg: Config, sat: str, year: int) -> pd.DataFrame:
+    """A satellite's granule records for one year (plus the last day of the year before, for local dates)."""
     root = granule_dir(cfg) / sat
-    missing = [m for m in months(cfg, sat) if not (root / f"{m}.parquet").exists()
-               and m <= dt.date.today().strftime("%Y-%m")]
+    want = [m for m in months(cfg, sat) if m.startswith(f"{year}-") and m <= dt.date.today().strftime("%Y-%m")]
+    missing = [m for m in want if not (root / f"{m}.parquet").exists()]
     if missing:
         raise SystemExit(f"granules: {len(missing)} {sat} months not downloaded (first {missing[0]}); "
                          "run `python -m firecal_pipeline granules`")
-    files = [root / f"{m}.parquet" for m in months(cfg, sat) if (root / f"{m}.parquet").exists()]
-    return pd.concat([pd.read_parquet(f) for f in files], ignore_index=True).drop_duplicates("gid")
+    files = [root / f"{m}.parquet" for m in want + [f"{year - 1}-12", f"{year + 1}-01"] if (root / f"{m}.parquet").exists()]
+    if not files:
+        return pd.DataFrame(columns=["gid", "t0", "t1", "flag", "polys"])
+    g = pd.concat([pd.read_parquet(f) for f in files], ignore_index=True).drop_duplicates("gid")
+    lo, hi = pd.Timestamp(year - 1, 12, 31), pd.Timestamp(year + 1, 1, 2)
+    return g[(g.t1 >= lo) & (g.t0 < hi)].sort_values("t0", ignore_index=True)
 
 
-def granule_units(g: pd.DataFrame, u: pd.DataFrame) -> pd.DataFrame:
-    """(r3, d, dn) units whose cell centre lies in a granule footprint, local date from the granule mid-time."""
-    out_r, out_t, out_lon, out_dn = [], [], [], []
-    mid = (g.t0 + (g.t1 - g.t0) / 2).to_numpy()
-    pts = xyz(u.lat.values, u.lon.values)
-    for i, (polys, flag) in enumerate(zip(g.polys, g.flag)):
-        hit = np.zeros(len(u), bool)
-        for normals in rings(polys):
-            hit |= inside(pts, normals)
-        idx = np.flatnonzero(hit)
-        for dn in FLAG.get(flag, []):
-            out_r.append(idx), out_t.append(np.full(len(idx), mid[i])), out_lon.append(u.lon.values[idx])
-            out_dn.append(np.full(len(idx), dn))
-    if not out_r:
-        return pd.DataFrame(columns=["r3", "d", "dn"])
-    r = np.concatenate(out_r)
-    t = pd.to_datetime(np.concatenate(out_t)) + pd.to_timedelta(np.round(np.concatenate(out_lon) / 15 * 3600), unit="s")
-    return pd.DataFrame({"r3": u.r3.values[r], "d": t.normalize().date, "dn": np.concatenate(out_dn)}).drop_duplicates()
+def hits(pts: np.ndarray, polys: list, use: np.ndarray, chunk: int = 128) -> tuple[np.ndarray, np.ndarray]:
+    """(point index, granule index) pairs with the point inside the granule's footprint.
+
+    Footprints are all 4-corner quadrilaterals, so a chunk of granules is tested against every point in one
+    matrix product: a point is inside when it is on the inner side of all four edge great circles."""
+    rs = [rings(p) for p in polys]
+    quad = all(len(r) == 1 and len(r[0]) == 4 for r in rs)
+    out_c, out_g = [], []
+    if quad:
+        n = np.stack([r[0] for r in rs]).astype(np.float32)          # (G, 4, 3)
+        p32 = pts.astype(np.float32)
+        for a in range(0, len(n), chunk):
+            m = (p32 @ n[a:a + chunk].reshape(-1, 3).T).reshape(len(pts), -1, 4)
+            c, g = np.nonzero((m >= 0).all(-1))
+            out_c.append(c), out_g.append(g + a)
+    else:
+        for g, r in enumerate(rs):
+            hit = np.zeros(len(pts), bool)
+            for normals in r:
+                hit |= inside(pts, normals)
+            c = np.flatnonzero(hit)
+            out_c.append(c), out_g.append(np.full(len(c), g))
+    c, g = np.concatenate(out_c), np.concatenate(out_g)
+    keep = use[g]
+    return c[keep], g[keep]
+
+
+def granule_units(g: pd.DataFrame, fire: pd.DataFrame) -> pd.DataFrame:
+    """Units (r3, d, dn) with fire whose cell centre lies in a granule footprint.
+
+    `fire` holds the resolution-3 cells (r3, lat, lon of the centre) and local dates d that have a burning
+    cell-day of any satellite; only those units can enter the fit. Granules are handled one UTC day at a time
+    against the fire cells of the local dates that day can reach; the local date of a hit is the granule
+    mid-time shifted by the cell's longitude."""
+    if g.empty or fire.empty:
+        return pd.DataFrame({"r3": pd.Series(dtype="uint64"), "d": pd.Series(dtype="object"), "dn": pd.Series(dtype="object")})
+    mid = g.t0 + (g.t1 - g.t0) / 2
+    out = []
+    fire_d = fire.assign(day=pd.to_datetime(fire.d))
+    for day, gd in g.groupby(mid.dt.normalize()):
+        cand = fire_d[(fire_d.day >= day - pd.Timedelta(days=1)) & (fire_d.day <= day + pd.Timedelta(days=1))]
+        if cand.empty:
+            continue
+        cells = cand.drop_duplicates("r3")
+        pts = xyz(cells.lat.values, cells.lon.values)
+        c, gi = hits(pts, list(gd.polys), gd.flag.isin(list(FLAG)).to_numpy())
+        if not len(c):
+            continue
+        t = mid.loc[gd.index].to_numpy()[gi] + pd.to_timedelta(np.round(cells.lon.values[c] / 15 * 3600), unit="s").to_numpy()
+        h = pd.DataFrame({"r3": cells.r3.values[c], "d": pd.DatetimeIndex(t).normalize(), "flag": gd.flag.to_numpy()[gi]})
+        h = h.merge(cand[["r3", "day"]], left_on=["r3", "d"], right_on=["r3", "day"])[["r3", "d", "flag"]]
+        for flag, dns in FLAG.items():
+            for dn in dns:
+                out.append(h[h.flag == flag][["r3", "d"]].assign(dn=dn))
+    if not out:
+        return granule_units(g.iloc[:0], fire.iloc[:0])
+    u = pd.concat(out, ignore_index=True).drop_duplicates()
+    return u.assign(d=u.d.dt.date)
 
 
 def footprint_check(g: pd.DataFrame, det: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
@@ -215,43 +257,65 @@ def footprint_check(g: pd.DataFrame, det: pd.DataFrame) -> tuple[np.ndarray, np.
 
 
 def build(cfg: Config, con, silver) -> None:
-    """Write silver/observed.parquet; stop if the footprint consistency check fails."""
+    """Write silver/observed.parquet and silver/passes.parquet; stop if the footprint consistency check fails.
+
+    observed.parquet  sat, r3, d, dn              granule units with fire (condition 1)
+    passes.parquet    sat, continent, d, dn, fallback
+                      passes on which FIRMS holds the satellite's data in that continent (condition 2);
+                      fallback: the whole continent counts as observed on that pass (rule 7, part 7)
+    A satellite observed a unit of a continent if the pass is in passes and either it is a fallback pass or
+    the unit is in observed (fit.py)."""
     ys = fit_years(cfg)
     con.execute(f"""CREATE OR REPLACE TABLE passes AS
-                    SELECT sat, local_date AS d, dn FROM b
+                    SELECT sat, continent, local_date AS d, dn FROM b
                     WHERE year(local_date) BETWEEN {ys[0]} AND {ys[-1]} GROUP BY ALL""")
-    con.execute("CREATE OR REPLACE TABLE obs(sat VARCHAR, r3 VARCHAR, d DATE, dn VARCHAR, src VARCHAR)")
-    con.execute("CREATE OR REPLACE TABLE norecord(sat VARCHAR, d DATE, dn VARCHAR)")
+    con.execute("CREATE OR REPLACE TABLE obs(sat VARCHAR, r3 UBIGINT, d DATE, dn VARCHAR)")
+    con.execute("CREATE OR REPLACE TABLE norecord(sat VARCHAR, continent VARCHAR, d DATE, dn VARCHAR)")
+    con.execute("CREATE OR REPLACE TABLE covered(sat VARCHAR, continent VARCHAR, d DATE, dn VARCHAR)")
     if granule_dir(cfg) is None:
-        print("observed: no granules_dir; every pass uses the whole-box fallback", flush=True)
+        print("observed: no granules_dir; every pass uses the whole-area fallback", flush=True)
     else:
-        u = universe(cfg)
+        con.execute(f"""CREATE OR REPLACE TABLE fire AS
+                        SELECT h3_cell_to_parent(cell8, 3) AS r3, d FROM read_parquet('{silver}/cell_day.parquet')
+                        WHERE year(d) BETWEEN {ys[0]} AND {ys[-1]} GROUP BY ALL""")
         for sat in COLLECTIONS:
-            g = load_month_files(cfg, sat)
+            n = bad = missing = units = grans = 0
             t = time.time()
-            units = granule_units(g, u)
-            det = con.execute(f"""SELECT acq_utc, lat, lon, local_date AS d, dn FROM b WHERE sat = '{sat}'
-                                  AND year(local_date) BETWEEN {ys[0]} AND {ys[-1]} ORDER BY acq_utc""").df()
-            rec, ok = footprint_check(g, det)
-            n, bad, missing = len(det), int((rec & ~ok).sum()), det[~rec]
-            print(f"observed {sat}: {len(g)} granules, {len(units)} units; of {n} detections, {bad} "
-                  f"({100 * bad / max(n, 1):.4f} %) outside the footprint of their granule, {len(missing)} with no "
+            for year in ys:
+                g = load_year(cfg, sat, year)
+                fire = con.execute(f"""SELECT r3, d, h3_cell_to_lat(r3) AS lat, h3_cell_to_lng(r3) AS lon FROM fire
+                                       WHERE d BETWEEN DATE '{year - 1}-12-31' AND DATE '{year + 1}-01-01'""").df()
+                u = granule_units(g, fire)
+                u = u[pd.to_datetime(u.d).dt.year == year]
+                con.register("units_df", u.assign(sat=sat))
+                con.execute("INSERT INTO obs SELECT sat, r3, CAST(d AS DATE), dn FROM units_df")
+                det = con.execute(f"""SELECT acq_utc, lat, lon, continent, local_date AS d, dn FROM b
+                                      WHERE sat = '{sat}' AND year(local_date) = {year} ORDER BY acq_utc""").df()
+                rec, ok = footprint_check(g, det)
+                m = det[~rec]
+                con.register("missing_df", m[["continent", "d", "dn"]].drop_duplicates().assign(sat=sat))
+                con.execute("INSERT INTO norecord SELECT sat, continent, CAST(d AS DATE), dn FROM missing_df")
+                con.register("covered_df", det[rec & ok][["continent", "d", "dn"]].drop_duplicates().assign(sat=sat))
+                con.execute("INSERT INTO covered SELECT sat, continent, CAST(d AS DATE), dn FROM covered_df")
+                n, bad, missing = n + len(det), bad + int((rec & ~ok).sum()), missing + len(m)
+                units, grans = units + len(u), grans + len(g)
+            print(f"observed {sat}: {grans} granules, {units} units with fire; of {n} detections, {bad} "
+                  f"({100 * bad / max(n, 1):.4f} %) outside the footprint of their granule, {missing} with no "
                   f"granule record at their time ({time.time() - t:.0f} s)", flush=True)
             if n and bad / n > MAX_OUTSIDE:
                 raise SystemExit(f"observed: {sat} has more than {100 * MAX_OUTSIDE} % of detections outside its "
                                  "granule footprints (PREREGISTRATION.md §7, rule 7 part 5); investigate before fitting")
-            con.register("units_df", units.assign(sat=sat))
-            con.execute("INSERT INTO obs SELECT sat, r3, CAST(d AS DATE), dn, 'granule' FROM units_df")
-            con.register("missing_df", missing[["d", "dn"]].drop_duplicates().assign(sat=sat))
-            con.execute("INSERT INTO norecord SELECT sat, CAST(d AS DATE), dn FROM missing_df")
-    # Fallback: passes with a detection lacking a granule record, or with detections but no granule units.
-    con.execute("DELETE FROM obs WHERE (sat, d, dn) IN (SELECT (sat, d, dn) FROM norecord)")
-    # Condition 2: FIRMS holds the pass.
-    con.execute("DELETE FROM obs WHERE (sat, d, dn) NOT IN (SELECT (sat, d, dn) FROM passes)")
-    con.execute("""INSERT INTO obs SELECT p.sat, NULL, p.d, p.dn, 'fallback' FROM passes p
-                   WHERE NOT EXISTS (SELECT 1 FROM obs o WHERE o.sat = p.sat AND o.d = p.d AND o.dn = p.dn)""")
-    for row in con.execute("""SELECT sat, src, count(*), count(DISTINCT (d, dn)) FROM obs
-                              GROUP BY ALL ORDER BY sat, src""").fetchall():
-        print("observed", *row, flush=True)
+    # Fallback, per satellite, continent, date and pass: a detection there lacks a granule record, or none of
+    # the detections there lies inside a granule footprint (the records hold nothing usable for that pass).
+    con.execute("""CREATE OR REPLACE TABLE pass AS
+                   SELECT p.*, (p.sat, p.continent, p.d, p.dn) IN (SELECT (sat, continent, d, dn) FROM norecord)
+                               OR (p.sat, p.continent, p.d, p.dn) NOT IN (SELECT (sat, continent, d, dn) FROM covered)
+                               AS fallback
+                   FROM passes p""")
+    for row in con.execute("""SELECT sat, count(*), count(*) FILTER (WHERE fallback) FROM pass
+                              GROUP BY ALL ORDER BY sat""").fetchall():
+        print("passes {}: {} with FIRMS data, {} using the fallback".format(*row), flush=True)
     con.execute(f"COPY (SELECT * FROM obs ORDER BY sat, d, dn, r3) TO '{silver}/observed.parquet' "
+                "(FORMAT parquet, COMPRESSION zstd)")
+    con.execute(f"COPY (SELECT * FROM pass ORDER BY sat, continent, d, dn) TO '{silver}/passes.parquet' "
                 "(FORMAT parquet, COMPRESSION zstd)")
