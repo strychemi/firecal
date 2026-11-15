@@ -78,6 +78,12 @@ def run(cfg: Config) -> None:
     out = gold / version
     out.mkdir()
     model = json.loads((model_dir / "model.json").read_text())
+    if "models" not in model:
+        # The global run fits each continent separately ("continents" in model.json), and a res-3 cell can carry a
+        # multiplier in each continent it spans. Publishing that needs continent-scoped lookups, planned with the
+        # global app; until then the global setup stops after fit and report.
+        raise SystemExit("publish: model.json has per-continent models (the global run); publishing them is not "
+                         "supported yet. The global setup runs ingest, cells, fit and report only.")
     eras = resolve_eras(cfg)
     through = dt.date.fromisoformat(eras[-1]["end"])
     month_end = (through.replace(day=28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)

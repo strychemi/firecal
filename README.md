@@ -46,7 +46,7 @@ mise run api        # build and run the API, which serves the app: http://127.0.
 
 `download` writes one CSV per product and UTC day to `data/firms_api/`: standard-processing data where FIRMS has it, near-real-time after that. Running `refresh` again brings the series up to date. It fetches only new days, the last few near-real-time days again, and days whose standard-processing version has since appeared. The key is used only in the requests to FIRMS; mise does not load `.env`. When the series ends partway through a month, the app compares that month so far with the same days in earlier years.
 
-**Global run.** `global/firecal.toml` runs the same pipeline over every country, with each continent fitted and judged as its own study area (`global/continents.toml`; PREREGISTRATION.md §4 and §7). It reads the same FIRMS zips and MODIS label files and writes to `data/global/`. The Argentina app is unaffected.
+**Global run.** `global/firecal.toml` runs the same pipeline over every country, with each continent fitted and judged as its own study area (`global/continents.toml`; PREREGISTRATION.md §4 and §7). It reads the same FIRMS zips and MODIS label files and writes to `data/global/`. The Argentina app is unaffected. There is no global app yet, so the global setup stops after `report`; `publish` refuses per-continent models.
 
 ```bash
 cd pipeline

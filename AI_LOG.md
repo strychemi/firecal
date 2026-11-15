@@ -290,3 +290,8 @@ All work in this part was done with Opus 5.5.
 
 **Errors the AI made in this part, and how they were caught**
 - The AI overstated where the stand-in would matter before measuring its reach; caught by the AI's own count after adopting, and corrected in the outcome row and to the team.
+
+**20:45–21:00 · Review comments** (#20)
+- Copilot noted that `publish` reads a top-level `models` that the global `model.json` doesn't have, and that publishing the global run needs continent-scoped lookups. Valid but not new in this PR: the global setup was never meant to publish. The AI made `publish` stop with a clear message on per-continent models and said so in the README; continent-scoped publishing is left for the global app.
+- Copilot noted that `rule6` divides by zero if a hidden area holds all of the continent's Aqua cell-days on a pass. Valid in principle; it doesn't happen in any continent (every result is finite). The AI made that case report "cannot be tested" instead. Argentina's report is identical byte for byte.
+- Copilot noted that the Methods page said "a place with no fires", while the stand-in applies where neither satellite saw fire on the shared passes. Valid; reworded.

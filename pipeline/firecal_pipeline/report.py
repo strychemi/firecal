@@ -155,6 +155,11 @@ def rule6(rng, g: pd.DataFrame, model: str, cal) -> dict:
     c = cont.loc[a.dn].to_numpy()
     p = par.loc[list(zip(a.r2, a.dn))].to_numpy()
     own = a[[model, "snpp"]].to_numpy()
+    if (c[:, 0] - own[:, 0] <= 0).any():
+        # The hidden area holds all of the continent's model cell-days on a pass, so the rest gives no r.
+        bad = a[c[:, 0] - own[:, 0] <= 0]
+        return {"rich_areas": int(len(rich)), "status": "cannot be tested: an area holds all of the continent's "
+                f"{model} cell-days on a pass ({', '.join(bad.r3 + ' ' + bad.dn)})", "pass": False}
     a["r_reg"] = (c[:, 1] - own[:, 1]) / (c[:, 0] - own[:, 0])
     a["r_par"] = (p[:, 1] - own[:, 1] + PARENT_K * a.r_reg) / (p[:, 0] - own[:, 0] + PARENT_K)
     me = yr[yr.r3.isin(rich)].merge(a[["r3", "dn", "r_reg", "r_par"]], on=["r3", "dn"])
