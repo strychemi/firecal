@@ -1,0 +1,5 @@
+# Forced versions of packages that other packages pull in (Dependabot alerts). Neither is in the
+# built app; the pins only clear the alerts.
+overrides:
+  fflate: 0.7.5        # was 0.7.4 via @loaders.gl/compression (GHSA-px8p-9vwx-vf98)
+  image-size: 2.0.3    # was 0.7.4 via texture-compressor, a CLI the app never runs (GHSA-w3rx-r6r6-pgpr)
