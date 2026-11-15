@@ -72,7 +72,6 @@ export const SOURCE_SHORT: Record<Source, string> = {
 };
 export const SOURCES: Source[] = ['terra_harmonized', 'aqua_harmonized', 'viirs'];
 
-/** Inclusive list of YYYY-MM between a and b. */
 /** "South_America" -> "South America"; "World" for a search with no fire. */
 export function continentName(c: string): string {
 	return c.replace(/_/g, ' ');
@@ -83,6 +82,7 @@ export function isGlobal(meta: Meta): boolean {
 	return Object.keys(meta.continents ?? {}).length > 1;
 }
 
+/** Inclusive list of YYYY-MM between a and b. */
 export function monthRange(a: YearMonth, b: YearMonth): YearMonth[] {
 	const out: YearMonth[] = [];
 	let [y, m] = a.split('-').map(Number);
