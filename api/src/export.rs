@@ -15,12 +15,18 @@ pub struct ExportRequest {
     pub end: Option<String>,
 }
 
+/// The refusal when no hotspot file was published (reference.py NoExport.MESSAGE).
+pub const UNAVAILABLE: &str =
+    "The hotspot CSV is not available for this data yet; download hotspots from NASA FIRMS instead.";
+
 pub const HEADER: &str =
     "hex_id,latitude,longitude,acq_date,acq_time,local_solar_date,satellite,instrument,daynight,confidence,frp,in_calendar";
 
 pub enum ExportError {
     /// The search matches more rows than the cap: (rows, cap).
     TooMany(u64, usize),
+    /// No hotspots.parquet was published (the global run).
+    Unavailable,
     Bad(anyhow::Error),
 }
 
@@ -59,6 +65,9 @@ fn csv_field(s: &str) -> String {
 pub fn export(data: &Data, presets: &[Preset], max_hex: usize, max_rows: usize, req: &ExportRequest) -> Result<Export, ExportError> {
     let ring = ring(&req.area, presets)?;
     let (res, cells) = area_cells(&ring, &data.resolutions, max_hex)?;
+    if !data.has_export {
+        return Err(ExportError::Unavailable);
+    }
 
     let series_start = month_label(data.start, 0);
     let series_end = month_label(data.start, data.n_months - 1);

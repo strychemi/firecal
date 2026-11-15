@@ -1,0 +1,67 @@
+# Global check sample (pipeline/tests/fixture_global/make_sample.py): a few places on every continent, cut from the
+# published global data (data/global/gold/CURRENT) instead of re-run, since the global fit takes hours. Only the
+# API reads this file; the pipeline never runs on it.
+
+[data]
+out_dir = "out"                  # git-ignored; gold/v1 is written by make_sample.py
+
+[api]
+max_hexagons = 3000
+max_export_rows = 250000
+hotspot_export = false
+bind = "127.0.0.1:8080"
+
+# The sample keeps the hexagons within 1 degree of these boxes (and of the parity test's searches).
+[[presets]]
+id = "central-africa"
+name = "Central African savanna"
+note = "The world's busiest fire belt; burns November to February"
+bbox = [18.0, 4.0, 28.0, 10.0]
+
+[[presets]]
+id = "parana-delta"
+name = "Paraná Delta"
+note = "Wetland fires, notably 2020 and 2022"
+bbox = [-60.8, -34.3, -58.3, -32.0]
+
+[[presets]]
+id = "mainland-se-asia"
+name = "Northern Thailand and Laos"
+note = "Dry-season burning, February to April"
+bbox = [98.0, 17.0, 104.0, 21.0]
+
+[[presets]]
+id = "northern-california"
+name = "Northern California"
+note = "Wildfires, notably 2018 and 2020"
+bbox = [-124.0, 38.0, -120.0, 42.0]
+
+[[presets]]
+id = "central-portugal"
+name = "Central Portugal"
+note = "Summer wildfires, notably 2003, 2005 and 2017"
+bbox = [-9.5, 39.0, -7.0, 41.5]
+
+[[presets]]
+id = "top-end"
+name = "Top End (Northern Territory)"
+note = "Savanna burning, May to November"
+bbox = [129.0, -16.0, 137.0, -11.0]
+
+[[presets]]
+id = "panama-colombia"
+name = "Panama–Colombia border"
+note = "Spans North and South America"
+bbox = [-80.0, 6.0, -75.0, 10.0]
+
+[[presets]]
+id = "heard-island"
+name = "Heard Island"
+note = "Counted with Antarctica, which has no model"
+bbox = [73.2, -53.3, 73.9, -52.9]
+
+[[presets]]
+id = "mid-pacific"
+name = "Mid-Pacific"
+note = "Open ocean: no fire"
+bbox = [-150.0, -10.0, -145.0, -5.0]

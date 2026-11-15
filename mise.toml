@@ -53,6 +53,12 @@ description = "Run the API on 127.0.0.1:8080; it also serves the built frontend"
 depends = ["api:build"]
 run = "api/target/release/firecal-api"
 
+[tasks."api:global"]
+description = "Run the API on the global data (data/global/gold) on 127.0.0.1:8080; it also serves the built frontend"
+depends = ["api:build"]
+env = { FIRECAL_ROOT = "{{config_root}}/global", FIRECAL_WEB = "{{config_root}}/web/build" }
+run = "api/target/release/firecal-api"
+
 # ---- web -----------------------------------------------------------------------------------------
 
 [tasks."web:dev"]

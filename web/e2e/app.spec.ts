@@ -27,9 +27,10 @@ async function api(request: APIRequestContext, body: QueryRequest): Promise<Quer
 	return res.json();
 }
 
-/** What the page sends on load: the first preset over the whole series, describing the newest month. */
+/** What the page sends on load: the first preset over the whole series, describing the newest month.
+ * Both the Argentina data and the global data have a "parana-delta" preset, which the tests below use. */
 function initial(): QueryRequest {
-	return { area: { preset: 'argentina-box' }, start: meta.series_start, end: meta.series_end, month: meta.series_end, baseline: 'median' };
+	return { area: { preset: meta.presets[0].id }, start: meta.series_start, end: meta.series_end, month: meta.series_end, baseline: 'median' };
 }
 
 const sentence = (page: Page) => page.locator('.answer .sentence');
@@ -153,10 +154,17 @@ test('downloads match the API', async ({ page, request }) => {
 	expect(await text(monthly)).toBe(monthsToCsv(r.months));
 
 	const res = await request.post('/api/export.csv', { data: body });
+	if (meta.export_limit == null) {
+		// No hotspot file (the global data): no button, and the API refuses with a message.
+		expect(res.status()).toBe(404);
+		await expect(page.getByRole('button', { name: 'Hotspots CSV' })).toHaveCount(0);
+		await expect(page.locator('#hotspot-note')).toContainText('not available');
+	} else {
 	expect(res.ok()).toBeTruthy();
 	const [hotspots] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Hotspots CSV' }).click()]);
 	expect(hotspots.suggestedFilename()).toBe('firecal-parana-delta-2020-08_2020-09-hotspots.csv');
 	expect(await text(hotspots)).toBe(await res.text());
+	}
 
 	const hex = page.getByRole('button', { name: /Hexagon CSV/ });
 	await expect(hex).toContainText(`${r.cells!.length.toLocaleString('en-US')} hexagons`);
@@ -166,7 +174,7 @@ test('downloads match the API', async ({ page, request }) => {
 });
 
 test('an export over the row cap shows the server message', async ({ page, request }) => {
-	const body = { area: { preset: 'argentina-box' }, start: meta.series_start, end: meta.series_end };
+	const body = { area: { preset: meta.presets[0].id }, start: meta.series_start, end: meta.series_end };
 	const res = await request.post('/api/export.csv', { data: body });
 	test.skip(res.status() !== 413, 'this data fits under the export cap');
 	const msg = (await res.json()).error as string;
@@ -200,4 +208,30 @@ test('clicking a calendar month describes it', async ({ page, request }) => {
 	await calendar(page).locator('.cell').nth(7).click();
 	const aug = await api(request, { area: { preset: 'parana-delta' }, start: '2020-01', end: '2020-12', month: '2020-08', baseline: 'median' });
 	await expect(sentence(page)).toHaveText(aug.stats.sentence);
+});
+
+test('each search names the continent whose model it used, and the methods show its numbers', async ({ page, request }) => {
+	test.skip(Object.keys(meta.continents ?? {}).length < 2, 'one study area, one model');
+	await open(page);
+	for (const p of meta.presets) {
+		const r = await api(request, { ...initial(), area: { preset: p.id } });
+		await page.getByRole('button', { name: p.name }).click();
+		await expect(sentence(page)).toHaveText(r.stats.sentence);
+		const name = r.continent!.replace(/_/g, ' ');
+		const info = meta.continents![r.continent!];
+		if (r.continent === 'World') {
+			await expect(areaMeta(page)).toContainText('No fire here in any year');
+		} else if (!info.fitted) {
+			await expect(areaMeta(page)).toContainText(`${name} (`);
+			await expect(areaMeta(page)).toContainText('has no model');
+		} else {
+			const pct = `${(r.continent_share! * 100).toLocaleString('en-US', { maximumFractionDigits: 1 })} %`;
+			await expect(areaMeta(page)).toContainText(`Converted with the ${name} model, which holds ${pct} of this area's fire-days.`);
+			const methods = page.locator('.methods');
+			await expect(methods.locator('h3', { hasText: 'How well the conversion works' })).toHaveText(`How well the conversion works: ${name}`);
+			const aqua = info.validation.aqua;
+			const pctCell = (n: number) => `${n.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 2 })} %`;
+			await expect(methods.locator('tr', { hasText: 'Aqua MODIS' })).toContainText(pctCell(aqua.whole_area_typical_error_pct));
+		}
+	}
 });

@@ -93,6 +93,9 @@ async fn run_export(
             })),
         )
             .into_response(),
+        Ok(Err(export::ExportError::Unavailable)) => {
+            ApiError(StatusCode::NOT_FOUND, export::UNAVAILABLE.to_string()).into_response()
+        }
         Ok(Err(export::ExportError::Bad(e))) => ApiError(StatusCode::BAD_REQUEST, format!("{e:#}")).into_response(),
         Err(e) => ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }

@@ -8,6 +8,8 @@
 #               compare the Rust API with the Python reference on it, and run the browser tests
 #               (web/e2e) against the API serving the built app
 #   4. full     the same comparison and browser tests on the full published data (data/gold)
+#   5. global   the same on a small sample of the published global data (pipeline/tests/fixture_global, cut
+#               from data/global/gold by make_sample.py; skipped without it)
 #
 # Usage: scripts/check.sh [--fresh-sample]    (--fresh-sample rebuilds the sample from data/)
 set -euo pipefail
@@ -54,14 +56,14 @@ against() {
     rm -f "$log"
 }
 
-step "1/4 web: type-check and build"
+step "1/5 web: type-check and build"
 (cd "$ROOT/web" && pnpm install --frozen-lockfile --silent && pnpm exec playwright install chromium > /dev/null \
     && pnpm check && pnpm build > /dev/null)
 
-step "2/4 api: build"
+step "2/5 api: build"
 cargo build --release --locked --quiet --manifest-path "$ROOT/api/Cargo.toml"
 
-step "3/4 sample: pipeline, parity, browser tests"
+step "3/5 sample: pipeline, parity, browser tests"
 if [[ $FRESH == 1 || ! -d "$FIXTURE/raw" ]]; then
     [[ -d "$ROOT/data/bronze" ]] || { echo "No data/bronze: build the full data first (README)."; exit 1; }
     (cd "$ROOT/pipeline" && uv run python -I tests/fixture/make_sample.py)
@@ -72,11 +74,19 @@ for s in ingest cells fit publish; do
 done
 against "$FIXTURE"
 
-step "4/4 full: parity and browser tests on the published data"
+step "4/5 full: parity and browser tests on the published data"
 if [[ -f "$ROOT/data/gold/CURRENT" ]]; then
     against "$ROOT"
 else
     echo "skipped: no data/gold yet"
+fi
+
+step "5/5 global: parity and browser tests on a sample of the global data"
+if [[ -f "$ROOT/data/global/gold/CURRENT" ]]; then
+    (cd "$ROOT/pipeline" && uv run python -I tests/fixture_global/make_sample.py)
+    against "$ROOT/pipeline/tests/fixture_global"
+else
+    echo "skipped: no data/global/gold yet"
 fi
 
 printf '\n\033[1mAll checks passed.\033[0m\n'

@@ -10,7 +10,7 @@ import urllib.error
 import urllib.request
 
 from firecal_pipeline.config import Config
-from firecal_pipeline.reference import Reference, TooManyHotspots
+from firecal_pipeline.reference import NoExport, Reference, TooManyHotspots
 
 BASE = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8080"
 
@@ -31,11 +31,35 @@ REQUESTS = [
     {"area": {"point": [-71.3, -41.13], "radius_km": 40}},
     {"area": {"preset": "parana-delta"}, "month": "2025-11"},
 ]
+# The global sample: one or more searches per continent, searches spanning two continents (the continent
+# with most of the fire-days decides the ranges and month status), Antarctica (no model) and open ocean (no fire).
+GLOBAL_REQUESTS = [
+    {"area": {"preset": "central-africa"}, "month": "2004-01"},
+    {"area": {"preset": "central-africa"}, "month": "2001-12", "baseline": "mean"},
+    {"area": {"preset": "parana-delta"}, "month": "2008-04"},
+    {"area": {"bbox": [-59.5, -33.8, -58.8, -33.0]}, "month": "2011-08"},
+    {"area": {"preset": "mainland-se-asia"}, "month": "2007-03"},
+    {"area": {"point": [100.5, 19.0], "radius_km": 30}, "month": "2010-04"},
+    {"area": {"preset": "northern-california"}, "month": "2008-06"},
+    {"area": {"preset": "central-portugal"}, "month": "2005-08", "start": "2003-01", "end": "2012-12"},
+    {"area": {"bbox": [-8.5, 40.0, -8.0, 40.5]}, "month": "2003-08"},
+    {"area": {"preset": "top-end"}, "month": "2009-09"},
+    {"area": {"preset": "panama-colombia"}, "month": "2007-03"},
+    {"area": {"polygon": [[-79.5, 8.0], [-77.0, 7.0], [-76.0, 9.0]]}, "month": "2003-04"},
+    {"area": {"bbox": [73.2, -53.3, 73.9, -52.9]}, "month": "2005-01"},
+    {"area": {"bbox": [73.2, -53.3, 73.9, -52.9]}, "month": "2020-01"},
+    {"area": {"bbox": [-150.0, -10.0, -145.0, -5.0]}, "month": "2010-06"},
+    {"area": {"preset": "central-africa"}},
+]
+GLOBAL_EXPORTS = [
+    {"area": {"preset": "parana-delta"}, "start": "2020-08", "end": "2020-08"},  # no hotspot file: refused
+]
+
 BAD = [
     {"area": {"bbox": [-60, -30, -65, -26]}},
     {"area": {"preset": "nowhere"}},
-    {"area": {"preset": "chaco"}, "start": "1999-01"},
-    {"area": {"preset": "chaco"}, "baseline": "mode"},
+    {"area": {"bbox": [-65.0, -30.0, -60.0, -26.0]}, "start": "1999-01"},
+    {"area": {"bbox": [-65.0, -30.0, -60.0, -26.0]}, "baseline": "mode"},
 ]
 
 EXPORTS = [
@@ -89,7 +113,9 @@ def close(a, b, path, problems, tol=0.02):
 def main():
     ref = Reference(Config.load())
     failures = 0
-    for req in REQUESTS:
+    # Data with several continents (the global sample, pipeline/tests/fixture_global) has its own places.
+    requests, exports = (GLOBAL_REQUESTS, GLOBAL_EXPORTS) if len(ref.areas) > 1 else (REQUESTS, EXPORTS)
+    for req in requests:
         status, got = post(req)
         want = ref.query(req)
         problems = [] if status == 200 else [f"HTTP {status}: {got}"]
@@ -104,13 +130,19 @@ def main():
         ok = status == 400 and "error" in got
         print("ok  " if ok else "FAIL", "rejects", json.dumps(req), "->", status, got.get("error", "")[:80])
         failures += not ok
-    for req in EXPORTS:
+    for req in exports:
         status, body = post_raw("/api/export.csv", req)
         try:
             want, want_status = ref.export(req), 200
         except TooManyHotspots as e:
             want, want_status = e, 413
-        if want_status == 413:
+        except NoExport as e:
+            want, want_status = e, 404
+        if want_status == 404:
+            got = json.loads(body) if status == 404 else {}
+            ok = got.get("error") == str(want)
+            print("ok  " if ok else "FAIL", "export unavailable", json.dumps(req), "->", status, body[:90])
+        elif want_status == 413:
             got = json.loads(body) if status == 413 else {}
             ok = got.get("rows") == want.rows and got.get("limit") == want.limit and got.get("error") == str(want)
             print("ok  " if ok else "FAIL", "export refuses", json.dumps(req), "->", status, body[:90])

@@ -3,7 +3,7 @@
 	import { onMount } from 'svelte';
 	import { exportHotspots, fetchMeta, query } from '#lib/api.ts';
 	import { cellsToCsv, downloadBlob, monthsToCsv } from '#lib/download.ts';
-	import { monthLabel } from '#lib/format.ts';
+	import { continentName, isGlobal, monthLabel } from '#lib/format.ts';
 	import type { Area, Baseline, Meta, QueryResponse, YearMonth } from '#lib/types.ts';
 	import AreaPicker from '#lib/components/AreaPicker.svelte';
 	import MonthPicker from '#lib/components/MonthPicker.svelte';
@@ -121,6 +121,9 @@
 		}
 	}
 
+	const fmtShare = (s: number | null | undefined) =>
+		s == null ? 'all' : `${(s * 100).toLocaleString('en-US', { maximumFractionDigits: 1 })} %`;
+
 	function downloadHexCsv() {
 		if (!data) return;
 		downloadBlob(`${fileBase}-hexagons.csv`, new Blob([cellsToCsv(data)], { type: 'text/csv' }));
@@ -186,6 +189,17 @@
 			<p class="area-meta">
 				{dataAreaName}: {data.area.hexagons.toLocaleString('en-US')} hexagons at level {data.area.resolution},
 				{data.area.active_hexagons.toLocaleString('en-US')} with any fire. Showing {monthLabel(data.start)} to {monthLabel(data.end)}.
+				{#if isGlobal(meta) && data.continent}
+					<span class="continent">
+						{#if data.continent === 'World'}
+							No fire here in any year, so no continent's model applies; days with data are counted for the whole globe.
+						{:else if meta.continents?.[data.continent]?.fitted === false}
+							{continentName(data.continent)} ({fmtShare(data.continent_share)} of this area's fire-days) has no model: too few fires to fit one, so months before February 2012 have no data.
+						{:else}
+							Converted with the {continentName(data.continent)} model, which holds {fmtShare(data.continent_share)} of this area's fire-days.
+						{/if}
+					</span>
+				{/if}
 			</p>
 			<div class="charts">
 				<CalendarHeatmap months={data.months} selected={data.stats.month} onselect={(m) => (month = m)} filename="{fileBase}-calendar" {busy} />
@@ -203,9 +217,11 @@
 				</p>
 				<div class="dl-row">
 					<button class="btn primary" type="button" onclick={downloadCsv}>Download CSV ({data.months.length} months)</button>
-					<button class="btn" type="button" onclick={downloadHotspots} disabled={exporting} aria-describedby="hotspot-note">
-						{exporting ? 'Preparing hotspots…' : 'Hotspots CSV'}
-					</button>
+					{#if meta.export_limit != null}
+						<button class="btn" type="button" onclick={downloadHotspots} disabled={exporting} aria-describedby="hotspot-note">
+							{exporting ? 'Preparing hotspots…' : 'Hotspots CSV'}
+						</button>
+					{/if}
 					<button class="btn" type="button" onclick={downloadHexCsv} disabled={data.cells.length === 0}>
 						Hexagon CSV for Kepler.gl ({data.cells.length.toLocaleString('en-US')} hexagons)
 					</button>
@@ -215,17 +231,24 @@
 					and over the selected dates. Drop it on <a href="https://kepler.gl/demo" target="_blank" rel="noopener noreferrer">kepler.gl/demo</a>, which
 					draws the H3 column as hexagons. Each chart has its own SVG and PNG buttons.
 				</p>
+				{#if meta.export_limit == null}
+					<p class="small" id="hotspot-note">
+						The hotspot CSV is not available for this data yet; download hotspots from
+						<a href="https://firms.modaps.eosdis.nasa.gov/download/" target="_blank" rel="noopener noreferrer">NASA FIRMS</a> instead.
+					</p>
+				{:else}
 				<p class="small" id="hotspot-note">
 					The hotspots CSV lists every detection that passed the filters in this area, {monthLabel(data.start)} to {monthLabel(data.end)},
 					from every satellite: position, UTC and local solar time, satellite, day or night, confidence and fire power.
 					<code>in_calendar</code> is true for the detections from the satellite the calendar counts that day. Up to
-					{(meta.export_limit ?? 250000).toLocaleString('en-US')} rows per file; narrow the dates for large areas.
+					{meta.export_limit.toLocaleString('en-US')} rows per file; narrow the dates for large areas.
 				</p>
+				{/if}
 				{#if exportMsg}<p class="notice small" role="alert">{exportMsg}</p>{/if}
 			</section>
 		{/if}
 
-		<Methods {meta} />
+		<Methods {meta} {data} />
 	{/if}
 </main>
 

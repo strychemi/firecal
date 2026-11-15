@@ -46,7 +46,7 @@ mise run api        # build and run the API, which serves the app: http://127.0.
 
 `download` writes one CSV per product and UTC day to `data/firms_api/`: standard-processing data where FIRMS has it, near-real-time after that. Running `refresh` again brings the series up to date. It fetches only new days, the last few near-real-time days again, and days whose standard-processing version has since appeared. The key is used only in the requests to FIRMS; mise does not load `.env`. When the series ends partway through a month, the app compares that month so far with the same days in earlier years.
 
-**Global run.** `global/firecal.toml` runs the same pipeline over every country, with each continent fitted and judged as its own study area (`global/continents.toml`; PREREGISTRATION.md §4 and §7). It reads the same FIRMS zips and MODIS label files and writes to `data/global/`. The Argentina app is unaffected. There is no global app yet, so the global setup stops after `report`; `publish` refuses per-continent models.
+**Global run.** `global/firecal.toml` runs the same pipeline over every country, with each continent fitted and judged as its own study area (`global/continents.toml`; PREREGISTRATION.md §4 and §7). It reads the same FIRMS zips and MODIS label files and writes to `data/global/`. The Argentina app is unaffected.
 
 ```bash
 cd pipeline
@@ -55,7 +55,24 @@ FIRECAL_ROOT=../global uv run python -m firecal_pipeline ingest
 FIRECAL_ROOT=../global uv run python -m firecal_pipeline cells
 FIRECAL_ROOT=../global uv run python -m firecal_pipeline fit
 FIRECAL_ROOT=../global uv run python -m firecal_pipeline report     # rule statuses with luck ranges → data/global/model/report.json
+FIRECAL_ROOT=../global uv run python -m firecal_pipeline publish    # → data/global/gold/vN/ and gold/CURRENT, about 30 s
 ```
+
+A `silver/` built before coverage was split by continent needs `FIRECAL_ROOT=../global uv run python -m firecal_pipeline coverage` (seconds) before `publish`; `publish` says so.
+
+**Global app.** The same app over the whole globe, archive only (November 2000 to December 2025): no recent days from the FIRMS API yet, and no hotspot CSV (`hotspot_export = false` in `global/firecal.toml`; the API refuses it with a message and the app hides the button). Build the frontend once, then serve the global data:
+
+```bash
+mise run web:build
+mise run api:global       # http://127.0.0.1:8080, from data/global/gold/CURRENT
+```
+
+How the continents work (`docs/api.md` has the exact rules):
+- Every fire-day is converted with its own continent's multipliers, and each day's satellite is chosen per continent (the first in the era's chain with any detection in that continent that day).
+- A search takes the error ranges and the days with data of the continent holding most of its fire-days over the whole series; the app says which continent and its share, and the Methods page shows that continent's scores and gaps. A search with no fire uses the whole globe's days with data.
+- Antarctica (with Heard Island) has too few fires to fit: its MODIS days, before February 2012, have no data rather than unconverted counts, and its VIIRS days use the whole globe's satellite choice.
+
+Sizes, measured on data v2: the published data is about 400 MB (monthly rows: 6.0 M at level 4, 17.6 M at level 5, 44.4 M at level 6). The API keeps all three levels in memory: it starts in about 10 s and holds about 1.8 GB (2.5 GB while loading; twice that briefly when it swaps in a new version). Searches take a few milliseconds, and about half a second for a continent-sized box.
 
 The `report` step also works on Argentina (`uv run python -m firecal_pipeline report`).
 
@@ -78,6 +95,7 @@ It runs everything on this machine, in about half a minute:
 2. Builds the API.
 3. Runs the whole pipeline on a small sample, then compares the API with the reference on it and runs the browser tests against the API serving the app.
 4. Does both again on the full published data.
+5. Does both again on a small sample of the global data (`pipeline/tests/fixture_global/`, cut from `data/global/gold` by its `make_sample.py` in seconds; skipped if there is no global data).
 
 The sample is real FIRMS rows for a small box near the Paraná Delta, including recent near-real-time days. It's built from your local `data/` the first time (`--fresh-sample` rebuilds it) and is git-ignored, so no fire data goes into the repo. The pipeline and the API both read `FIRECAL_ROOT` to find it (`pipeline/tests/fixture/`). The script exits non-zero if any check fails.
 
