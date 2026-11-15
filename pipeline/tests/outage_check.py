@@ -27,9 +27,9 @@ con.execute(f"""CREATE VIEW cd AS SELECT *, printf('%x', h3_cell_to_parent(cell8
 def per_day(sat: str, a: str, z: str) -> None:
     rows = con.execute(f"""
         WITH days AS (SELECT CAST(t AS DATE) AS d FROM generate_series(DATE '{a}', DATE '{z}', INTERVAL 1 DAY) g(t))
-        SELECT days.d, count(*) FILTER (o.dn = 'D' AND o.src = 'granule') AS day_units,
-                  count(*) FILTER (o.dn = 'N' AND o.src = 'granule') AS night_units,
-                  count(*) FILTER (o.src = 'fallback') AS fallback,
+        SELECT days.d, count(*) FILTER (WHERE o.dn = 'D' AND o.src = 'granule') AS day_units,
+                  count(*) FILTER (WHERE o.dn = 'N' AND o.src = 'granule') AS night_units,
+                  count(*) FILTER (WHERE o.src = 'fallback') AS fallback,
                   (SELECT n_raw FROM cov c WHERE c.sat = '{sat}' AND c.d = days.d) AS detections
         FROM days LEFT JOIN obs o ON o.d = days.d AND o.sat = '{sat}' GROUP BY days.d ORDER BY days.d""").fetchall()
     print(f"\n{sat} {a} .. {z}: observed units (day, night), fallback passes, unfiltered detections in the box")
@@ -50,7 +50,7 @@ for d in gaps:
 print("\n2. Units changing fair status (units with a burning cell-day of either satellite)")
 for model in ("aqua", "terra", "noaa20"):
     r = con.execute(f"""
-        WITH units AS (SELECT u3, d, dn, count(*) FILTER (sat = '{model}') AS m, count(*) FILTER (sat = 'snpp') AS v
+        WITH units AS (SELECT u3, d, dn, count(*) FILTER (WHERE sat = '{model}') AS m, count(*) FILTER (WHERE sat = 'snpp') AS v
                        FROM cd WHERE sat IN ('{model}', 'snpp') GROUP BY ALL),
              old AS (SELECT d FROM cov WHERE sat IN ('{model}', 'snpp') GROUP BY d HAVING count(DISTINCT sat) = 2),
              seen AS (SELECT u.u3, u.d, u.dn, o.sat FROM units u JOIN obs o ON o.r3 = u.u3 AND o.d = u.d AND o.dn = u.dn
