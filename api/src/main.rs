@@ -139,7 +139,9 @@ async fn main() -> Result<()> {
 
     let mut app = Router::new().route("/api/meta", get(meta)).route("/api/query", post(run_query))
         .route("/api/export.csv", post(run_export));
-    let web = root.join("web").join("build");
+    // The built frontend: FIRECAL_WEB, or web/build under the root (the browser tests serve the repo's
+    // build while reading the sample data from another root).
+    let web = std::env::var("FIRECAL_WEB").map(PathBuf::from).unwrap_or_else(|_| root.join("web").join("build"));
     if web.join("index.html").exists() {
         app = app.fallback_service(ServeDir::new(&web).fallback(ServeFile::new(web.join("index.html"))));
         tracing::info!("serving frontend from {}", web.display());
