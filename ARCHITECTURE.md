@@ -2,7 +2,7 @@
 
 **Challenge:** NASA Space Apps 2026, *Harmonization of MODIS and VIIRS Hot Spots*.
 **Shape:** offline Python + DuckDB pipeline → versioned Parquet → Rust (axum) API → SvelteKit static frontend.
-**Status:** prototype for Argentina, 2026-11-14. The method is tested in `science/rule_checks/` with its keep/reject rules fixed in `PREREGISTRATION.md`; the pipeline (`pipeline/`), API (`api/`) and app (`web/`) run end to end, including recent days from the FIRMS API and the in-progress month comparison. The rest of this document is the design for the global version.
+**Status:** prototype for Argentina, 2026-11-15. The method is tested in `science/rule_checks/` with its keep/reject rules fixed in `PREREGISTRATION.md`; the pipeline (`pipeline/`), API (`api/`) and app (`web/`) run end to end, including recent days from the FIRMS API and the in-progress month comparison. The rest of this document is the design for the global version.
 
 ## 1. Challenge objectives → where they are met
 
@@ -13,9 +13,9 @@
 | Web app taking harmonized data as input | API + frontend | The app reads only the published `gold/` data. |
 | Select a region and a date range | Frontend map and form → `POST /api/query` | Draw a box or polygon, or enter latitude/longitude (box, or point and radius). Date-range picker. |
 | Burning calendar: busier months, busier years, current fire vs previous | Frontend calendar and stats card | Years × months heatmap; answer card comparing the selected month with the same month in earlier years. |
-| Current month against the historical median | `month_to_date.parquet` + stats | A month still in progress is compared like for like (days 1–D against days 1–D of earlier years). |
-| Download analytics and visualizations | `POST /api/summary.csv`, chart export | Monthly series as CSV; charts as PNG/SVG. |
-| CSV of hotspots detected during a search | `POST /api/export.csv` | Streams raw hotspot rows for the area and dates, with size caps. |
+| Current month against the historical median | `mtd_res{4,5,6}.parquet` + stats | A month still in progress is compared like for like (days 1–D against days 1–D of earlier years). |
+| Download analytics and visualizations | Frontend downloads, chart export | Monthly series and per-hexagon values as CSV, built in the browser from the query response; charts as PNG/SVG. |
+| CSV of hotspots detected during a search | `POST /api/export.csv` | Filtered hotspot rows for the area and months; a search over the row cap is refused with its row count. |
 | Colour ramps showing similarities and differences across months | Frontend | Sequential ramp for counts, diverging ramp for anomalies, both colour-blind safe, with values on hover. |
 
 **Potential considerations**
@@ -38,7 +38,7 @@ OFFLINE  (Python + DuckDB; run on demand)
 FIRMS zips ──▶ ingest ──▶ cell-days ──▶ fit + validate ──▶ publish
                bronze/    silver/        model/              gold/vN/
 
-SCHEDULED  (daily; the only process that holds the FIRMS key)
+SCHEDULED  (daily; the only process that holds the FIRMS key. Prototype: run by hand)
 ──────────────────────────────────────────────────────────────
 FIRMS API ──▶ recent cell-days ──▶ republish recent months ──▶ gold/vN+1/
 
@@ -62,9 +62,10 @@ SvelteKit static build (served by the same Rust binary) ── MapLibre map + ch
 
 | Step | Input | Output | Notes |
 |---|---|---|---|
-| `ingest` | FIRMS yearly zips | `bronze/{product}/{year}.parquet` | One schema for all products. Clipped to the configured box. Idempotent, one year at a time. |
+| `download` | FIRMS area API | `firms_api/{product}/{date}.{sp,nrt}.csv` | Days after the yearly zips, one file per UTC day; standard processing where available, near-real-time after. The only step that reads the FIRMS key. |
+| `ingest` | FIRMS yearly zips, `firms_api/` | `bronze/{product}/{year}.parquet`, `bronze/{product}/recent.parquet` | One schema for all products. Clipped to the configured box. Idempotent, one year at a time. Near-real-time rows have no FIRMS `type`; a static-cell mask from the archive stands in (`PREREGISTRATION.md` §7). |
 | `cells` | bronze | `silver/cell_day/…` | Filters (`type = 0`; MODIS confidence ≥ 30; VIIRS nominal/high), local solar date, H3 res 8, day/night. One row per cell, date, satellite and day/night, with hotspot count and FRP. |
-| `outages` | bronze | `silver/coverage.parquet` | Which satellite had data on which day, per check unit. The unit and partial-day rule must be added to `PREREGISTRATION.md` before the global fit. |
+| `outages` | bronze | `silver/coverage.parquet` | Which satellite had data on which day, per check unit. The unit and partial-day rule must be added to `PREREGISTRATION.md` before the global fit. Prototype: written by `cells`, with the whole study box as the unit. |
 | `fit` | silver | `model/model.json`, `model/validation.json`, `model/misses.parquet` | Per-area day/night multipliers with shrinkage; leave-one-year-out predictions; rule checks from `PREREGISTRATION.md`. |
 | `publish` | silver + model | `gold/vN/` | Applies the model, picks one satellite per day with fallbacks, builds the hexagon levels, writes the manifest. |
 
@@ -75,11 +76,12 @@ SvelteKit static build (served by the same Rust binary) ── MapLibre map + ch
 | File | Contents |
 |---|---|
 | `monthly_res4.parquet`, `monthly_res5.parquet`, `monthly_res6.parquet` | One row per hexagon per month with any fire, sorted by cell: `cell, year, month, source, value, raw, detections, frp`. `value` is VIIRS-equivalent burning cell-days; `raw` is the source satellite's own count; `detections` is its hotspot count. |
-| `month_to_date.parquet` | Same columns for days 1–D of the current month, for every year. Absent when no month is in progress. |
+| `mtd_res4.parquet`, `mtd_res5.parquet`, `mtd_res6.parquet` | `cell, year, value` for days 1–D of the in-progress month, in every year. Absent when no month is in progress. |
+| `month_status.parquet` | Per month: source, days in the month, days with satellite data, days filled by a fallback satellite. Marks incomplete and in-progress months. |
 | `misses.parquet` | Past misses `ln(V / V̂)` by predicted-count bin, from leave-one-year-out. Used to build error ranges for any area. |
 | `hotspots.parquet` | Filtered hotspot rows with their level 4–6 hexagons and an `in_calendar` flag, for the CSV export. Prototype: one file (161 MB for Argentina); split by year and coarse parent hexagon before going global. |
 | `model.json`, `validation.json` | Multipliers and test results, shown on the methods page. |
-| `manifest.json` | Data version, coverage dates, satellites and outages filled, input file checksums, model version. |
+| `manifest.json` | Data version, coverage dates (including `through`, the last day with data, and `in_progress`), satellites and outages filled, input file checksums, model version. |
 
 `source` is one of `terra_harmonized`, `aqua_harmonized`, `viirs` (S-NPP, or NOAA-20 as its successor).
 
@@ -98,6 +100,8 @@ Crates: `axum`, `tokio`, `duckdb` (bundled), `h3o`, `geo`, `serde`, `tower-http`
 | `GET /api/presets` | | Preset regions from `firecal.toml` |
 | `GET /api/meta` | | Data version, coverage, satellites, last date, month-in-progress flag |
 
+**Prototype status** (`docs/api.md` is the contract as built): `query`, `meta` and `export.csv` exist. `query` takes area, dates, selected month and mean or median, and returns every metric (converted, raw, hotspots, FRP) for each month rather than taking a metric choice. It also returns per-hexagon values, which the map uses in place of `/api/map`. Presets come with `meta`, and the monthly CSV is built in the browser. The export builds the file in memory; streaming is for the global version.
+
 An **area** is a GeoJSON polygon, a box, or a point and radius.
 
 **How a query runs**
@@ -111,20 +115,20 @@ An **area** is a GeoJSON polygon, a box, or a point and radius.
 
 - **Stateless.** Every request carries its area; nothing is stored per user, so restarts and extra instances are harmless.
 - **Coarse levels in memory, fine levels from disk.** Res 4 and 5 are loaded at start-up. Res 6 and hotspot rows are read through DuckDB from cell-sorted Parquet.
-- **Cacheable.** A response depends only on the request and the data version, so the data version is the HTTP cache key (`ETag`).
+- **Cacheable.** A response depends only on the request and the data version, so the data version is the HTTP cache key (`ETag`). Prototype: not yet implemented, and neither is the per-shape hexagon cache.
 - **Version swap.** `gold/current` points at one version. When it changes, the API loads the new version and swaps atomically.
 
 ## 6. Frontend (`web/`, SvelteKit with `adapter-static`)
 
 | View | Purpose |
 |---|---|
-| Area input | Map drawing (box or polygon) and a latitude/longitude form; presets |
+| Area input | Map drawing (box, polygon or circle), a latitude/longitude form (box, or point and radius), and presets |
 | Answer card | "Is this month unusual?", with the error range and the comparison used |
 | Calendar heatmap | Years × months; sequential ramp for counts, diverging for anomalies |
 | Yearly totals | Raw-to-harmonized toggle that removes the 2012 jump (the demo moment) |
-| Seasonal curve | Typical year with its normal range, and the selected year over it |
-| Map | Hexagons for the selected month against the average |
-| Downloads | Summary CSV, hotspot CSV, PNG/SVG of each chart |
+| Monthly series | Every month in the chosen dates with 80 % ranges for converted months. Prototype: in place of the seasonal curve (typical year with its normal range), which is not built yet |
+| Map | Hexagons for the selected month against the average. Prototype: fire-days per hexagon for the selected month or the whole date range |
+| Downloads | Monthly CSV, hotspot CSV, per-hexagon CSV (opens in Kepler.gl), PNG/SVG of each chart |
 | Methods and limits | How the conversion works, test results from `validation.json`, known weaknesses, data credits, AI use |
 
 The frontend is developed against a saved example of the `/api/query` response, so app and pipeline work proceed in parallel.
@@ -132,7 +136,7 @@ The frontend is developed against a saved example of the `/api/query` response, 
 ## 7. Operations
 
 - **One container:** the Rust binary serves the API and the built frontend; `gold/` is mounted as a volume.
-- **Recent data:** a daily job fetches new FIRMS days with the key from its own environment, then runs `cells` → `publish` for the affected months and flips `gold/current`.
+- **Recent data:** a daily job fetches new FIRMS days with the key from its own environment, then runs `cells` → `publish` for the affected months and flips `gold/current`. Prototype: run by hand (`download`, then `all`), and it republishes the whole series.
 - **Snapshots:** a frozen, checksummed copy of `gold/` is used for the submission, so the demo, slides and video show the same numbers.
 - **Fallback:** a script saves the API's responses for every preset as JSON. If hosting fails during judging, the frontend runs from those files.
 
@@ -140,22 +144,24 @@ The frontend is developed against a saved example of the `/api/query` response, 
 
 ```
 firecal.toml          configuration for every step
-pipeline/             Python package: ingest, cells, outages, fit, publish
+pipeline/             Python package: download, ingest, cells, fit, publish, and the reference API (example)
 science/              analysis, rule checks, primer
 api/                  Rust crate (axum)
 web/                  SvelteKit app
-data/                 git-ignored: bronze/, silver/, model/, gold/
+docs/api.md           API contract
+data/                 git-ignored: FIRMS zips, firms_api/, bronze/, silver/, model/, gold/
 PREREGISTRATION.md    fixed keep/reject rules
 ARCHITECTURE.md       this file
+AI_LOG.md             how AI was used
 ```
 
 ## 9. Build order and fallbacks
 
-1. **Pipeline on Argentina, end to end**, checked against the known numbers (day multiplier about 3.05, night about 10.3, typical error about 10 %).
-2. **API pass 1:** `query` and `meta`, enough for the calendar and answer card. Frontend built against a saved response in parallel.
-3. **Global pipeline run**, with per-continent validation.
-4. **API pass 2:** `map`. **Pass 3:** the two CSV exports.
-5. **Recent-data job** and month-in-progress comparison.
+1. ✅ **Pipeline on Argentina, end to end**, checked against the known numbers (day multiplier about 3.05, night about 10.3, typical error about 10 %).
+2. ✅ **API pass 1:** `query` and `meta`, enough for the calendar and answer card. Frontend built against a saved response in parallel.
+3. ⬜ **Global pipeline run**, with per-continent validation.
+4. ✅ **API pass 2:** map data (per-hexagon values in `query`). **Pass 3:** the hotspot CSV export (the monthly CSV is built in the browser).
+5. ✅ **Recent-data job** (by hand for now) and month-in-progress comparison.
 
 | Risk | Fallback |
 |---|---|
