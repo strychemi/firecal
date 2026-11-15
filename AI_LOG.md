@@ -315,3 +315,22 @@ All work in this part was done with Opus 5.5.
 
 **21:30 · Review comment** (#21)
 - Copilot noted that a bin can be empty if quantile edges repeat (many identical predictions), leaving its range as NaN. Valid in principle; no current table has an empty bin (Argentina 40 rows, global 240). The AI made an empty bin borrow the nearest non-empty bin's range, as the old fixed-bin table did, and checked on a forced case. Argentina's tables and validation are unchanged byte for byte.
+
+### 2026-11-15, session 1 continued (21:24–21:55): upgrade 3, the tilt correction
+
+**21:24–21:26 · The rule**
+- *Asked:* what is left, how close the project is, and what seasonal multipliers would gain (the AI guessed under 1 point, without looking). Then to draft the tilt rule. The AI found that it had described the tilt backwards earlier (the conversion undercounts quiet months and overcounts busy ones) and said so. *Decided by the team:* the form, fire-strength classes, from three options (also local busyness, and a curve on totals that would break cells adding up to area totals). The AI drafted a §7 row: three FRP classes per continent and pass, Poisson class weights, tested before seasonal multipliers, with rule 3 and rules 1, 2, 4 and 5 all required. *Decided by the team:* commit as drafted. Committed at 21:26, before any fire-strength model was fitted.
+
+**21:26–21:55 · Code and runs, with the global app in parallel**
+- *Asked:* whether the global app could run in parallel. *Decided by the team:* yes, in its own session (archive only); the AI wrote its brief, including which files to leave alone, and a progress display for both tasks.
+- *AI did:* a `tilt` step: class edges per validation fold computed in SQL, so every left-out year uses edges from its own training years; class weights by Poisson maximum likelihood; the rule checks against the current version.
+- *Found:* rejected on every continent. The classes work as expected (strong fires get 0.15–0.9 times the weakest class's weight) but quiet and busy months turn out to have a similar mix of fire strengths, so the tilt barely moves, and night tilt fails everywhere. Unexpectedly, the classes improve the whole-area score on every continent (North America 9.24 → 6.32 %) and fix the join between the records where it failed (night gap Europe −22.8 → −5.7 %, North America −26.8 → −7.3 %). That is not what the rule tested, so it does not count; the outcome row says so.
+
+**Checks in this part:** `mise run check` passed (parity 0 failures and 11 of 11 browser tests, on the sample and on Argentina v11). `fit` and `publish` do not use the correction, so the app is unchanged.
+
+**Errors the AI made in this part, and how they were caught**
+- The AI described the tilt's direction backwards in an earlier answer; caught by the AI while drafting the rule.
+- The first global run stopped on Antarctica, which has too few fires for every validation fold to have class edges; caught by the run. Areas without edges for every fold are now marked as cannot be fitted.
+
+**22:10 · Review comment** (#22)
+- Copilot noted that the reported small-area tilt fits a line with `np.polyfit`, which fails with fewer than 2 points and would stop the whole `tilt` run for a metric that is only reported. Valid in principle; every study area has thousands of block-months. The AI made it report nothing below 3 points. Argentina's tilt report is unchanged byte for byte.
