@@ -13,6 +13,12 @@ a static or non-vegetation source when at least half of its archive detections h
 2023-2025 VIIRS: it removes 83 % of the detections `type` removes and wrongly drops 0.2 % of
 vegetation-fire detections.
 
+MODIS rows from first_year to [data] modis_labels_through (2017) take their `type` from the
+producer's MCD14ML Collection 6 version 3 monthly files in [data] modis_labels_dir, matched on UTC
+time, satellite, latitude and longitude (PREREGISTRATION.md section 7, 2026-11-15). The FIRMS
+archive rows for those years carry version-2 labels; from 2018 they are already version 3. A year
+stops with an error when under 99.9 % of its rows find a match.
+
 bronze/recent.json records, per satellite, the last local solar date with complete data: the
 newest UTC day FIRMS has for that source is still filling in, and a local date needs the UTC
 morning after it, so the last complete local date is two days before the newest UTC date.
@@ -23,6 +29,8 @@ import pathlib
 import shutil
 import tempfile
 import zipfile
+
+import pandas as pd
 
 from .config import Config, connect
 
@@ -43,6 +51,64 @@ def extract_csv(z: zipfile.ZipFile, name: str, tmp: str) -> pathlib.Path:
     with z.open(name) as src, open(dest, "wb") as out:
         shutil.copyfileobj(src, out)
     return dest
+
+
+MIN_LABEL_MATCH = 0.999  # share of a year's FIRMS MODIS rows that must find a version-3 label
+LABEL_SAT = {"T": "terra", "A": "aqua"}
+
+
+def label_dir(cfg: Config) -> pathlib.Path | None:
+    d = cfg["data"].get("modis_labels_dir")
+    return cfg.base / d if d else None
+
+
+def month_labels(src: pathlib.Path, cache: pathlib.Path) -> pathlib.Path:
+    """One MCD14ML monthly file (space-separated text) -> Parquet with the match key and `type`."""
+    out = cache / (src.name.split(".txt")[0] + ".parquet")
+    if out.exists():
+        return out
+    df = pd.read_csv(src, sep=r"\s+", usecols=["YYYYMMDD", "HHMM", "sat", "lat", "lon", "type"],
+                     dtype={"YYYYMMDD": str, "HHMM": str, "sat": str, "lat": float, "lon": float, "type": "int8"})
+    df = pd.DataFrame({
+        "sat": df.sat.map(LABEL_SAT),
+        "acq_utc": pd.to_datetime(df.YYYYMMDD + df.HHMM.str.zfill(4), format="%Y%m%d%H%M"),
+        "lat": df.lat.round(4), "lon": df.lon.round(4), "type": df.type})
+    tmp = out.with_suffix(".tmp")
+    df.to_parquet(tmp, index=False)
+    tmp.rename(out)
+    return out
+
+
+def relabel_modis(cfg: Config, con, year: int) -> None:
+    """Replace `type` (and `keep`) in table b with the version-3 labels for that year."""
+    d = label_dir(cfg)
+    files = sorted(d.glob(f"MCD14ML.{year}[0-9][0-9].006.03.txt.gz")) if d else []
+    if not files:
+        raise SystemExit(f"No MCD14ML version-3 files for {year} in {d}: download them first (README, MODIS labels).")
+    cache = d / "labels"  # beside the downloads: bronze/*/ must hold only bronze tables
+    cache.mkdir(exist_ok=True)
+    parquet = ", ".join(f"'{month_labels(f, cache)}'" for f in files)
+    x0, y0, x1, y1 = (float(v) for v in cfg.bbox)
+    con.execute(f"""CREATE TEMP TABLE lab AS
+        SELECT sat, acq_utc, lat, lon, min(type) AS type, count(DISTINCT type) AS ntypes FROM read_parquet([{parquet}])
+        WHERE lon BETWEEN {x0 - 0.01} AND {x1 + 0.01} AND lat BETWEEN {y0 - 0.01} AND {y1 + 0.01}
+        GROUP BY ALL""")
+    total, matched, changed, ambiguous = con.execute("""
+        SELECT count(*), count(l.type), count(*) FILTER (WHERE l.type IS DISTINCT FROM b.type AND l.type IS NOT NULL),
+               count(*) FILTER (WHERE l.ntypes > 1)
+        FROM b LEFT JOIN lab l ON l.sat = b.sat AND l.acq_utc = b.acq_utc AND l.lat = round(b.lat, 4) AND l.lon = round(b.lon, 4)
+        WHERE b.sat IS NOT NULL""").fetchone()
+    share = matched / total if total else 1.0
+    print(f"modis labels {year}: {matched:,} of {total:,} rows matched ({100 * share:.3f} %), "
+          f"{changed:,} type changed, {ambiguous:,} ambiguous", flush=True)
+    if ambiguous:  # two label rows with the same key but different types: never pick one silently
+        raise SystemExit(f"modis labels {year}: {ambiguous:,} rows match label rows that disagree on type; stopping.")
+    if share < MIN_LABEL_MATCH:
+        raise SystemExit(f"modis labels {year}: only {100 * share:.3f} % of rows matched (need {100 * MIN_LABEL_MATCH} %); stopping.")
+    con.execute(f"""UPDATE b SET type = l.type FROM lab l
+        WHERE l.sat = b.sat AND l.acq_utc = b.acq_utc AND l.lat = round(b.lat, 4) AND l.lon = round(b.lon, 4)""")
+    con.execute(f"UPDATE b SET keep = {keep_expr(cfg, 'modis')}")
+    con.execute("DROP TABLE lab")
 
 
 STATIC_SHARE = 0.5  # a cell is "static" when at least this share of its archive detections had type != 0
@@ -90,6 +156,8 @@ def ingest_year(cfg: Config, product: str, year: int, force: bool = False) -> pa
                            types = {{'acq_time': 'VARCHAR', 'acq_date': 'VARCHAR', 'confidence': 'VARCHAR',
                                      'satellite': 'VARCHAR', 'daynight': 'VARCHAR', 'type': 'INTEGER'}}))
                 WHERE longitude BETWEEN {x0} AND {x1} AND latitude BETWEEN {y0} AND {y1}""")
+    if product == "modis" and year <= int(cfg["data"].get("modis_labels_through", 0)):
+        relabel_modis(cfg, con, year)
     con.execute(f"""COPY (SELECT DISTINCT * FROM b WHERE sat IS NOT NULL ORDER BY acq_utc)
                     TO '{out}' (FORMAT parquet, COMPRESSION zstd)""")
     n = con.execute("SELECT count(*) FROM b").fetchone()[0]

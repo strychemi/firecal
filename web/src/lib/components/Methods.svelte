@@ -86,7 +86,7 @@
 		</div>
 	</div>
 	<p class="credit">
-		Fire data: NASA FIRMS (MODIS MCD14ML C6.1, VIIRS 375 m S-NPP and NOAA-20). Data version {meta.data_version}, {meta.series_start} to
+		Fire data: NASA FIRMS (MODIS MCD14ML C6/C6.1, with 2000–2017 hotspot types from the MODIS fire team's version-3 files; VIIRS 375 m S-NPP and NOAA-20). Data version {meta.data_version}, {meta.series_start} to
 		{meta.series_end}. Unit: {meta.unit}.
 	</p>
 </section>
