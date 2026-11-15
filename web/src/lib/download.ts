@@ -1,5 +1,5 @@
 // Client-side downloads: CSV from the response, SVG/PNG from rendered charts.
-import type { MonthRow } from './types';
+import type { MonthRow, QueryResponse } from './types';
 
 export function downloadBlob(filename: string, blob: Blob): void {
 	const url = URL.createObjectURL(blob);
@@ -108,4 +108,13 @@ export async function downloadPng(svg: SVGSVGElement, filename: string, title: s
 	} finally {
 		URL.revokeObjectURL(url);
 	}
+}
+
+/** One row per hexagon with fire. `hex_id` is the column name Kepler.gl recognises as H3. */
+export function cellsToCsv(data: QueryResponse): string {
+	const head = ['hex_id', 'resolution', 'month', 'fire_days_month', 'start', 'end', 'fire_days_range'];
+	const lines = [head.join(',')];
+	for (const c of data.cells ?? [])
+		lines.push([c.h3, data.area.resolution, data.stats.month, c.month, data.start, data.end, c.range].map(csvCell).join(','));
+	return lines.join('\n') + '\n';
 }

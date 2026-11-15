@@ -2,7 +2,7 @@
 	import '../app.css';
 	import { onMount } from 'svelte';
 	import { CustomAreaUnavailable, fetchMeta, query, type DataMode } from '#lib/api.ts';
-	import { downloadBlob, monthsToCsv } from '#lib/download.ts';
+	import { cellsToCsv, downloadBlob, monthsToCsv } from '#lib/download.ts';
 	import { monthLabel } from '#lib/format.ts';
 	import type { Area, Baseline, Meta, QueryResponse, YearMonth } from '#lib/types.ts';
 	import AreaPicker from '#lib/components/AreaPicker.svelte';
@@ -12,6 +12,7 @@
 	import YearlyBars from '#lib/components/YearlyBars.svelte';
 	import MonthlyLine from '#lib/components/MonthlyLine.svelte';
 	import Methods from '#lib/components/Methods.svelte';
+	import MapView from '#lib/components/MapView.svelte';
 
 	let meta = $state<Meta | null>(null);
 	let mode = $state<DataMode>('api');
@@ -115,6 +116,10 @@
 		if (!data) return;
 		downloadBlob(`${fileBase}-monthly.csv`, new Blob([monthsToCsv(data.months)], { type: 'text/csv' }));
 	}
+	function downloadHexCsv() {
+		if (!data?.cells) return;
+		downloadBlob(`${fileBase}-hexagons.csv`, new Blob([cellsToCsv(data)], { type: 'text/csv' }));
+	}
 </script>
 
 <svelte:head>
@@ -149,12 +154,7 @@
 				<h2 id="choose-title" class="h">Choose an area</h2>
 				<AreaPicker {meta} {area} exampleMode={mode === 'examples'} onarea={setArea} />
 			</div>
-			<div class="card map" aria-label="Map (coming soon)">
-				<div class="map-inner">
-					<strong>Map coming soon</strong>
-					<span>Draw an area and see burning hexagons here. For now, pick a preset or type coordinates.</span>
-				</div>
-			</div>
+			<MapView {meta} {data} {busy} exampleMode={mode === 'examples'} onarea={setArea} />
 		</section>
 
 		<section class="card filters" aria-label="Dates and comparison">
@@ -201,8 +201,17 @@
 					Monthly series for {dataAreaName}, {monthLabel(data.start)} to {monthLabel(data.end)}, with every field: converted value,
 					80 % range, raw count, hotspots, fire power, days with data and record.
 				</p>
-				<button class="btn primary" type="button" onclick={downloadCsv}>Download CSV ({data.months.length} months)</button>
-				<p class="small">Each chart has its own SVG and PNG buttons. Raw hotspot export will come with the live API.</p>
+				<div class="dl-row">
+					<button class="btn primary" type="button" onclick={downloadCsv}>Download CSV ({data.months.length} months)</button>
+					<button class="btn" type="button" onclick={downloadHexCsv} disabled={!data.cells}>
+						Hexagon CSV for Kepler.gl{data.cells ? ` (${data.cells.length.toLocaleString('en-US')} hexagons)` : ''}
+					</button>
+				</div>
+				<p class="small">
+					The hexagon CSV has one row per hexagon with fire: its H3 index (<code>hex_id</code>), fire-days in {monthLabel(data.stats.month)}
+					and over the selected dates. Drop it on <a href="https://kepler.gl/demo" target="_blank" rel="noopener noreferrer">kepler.gl/demo</a>, which
+					draws the H3 column as hexagons. Each chart has its own SVG and PNG buttons. Raw hotspot export is not built yet.
+				</p>
 			</section>
 		{/if}
 
@@ -277,29 +286,14 @@
 	}
 	.choose {
 		display: grid;
-		grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+		grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
 		gap: 16px;
+		align-items: start;
 	}
-	.map {
-		display: grid;
-		min-height: 180px;
-		background:
-			repeating-linear-gradient(45deg, var(--wash) 0 10px, transparent 10px 20px),
-			var(--surface);
-	}
-	.map-inner {
+	.dl-row {
 		display: flex;
-		flex-direction: column;
-		gap: 4px;
-		align-self: center;
-		justify-self: center;
-		text-align: center;
-		max-width: 32ch;
-		color: var(--text-2);
-		font-size: 0.9rem;
-	}
-	.map-inner strong {
-		color: var(--text);
+		flex-wrap: wrap;
+		gap: 8px;
 	}
 	.filters {
 		display: flex;
@@ -373,17 +367,6 @@
 		.choose,
 		.charts {
 			grid-template-columns: minmax(0, 1fr);
-		}
-		.map {
-			min-height: 0;
-			padding: 10px 12px;
-		}
-		.map-inner {
-			flex-direction: row;
-			flex-wrap: wrap;
-			gap: 0 6px;
-			max-width: none;
-			font-size: 0.8rem;
 		}
 	}
 	@media (max-width: 480px) {

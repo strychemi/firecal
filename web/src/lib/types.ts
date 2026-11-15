@@ -99,13 +99,26 @@ export interface Stats {
 	sentence: string;
 }
 
+/** One hexagon with fire in the selected month or the date range. */
+export interface CellValue {
+	/** H3 index, hex string */
+	h3: string;
+	/** fire-days in the selected month */
+	month: number;
+	/** fire-days from start to end */
+	range: number;
+}
+
 export interface QueryResponse {
 	data_version: string;
-	area: { resolution: number; hexagons: number; active_hexagons: number };
+	/** ring: the area outline as a closed ring of [lon, lat] */
+	area: { resolution: number; hexagons: number; active_hexagons: number; ring: [number, number][] };
 	start: YearMonth;
 	end: YearMonth;
 	months: MonthRow[];
 	stats: Stats;
+	/** Hexagons with any fire; null when not available (example data for a different request). */
+	cells: CellValue[] | null;
 }
 
 export interface ApiError {

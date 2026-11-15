@@ -72,7 +72,7 @@ def main():
         problems = [] if status == 200 else [f"HTTP {status}: {got}"]
         if status == 200:
             close(want, got, "", problems)
-        print("ok  " if not problems else "FAIL", json.dumps(req), got.get("area") if status == 200 else "")
+        print("ok  " if not problems else "FAIL", json.dumps(req), {k: v for k, v in got.get("area", {}).items() if k != "ring"} if status == 200 else "")
         for p in problems[:8]:
             print("     ", p)
         failures += bool(problems)

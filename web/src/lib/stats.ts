@@ -77,6 +77,8 @@ export function reshapeExample(
 		start,
 		end,
 		months: full.months.filter((m) => m.month >= start && m.month <= end),
-		stats: computeStats(full.months, month, baseline)
+		stats: computeStats(full.months, month, baseline),
+		// Per-hexagon values in an example file are only valid for the request it was saved from.
+		cells: start === full.start && end === full.end && month === full.stats.month ? full.cells : null
 	};
 }

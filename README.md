@@ -50,3 +50,5 @@ With the API running, this sends the same requests to the Rust API and to the Py
 ## Data credits
 
 Fire data: NASA FIRMS active-fire archives, MODIS Collection 6.1 (MCD14ML, Terra and Aqua) and VIIRS 375 m (S-NPP and NOAA-20).
+
+Basemap: [OpenFreeMap](https://openfreemap.org/) tiles, © [OpenMapTiles](https://openmaptiles.org/), data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors. Map libraries: MapLibre GL JS (BSD-3-Clause), deck.gl (MIT), Terra Draw (MIT), h3-js (Apache-2.0).
