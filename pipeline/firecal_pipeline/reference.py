@@ -107,9 +107,18 @@ class Reference:
 
     def meta(self) -> dict:
         m = self.manifest
-        v = {k: {"whole_area_typical_error_pct": d["leave_one_year_out"]["whole_area"]["median"],
-                 "small_area_typical_error_pct": d["leave_one_year_out"]["small_area_2deg"]["median"],
-                 "backward_join_gap_pct": d["backward_join"]["gap_pct"]["all"]} for k, d in self.validation.items()}
+        v = {}
+        for k, d in self.validation.items():
+            # A conversion the pre-registered rule rejected is not used: report the scores of what is (no conversion).
+            if d.get("decision", {}).get("kept", True):
+                v[k] = {"whole_area_typical_error_pct": d["leave_one_year_out"]["whole_area"]["median"],
+                        "small_area_typical_error_pct": d["leave_one_year_out"]["small_area_2deg"]["median"],
+                        "backward_join_gap_pct": d["backward_join"]["gap_pct"]["all"], "converted": True}
+            else:
+                n = d["no_conversion"]["leave_one_year_out"]
+                v[k] = {"whole_area_typical_error_pct": n["whole_area"]["median"],
+                        "small_area_typical_error_pct": n["small_area_2deg"]["median"],
+                        "backward_join_gap_pct": n["gap_pct"]["all"], "converted": False}
         return {"data_version": self.version, "series_start": m["series_start"], "series_end": m["series_end"],
                 "through": self.through, "in_progress": m.get("in_progress"),
                 "unit": m["unit"], "region": m["region"], "eras": m["eras"], "gaps": m["gaps"],

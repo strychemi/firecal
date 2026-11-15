@@ -5,6 +5,10 @@ day/night multipliers per H3 res-3 area, shrunk toward the study-area multiplier
     r = sum V / sum M,    r_s = (V_s + k r) / (M_s + k),    V_hat = r_s * M
 fitted on calibration years, on days both satellites have data.
 
+NOAA-20 (used on S-NPP outage days) is fitted the same way on 2018-2022, its overlap with S-NPP, and
+compared with no conversion (multiplier 1) by the rule in PREREGISTRATION.md section 7 (2026-11-15).
+Its multipliers go into model.json only if that rule keeps them; otherwise publish uses 1.
+
 model/model.json        multipliers used by publish
 model/validation.json   leave-one-year-out scores, tilt, backward join, held-out years
 model/misses.parquet    past misses ln(V / V_hat) by predicted-count bin (10th/90th percentiles)
@@ -16,7 +20,12 @@ import pandas as pd
 
 from .config import Config, connect
 
-MODELS = ("aqua", "terra")
+MODELS = ("aqua", "terra", "noaa20")
+FIRST_YEAR = {"noaa20": 2018}  # NOAA-20 data starts 2018-04-01
+# PREREGISTRATION.md section 7, 2026-11-15: keep the NOAA-20 conversion only if it beats no conversion by
+# at least this much on the small-area score and is no worse than this on the whole-area score.
+KEEP_SMALL_GAIN, MAX_WHOLE_LOSS = 0.5, 2.0
+IDENTITY = {"region": {"D": 1.0, "N": 1.0}, "strata": {}}
 LEVELS = ("r4", "r3", "block", "region")  # aggregation levels pooled for the miss table
 BIN_EDGES = [0, 10, 30, 100, 300, 1000, 3000, 10000, 30000, np.inf]
 MIN_BIN_N = 30
@@ -124,13 +133,13 @@ def coverage(m: pd.DataFrame, level: str, years) -> float:
 def run(cfg: Config) -> None:
     h = cfg["harmonization"]
     k = float(h["shrinkage_k"])
-    cal = cfg.calibration_years
-    held = list(range(cal[-1] + 1, cfg["data"]["last_year"] + 1))
+    held = list(range(cfg.calibration_years[-1] + 1, cfg["data"]["last_year"] + 1))
     out_dir = cfg.dir("model")
     model_json = {"target": h["target"], "stratum_resolution": h["stratum_resolution"], "shrinkage_k": k,
-                  "calibration_years": [cal[0], cal[-1]], "models": {}}
+                  "calibration_years": [cfg.calibration_years[0], cfg.calibration_years[-1]], "models": {}}
     validation, tables = {}, []
     for model in MODELS:
+        cal = [y for y in cfg.calibration_years if y >= FIRST_YEAR.get(model, 0)]
         g = load(cfg, model)
         loyo = pd.concat([predict(g, model, fit(g, model, [t for t in cal if t != y], k), [y]) for y in cal])
         mm = misses(loyo)
@@ -147,11 +156,31 @@ def run(cfg: Config) -> None:
             "backward_join": {"fit": [cal[half], cal[-1]], "predict": [cal[0], cal[half - 1]], "gap_pct": gap(back)},
             "held_out": {"years": held, "whole_area": typical_error(test, "region", 100), "gap_pct": gap(test)},
         }
+        if model == "noaa20":
+            none = pd.concat([predict(g, model, IDENTITY, [y]) for y in cal])
+            conv, base = validation[model]["leave_one_year_out"], {
+                "whole_area": typical_error(none, "region", 100), "small_area_2deg": typical_error(none, "block", 50),
+                "tilt": tilt(none), "gap_pct": gap(none)}
+            small_gain = base["small_area_2deg"]["median"] - conv["small_area_2deg"]["median"]
+            whole_loss = conv["whole_area"]["median"] - base["whole_area"]["median"]
+            keep = small_gain >= KEEP_SMALL_GAIN and whole_loss <= MAX_WHOLE_LOSS
+            validation[model]["no_conversion"] = {
+                "leave_one_year_out": base,
+                "held_out": {"whole_area": typical_error(predict(g, model, IDENTITY, held), "region", 100),
+                             "gap_pct": gap(predict(g, model, IDENTITY, held))}}
+            validation[model]["decision"] = {"small_area_gain_pts": round(small_gain, 2),
+                                             "whole_area_loss_pts": round(whole_loss, 2),
+                                             "kept": bool(keep)}
+            print("noaa20 no conversion", json.dumps(base), "decision", validation[model]["decision"], flush=True)
+            if not keep:
+                print("noaa20 multipliers", final["region"], "(not used)", flush=True)
+                continue
         model_json["models"][model] = {
             "region": {dn: round(r, 4) for dn, r in final["region"].items()},
             "strata": {dn: {s: round(r, 4) for s, r in d.items()} for dn, d in final["strata"].items()},
         }
-        tables.append(bin_table(mm).assign(model=model))
+        if model != "noaa20":  # VIIRS months carry no error range
+            tables.append(bin_table(mm).assign(model=model))
         print(model, json.dumps(validation[model]["leave_one_year_out"]), "multipliers", model_json["models"][model]["region"], flush=True)
     (out_dir / "model.json").write_text(json.dumps(model_json, indent=1))
     (out_dir / "validation.json").write_text(json.dumps(validation, indent=1))

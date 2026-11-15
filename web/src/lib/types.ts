@@ -30,6 +30,8 @@ export interface ValidationEntry {
 	whole_area_typical_error_pct: number;
 	small_area_typical_error_pct: number;
 	backward_join_gap_pct: number;
+	/** false: the fitted conversion was rejected, so the scores are for counting as S-NPP with no conversion */
+	converted?: boolean;
 }
 
 export interface Preset {
