@@ -32,7 +32,19 @@ parity() {
     log="$(mktemp)"
     FIRECAL_ROOT="$root" FIRECAL_BIND="127.0.0.1:$PORT" "$API" > "$log" 2>&1 &
     api_pid=$!
-    for _ in $(seq 1 60); do curl -sf "http://127.0.0.1:$PORT/api/meta" > /dev/null && break; sleep 1; done
+    local ready=0
+    for _ in $(seq 1 60); do
+        kill -0 "$api_pid" 2>/dev/null || break  # exited, e.g. the port is taken
+        curl -sf "http://127.0.0.1:$PORT/api/meta" > /dev/null && { ready=1; break; }
+        sleep 1
+    done
+    # Fail unless the API answering is the one started here: another server already on $PORT would
+    # otherwise be tested in its place.
+    if [[ $ready == 0 ]] || ! kill -0 "$api_pid" 2>/dev/null; then
+        echo "The API did not start on 127.0.0.1:$PORT (is the port in use?). Its log:"
+        cat "$log"
+        exit 1
+    fi
     (cd "$ROOT/pipeline" && FIRECAL_ROOT="$root" uv run python tests/test_api_parity.py "http://127.0.0.1:$PORT" \
         | grep -v '^ok') || { cat "$log"; exit 1; }
     stop_api

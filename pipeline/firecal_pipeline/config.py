@@ -1,7 +1,7 @@
 """Load firecal.toml and resolve paths.
 
 Paths in the file are relative to the folder holding it: the repo root, or $FIRECAL_ROOT when set
-(the API reads the same variable). CI points it at pipeline/tests/fixture/.
+(the API reads the same variable). scripts/check.sh points it at pipeline/tests/fixture/.
 """
 import os
 import pathlib
