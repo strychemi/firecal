@@ -233,20 +233,58 @@ pub fn query(data: &Data, presets: &[Preset], max_hex: usize, req: &QueryRequest
     let (res, cells) = area_cells(&ring, &data.resolutions, max_hex)?;
     let table = data.cells.get(&res).context("resolution not loaded")?;
 
+    let series_start = month_label(data.start, 0);
+    let series_end = month_label(data.start, data.n_months - 1);
+    let start = req.start.clone().unwrap_or_else(|| series_start.clone());
+    let end = req.end.clone().unwrap_or_else(|| series_end.clone());
+    for m in [&start, &end] {
+        let idx = month_index(data.start, parse_month(m)?);
+        if idx < 0 || idx as usize >= data.n_months {
+            bail!("{m} is outside the series {series_start} to {series_end}");
+        }
+    }
+    if start > end {
+        bail!("start must not be after end");
+    }
+    let selected = req.month.clone().unwrap_or_else(|| end.clone());
+    let sel_idx = month_index(data.start, parse_month(&selected)?);
+    let baseline = req.baseline.clone().unwrap_or_else(|| "median".into());
+    if baseline != "median" && baseline != "mean" {
+        bail!("baseline must be 'median' or 'mean'");
+    }
+    let start_idx = month_index(data.start, parse_month(&start)?);
+    let end_idx = month_index(data.start, parse_month(&end)?);
+
     let mut sums = vec![(0f64, 0u64, 0u64, 0f64); data.n_months];
     let mut active = 0usize;
+    // Per-hexagon values for the map: the selected month and the start..end total.
+    let mut per_cell: Vec<(String, f64, f64)> = Vec::new();
     for cell in &cells {
         if let Some(rows) = table.get(&u64::from(*cell)) {
             active += 1;
+            let (mut in_month, mut in_range) = (0f64, 0f64);
             for r in rows {
                 let s = &mut sums[r.month as usize];
                 s.0 += r.value;
                 s.1 += r.raw as u64;
                 s.2 += r.detections as u64;
                 s.3 += r.frp;
+                let i = r.month as i64;
+                if i == sel_idx as i64 {
+                    in_month += r.value;
+                }
+                if i >= start_idx as i64 && i <= end_idx as i64 {
+                    in_range += r.value;
+                }
+            }
+            if in_month > 0.0 || in_range > 0.0 {
+                per_cell.push((cell.to_string(), in_month, in_range));
             }
         }
     }
+    per_cell.sort_by(|a, b| a.0.cmp(&b.0));
+    let hexes: Vec<Value> =
+        per_cell.iter().map(|(h, m, r)| json!({"h3": h, "month": round(*m, 2), "range": round(*r, 2)})).collect();
 
     let series: Vec<MonthOut> = (0..data.n_months)
         .map(|i| {
@@ -269,31 +307,14 @@ pub fn query(data: &Data, presets: &[Preset], max_hex: usize, req: &QueryRequest
         })
         .collect();
 
-    let series_start = month_label(data.start, 0);
-    let series_end = month_label(data.start, data.n_months - 1);
-    let start = req.start.clone().unwrap_or_else(|| series_start.clone());
-    let end = req.end.clone().unwrap_or_else(|| series_end.clone());
-    for m in [&start, &end] {
-        let idx = month_index(data.start, parse_month(m)?);
-        if idx < 0 || idx as usize >= data.n_months {
-            bail!("{m} is outside the series {series_start} to {series_end}");
-        }
-    }
-    if start > end {
-        bail!("start must not be after end");
-    }
-    let selected = req.month.clone().unwrap_or_else(|| end.clone());
-    parse_month(&selected)?;
-    let baseline = req.baseline.clone().unwrap_or_else(|| "median".into());
-    if baseline != "median" && baseline != "mean" {
-        bail!("baseline must be 'median' or 'mean'");
-    }
     let shown: Vec<&MonthOut> = series.iter().filter(|m| m.month >= start && m.month <= end).collect();
+    let outline: Vec<[f64; 2]> = ring.iter().map(|&(x, y)| [round(x, 5), round(y, 5)]).collect();
     Ok(json!({
         "data_version": data.version,
-        "area": {"resolution": res, "hexagons": cells.len(), "active_hexagons": active},
+        "area": {"resolution": res, "hexagons": cells.len(), "active_hexagons": active, "ring": outline},
         "start": start, "end": end, "months": shown,
         "stats": stats(&series, &selected, &baseline)?,
+        "cells": hexes,
     }))
 }
 

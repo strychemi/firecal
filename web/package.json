@@ -23,5 +23,20 @@
     "svelte-check": "^4.7.8",
     "typescript": "^6.0.3",
     "vite": "^8.3.6"
+  },
+  "dependencies": {
+    "@deck.gl/core": "9.3.12",
+    "@deck.gl/extensions": "9.3.12",
+    "@deck.gl/geo-layers": "9.3.12",
+    "@deck.gl/layers": "9.3.12",
+    "@deck.gl/mapbox": "9.3.12",
+    "@deck.gl/mesh-layers": "9.3.12",
+    "@loaders.gl/core": "4.5.4",
+    "@luma.gl/core": "9.3.6",
+    "@luma.gl/engine": "9.3.6",
+    "@math.gl/web-mercator": "4.1.0",
+    "maplibre-gl": "6.16.0",
+    "terra-draw": "1.39.0",
+    "terra-draw-maplibre-gl-adapter": "1.5.0"
   }
 }

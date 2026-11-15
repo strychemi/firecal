@@ -53,7 +53,8 @@ Response:
 ```json
 {
   "data_version": "v2",
-  "area": { "resolution": 6, "hexagons": 2247, "active_hexagons": 2046 },
+  "area": { "resolution": 6, "hexagons": 2247, "active_hexagons": 2046,
+            "ring": [[-60.8, -34.3], [-58.3, -34.3], [-58.3, -32.0], [-60.8, -32.0], [-60.8, -34.3]] },
   "start": "2000-11",
   "end": "2025-12",
   "months": [
@@ -70,13 +71,18 @@ Response:
     "ratio": 0.302, "rank": 22, "of": 26, "percentile": 16.0,
     "category": "much lower than usual",
     "sentence": "December 2025 had 49 fire-days, 0.3× the usual December (median of 25 years), 22nd highest of 26 years."
-  }
+  },
+  "cells": [
+    { "h3": "86b2a6c07ffffff", "month": 2.0, "range": 311.47 }
+  ]
 }
 ```
 
 Field rules:
 
 - `months` lists every month from `start` to `end`, including months with no fire (zeros).
+- `area.ring` is the outline the hexagons were chosen from, as a closed ring of `[lon, lat]` rounded to 5 decimals: the box corners, the polygon as sent (closed), or the circle's 64-sided polygon. The map draws this, so it always shows the area the numbers cover.
+- `cells` has one entry per hexagon in the area with any fire in the selected `month` or from `start` to `end`, sorted by `h3` (the H3 index as a hex string, at `area.resolution`). `month` is its fire-days in the selected month and `range` its fire-days from `start` to `end`, both rounded to 2 decimals.
 - `source` is `terra_harmonized`, `aqua_harmonized` or `viirs`.
 - `lower` and `upper` form the 80 % range for converted months: `value × e^q10` to `value × e^q90`, with `q10` and `q90` taken from `misses.parquet` for that satellite's model and the bin containing `value`. They are `null` for VIIRS months (observed, not converted) and for months with `value` 0.
 - `complete` is false when the study box had days with no satellite data that month; such months are left out of baselines.

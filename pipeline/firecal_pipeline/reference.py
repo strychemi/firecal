@@ -112,6 +112,17 @@ class Reference:
                    sum(frp) AS frp, count(DISTINCT cell) AS hexes
             FROM '{self.dir}/monthly_res{res}.parquet' JOIN sel USING (cell) GROUP BY ALL""").df()
         active = con.execute(f"SELECT count(DISTINCT cell) FROM '{self.dir}/monthly_res{res}.parquet' JOIN sel USING (cell)").fetchone()[0]
+        start = req.get("start") or self.manifest["series_start"]
+        end = req.get("end") or self.manifest["series_end"]
+        selected = req.get("month") or end
+        ym = lambda m: int(m[:4]) * 100 + int(m[5:])
+        per_cell = con.execute(f"""
+            SELECT cell, coalesce(sum(value) FILTER (WHERE year::INTEGER * 100 + month = ?), 0) AS in_month,
+                   coalesce(sum(value) FILTER (WHERE year::INTEGER * 100 + month BETWEEN ? AND ?), 0) AS in_range
+            FROM '{self.dir}/monthly_res{res}.parquet' JOIN sel USING (cell) GROUP BY cell""",
+            [ym(selected), ym(start), ym(end)]).fetchall()
+        hexes = sorted(({"h3": h3.int_to_str(c), "month": round(float(m), 2), "range": round(float(r), 2)}
+                        for c, m, r in per_cell if m > 0 or r > 0), key=lambda h: h["h3"])
         by_month = {f"{r.year:04d}-{r.month:02d}": r for r in sums.itertuples()}
 
         series = []
@@ -127,15 +138,13 @@ class Reference:
                            "days": int(s.days), "days_with_data": int(s.days_with_data),
                            "complete": bool(s.days_with_data == s.days)})
 
-        start = req.get("start") or self.manifest["series_start"]
-        end = req.get("end") or self.manifest["series_end"]
-        selected = req.get("month") or end
         baseline = req.get("baseline", "median")
         shown = [m for m in series if start <= m["month"] <= end]
         return {"data_version": self.version,
-                "area": {"resolution": res, "hexagons": len(ids), "active_hexagons": int(active)},
+                "area": {"resolution": res, "hexagons": len(ids), "active_hexagons": int(active),
+                         "ring": [[round(x, 5), round(y, 5)] for x, y in ring]},
                 "start": start, "end": end, "months": shown,
-                "stats": self.stats(series, selected, baseline)}
+                "stats": self.stats(series, selected, baseline), "cells": hexes}
 
     def stats(self, series, selected: str, baseline: str) -> dict:
         cur = next(m for m in series if m["month"] == selected)
