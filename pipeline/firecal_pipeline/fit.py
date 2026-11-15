@@ -10,6 +10,10 @@ NOAA-20 (used on S-NPP outage days) is fitted the same way on 2018-2022, its ove
 compared with no conversion (multiplier 1) by the rule in PREREGISTRATION.md section 7 (2026-11-15).
 Its multipliers go into model.json only if that rule keeps them; otherwise publish uses 1.
 
+Resolution-2 stand-in (PREREGISTRATION.md §7, 2026-11-15), in the areas listed in [harmonization]
+standin_areas: a res-3 area with no fair cell-days on a pass uses its res-2 parent's multiplier
+(model.json "parents"), shrunk toward r with parent_k; areas with data are unchanged.
+
 model/model.json        multipliers used by publish
 model/validation.json   leave-one-year-out scores, tilt, backward join, held-out years
 model/misses.parquet    past misses ln(V / V_hat) by predicted-count bin (10th/90th percentiles)
@@ -60,6 +64,7 @@ def load(cfg: Config, model: str) -> pd.DataFrame:
         WITH {fair_ctes(silver, model)}
         SELECT continent, year(d) AS y, month(d) AS mo, dn, sat,
                printf('%x', h3_cell_to_parent(cell8, {sr})) AS r3,
+               printf('%x', h3_cell_to_parent(cell8, {sr - 1})) AS r2,
                printf('%x', h3_cell_to_parent(cell8, 4)) AS r4,
                CAST(floor(h3_cell_to_lat(cell8) / 2) AS INT) AS blat,
                CAST(floor(h3_cell_to_lng(cell8) / 2) AS INT) AS blon,
@@ -67,22 +72,33 @@ def load(cfg: Config, model: str) -> pd.DataFrame:
         FROM cd JOIN fair USING (continent, u3, d, dn) GROUP BY ALL""").df()
 
 
-def fit(g: pd.DataFrame, model: str, years, k: float) -> dict:
+def shrunk(t: pd.DataFrame, level: str, model: str, reg: dict, k: float) -> dict:
+    """{dn: {area: (V_s + k r) / (M_s + k)}} for every area at `level` with fair cell-days on that pass."""
+    s = t.groupby([level, "dn", "sat"]).n.sum().unstack("sat", fill_value=0)
+    s = s.reindex(columns=[model, "snpp"], fill_value=0).reset_index()
+    s["r"] = (s["snpp"] + k * s.dn.map(reg)) / (s[model] + k)
+    return {dn: dict(zip(d[level], d.r)) for dn, d in s.groupby("dn")}
+
+
+def fit(g: pd.DataFrame, model: str, years, k: float, parent_k: float | None = None) -> dict:
+    """Section 2 baseline. With parent_k (PREREGISTRATION.md §7, resolution-2 stand-in), areas with no
+    fair cell-days on a pass use their res-2 parent's multiplier, shrunk toward r with parent_k."""
     t = g[g.y.isin(years)]
     tot = t.groupby(["dn", "sat"]).n.sum().unstack("sat")
     reg = (tot["snpp"] / tot[model]).to_dict()
-    s = t.groupby(["r3", "dn", "sat"]).n.sum().unstack("sat", fill_value=0)
-    s = s.reindex(columns=[model, "snpp"], fill_value=0).reset_index()
-    s["r"] = (s["snpp"] + k * s.dn.map(reg)) / (s[model] + k)
-    strata = {dn: dict(zip(d.r3, d.r)) for dn, d in s.groupby("dn")}
-    return {"region": reg, "strata": strata}
+    m = {"region": reg, "strata": shrunk(t, "r3", model, reg, k)}
+    if parent_k is not None:
+        m["parents"] = shrunk(t, "r2", model, reg, parent_k)
+    return m
 
 
 def predict(g: pd.DataFrame, model: str, m: dict, years) -> pd.DataFrame:
     """Rows of the model satellite in `years`, with V_hat; plus observed S-NPP rows."""
     a = g[(g.sat == model) & g.y.isin(years)].copy()
     lookup = {(dn, r3): r for dn, d in m["strata"].items() for r3, r in d.items()}
-    a["pred"] = [n * lookup.get((dn, r3), m["region"][dn]) for n, dn, r3 in zip(a.n, a.dn, a.r3)]
+    parent = {(dn, r2): r for dn, d in m.get("parents", {}).items() for r2, r in d.items()}
+    a["pred"] = [n * lookup.get((dn, r3), parent.get((dn, r2), m["region"][dn]))
+                 for n, dn, r3, r2 in zip(a.n, a.dn, a.r3, a.r2)]
     v = g[(g.sat == "snpp") & g.y.isin(years)].rename(columns={"n": "obs"})
     keys = ["y", "mo", "dn", "r3", "r4", "blat", "blon"]
     return pd.concat([a[keys + ["pred"]], v[keys + ["obs"]]]).fillna(0).groupby(keys, as_index=False).sum()
@@ -158,7 +174,13 @@ def fittable(g: pd.DataFrame, model: str, cal) -> bool:
     return True
 
 
-def fit_area(g_all: dict, cfg: Config, label: str) -> tuple[dict, dict, list]:
+def parent_k(cfg: Config, area: str) -> float | None:
+    """The res-2 stand-in's k where PREREGISTRATION.md §7 (2026-11-15) kept it for this area, else None."""
+    h = cfg["harmonization"]
+    return float(h["parent_k"]) if area in h.get("standin_areas", []) else None
+
+
+def fit_area(g_all: dict, cfg: Config, label: str, area: str = "study_area") -> tuple[dict, dict, list]:
     """Fit and validate every model on one study area (Argentina's box, or one continent)."""
     h = cfg["harmonization"]
     k = float(h["shrinkage_k"])
@@ -167,16 +189,17 @@ def fit_area(g_all: dict, cfg: Config, label: str) -> tuple[dict, dict, list]:
     for model in MODELS:
         cal = [y for y in cfg.calibration_years if y >= FIRST_YEAR.get(model, 0)]
         g = g_all[model]
+        pk = parent_k(cfg, area) if model != "noaa20" else None  # NOAA-20 stays at multiplier 1 either way
         if not fittable(g, model, cal):
             validation[model] = {"status": "cannot be fitted: a training set has no fair cell-days of both "
                                            "satellites on a pass"}
             print(f"{label} {model}: {validation[model]['status']}", flush=True)
             continue
-        loyo = pd.concat([predict(g, model, fit(g, model, [t for t in cal if t != y], k), [y]) for y in cal])
+        loyo = pd.concat([predict(g, model, fit(g, model, [t for t in cal if t != y], k, pk), [y]) for y in cal])
         mm = misses(loyo)
         half = len(cal) // 2
-        back = predict(g, model, fit(g, model, cal[half:], k), cal[:half])
-        final = fit(g, model, cal, k)
+        back = predict(g, model, fit(g, model, cal[half:], k, pk), cal[:half])
+        final = fit(g, model, cal, k, pk)
         test = predict(g, model, final, held)
         validation[model] = {
             "leave_one_year_out": {"whole_area": typical_error(loyo, "region", 100),
@@ -210,6 +233,8 @@ def fit_area(g_all: dict, cfg: Config, label: str) -> tuple[dict, dict, list]:
             "region": {dn: round(r, 4) for dn, r in final["region"].items()},
             "strata": {dn: {s: round(r, 4) for s, r in d.items()} for dn, d in final["strata"].items()},
         }
+        if "parents" in final:
+            models[model]["parents"] = {dn: {s: round(r, 4) for s, r in d.items()} for dn, d in final["parents"].items()}
         if model != "noaa20":  # VIIRS months carry no error range
             tables.append(bin_table(mm).assign(model=model))
         print(label, model, json.dumps(validation[model]["leave_one_year_out"]), "multipliers", models[model]["region"], flush=True)
@@ -228,14 +253,18 @@ def run(cfg: Config) -> None:
     areas = sorted(set().union(*(set(g.continent) for g in g_all.values())))
     if areas == ["study_area"]:
         models, validation, tables = fit_area({m: g.drop(columns="continent") for m, g in g_all.items()}, cfg, "")
+        if parent_k(cfg, "study_area") is not None:
+            model_json["parent_k"] = parent_k(cfg, "study_area")
         model_json["models"] = models
         misses_df = pd.concat(tables)[["model", "lo", "hi", "q10", "q90", "n"]]
     else:
         model_json["continents"], validation, tables = {}, {"continents": {}}, []
         for c in areas:
             models, val, tab = fit_area({m: g[g.continent == c].drop(columns="continent") for m, g in g_all.items()},
-                                        cfg, c)
+                                        cfg, c, c)
             model_json["continents"][c] = {"models": models}
+            if parent_k(cfg, c) is not None:
+                model_json["continents"][c]["parent_k"] = parent_k(cfg, c)
             validation["continents"][c] = val
             tables += [t.assign(continent=c) for t in tab]
         misses_df = pd.concat(tables)[["continent", "model", "lo", "hi", "q10", "q90", "n"]]

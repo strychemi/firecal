@@ -25,6 +25,19 @@ biasing a decision. If an upgrade's result in a northern continent is borderline
 with that check's rule written into PREREGISTRATION.md §7 first.
 
 Rules 1, 2 and 6 compare versions, so they apply when an upgrade is tested (§5), not to the baseline alone.
+
+Upgrade 1, the resolution-2 stand-in (PREREGISTRATION.md §7, 2026-11-15), is decided per continent on Aqua:
+  Rule 6    leave-area-out on data-rich res-3 areas (>= 2,000 Aqua fair cell-days in the calibration years):
+            predict each calibration year of the hidden area from the continent's r and from its res-2
+            parent's r_p (k = 200), both fitted on the rest; median |V_hat - V| / V over area-years with V > 0;
+            resample areas 1,000 times; pass if the 95 % range of (error with r - error with r_p) is above zero.
+            Fewer than 20 data-rich areas: too few areas to test.
+  No harm   where rule 6 passes, leaving one year out, stand-in against baseline on the same resampled years:
+            rule 2 (whole-area loss <= max(2, 2 x paired SD)); rules 4 and 5 still pass where the baseline
+            passes, and where the baseline fails rule 4 the gap is at most 0.5 points further from zero.
+            Rule 1's gain and rule 3's tilt are reported. Terra is scored with the stand-in, reported only.
+The stand-in uses its own random generator (seed 20261114 per continent), so the baseline's luck ranges
+are unchanged.
 """
 import json
 
@@ -39,6 +52,7 @@ TILT_MARK = {"D": 0.03, "N": 0.06}
 GAP_MARK = {"all": 7.0, "D": 7.0, "N": 10.0}
 COVER = (75.0, 85.0)
 MODELS = ("aqua", "terra")  # NOAA-20 is used unconverted; Terra is reported, not pass/fail (§6)
+PARENT_K, RICH, MIN_RICH, B_AREAS, GAP_SLACK = 200.0, 2000, 20, 1000, 0.5
 
 
 def ci(x) -> list[float]:
@@ -125,6 +139,96 @@ def coverage_rule(p: pd.DataFrame, years, nbins: int = 5) -> dict:
             "status": "pass" if COVER[0] <= mean <= COVER[1] else "fail"}
 
 
+def rule6(rng, g: pd.DataFrame, model: str, cal) -> dict:
+    """Leave-area-out: the continent's r against the res-2 parent's r_p as the stand-in for a hidden area."""
+    t = g[g.y.isin(cal)]
+    yr = t.groupby(["r3", "r2", "y", "dn", "sat"]).n.sum().unstack("sat", fill_value=0)
+    yr = yr.reindex(columns=[model, "snpp"], fill_value=0).reset_index()
+    a3 = yr.groupby(["r3", "r2", "dn"])[[model, "snpp"]].sum().reset_index()
+    rich = a3.groupby("r3")[model].sum()
+    rich = rich[rich >= RICH].index
+    if len(rich) < MIN_RICH:
+        return {"rich_areas": int(len(rich)), "status": "too few areas to test", "pass": False}
+    cont = a3.groupby("dn")[[model, "snpp"]].sum()
+    par = a3.groupby(["r2", "dn"])[[model, "snpp"]].sum()
+    a = a3[a3.r3.isin(rich)].copy()
+    c = cont.loc[a.dn].to_numpy()
+    p = par.loc[list(zip(a.r2, a.dn))].to_numpy()
+    own = a[[model, "snpp"]].to_numpy()
+    a["r_reg"] = (c[:, 1] - own[:, 1]) / (c[:, 0] - own[:, 0])
+    a["r_par"] = (p[:, 1] - own[:, 1] + PARENT_K * a.r_reg) / (p[:, 0] - own[:, 0] + PARENT_K)
+    me = yr[yr.r3.isin(rich)].merge(a[["r3", "dn", "r_reg", "r_par"]], on=["r3", "dn"])
+    me["p_reg"], me["p_par"] = me[model] * me.r_reg, me[model] * me.r_par
+    e = me.groupby(["r3", "y"])[["snpp", "p_reg", "p_par"]].sum().reset_index()
+    e = e[e.snpp > 0]
+    e["e_reg"] = (e.p_reg - e.snpp).abs() / e.snpp * 100
+    e["e_par"] = (e.p_par - e.snpp).abs() / e.snpp * 100
+    areas = e.r3.unique()
+    by = {r: d[["e_reg", "e_par"]].to_numpy() for r, d in e.groupby("r3")}
+    bs = []
+    for _ in range(B_AREAS):
+        d = np.concatenate([by[r] for r in rng.choice(areas, len(areas))])
+        bs.append(np.median(d[:, 0]) - np.median(d[:, 1]))
+    lo, hi = ci(bs)
+    diff = float(e.e_reg.median() - e.e_par.median())
+    return {"rich_areas": int(len(areas)), "area_years": int(len(e)),
+            "error_continent_r": round(float(e.e_reg.median()), 2), "error_parent_r2": round(float(e.e_par.median()), 2),
+            "diff_pts": round(diff, 2), "diff_ci95": [lo, hi], "diff_sd": round(float(np.std(bs)), 2),
+            "status": "pass" if lo > 0 else "fail", "pass": bool(lo > 0)}
+
+
+def paired(rng, base, new, level, min_obs, years) -> dict:
+    """Paired change new - base in a typical error, resampling the same calibration years for both."""
+    eb, en = errors_by_year(base, level, min_obs), errors_by_year(new, level, min_obs)
+    ys = [y for y in years if y in eb and y in en]
+    med = lambda e, s: np.median(np.concatenate([e[y] for y in s]))
+    bs = boot(rng, ys, lambda s: med(en, s) - med(eb, s))
+    return {"base": round(float(med(eb, ys)), 2), "new": round(float(med(en, ys)), 2),
+            "change_pts": round(float(med(en, ys) - med(eb, ys)), 2), "ci95": ci(bs), "sd": round(float(bs.std()), 3)}
+
+
+def standin_report(g: pd.DataFrame, model: str, cfg: Config, base: dict) -> dict:
+    """Upgrade 1 (PREREGISTRATION.md §7, 2026-11-15): rule 6, then rules 1-5 as no-harm checks."""
+    rng = np.random.default_rng(SEED)
+    k, cal = float(cfg["harmonization"]["shrinkage_k"]), cfg.calibration_years
+    out = {"rule6": rule6(rng, g, model, cal)}
+    if not out["rule6"]["pass"]:
+        out["kept"] = False
+        return out
+    half = len(cal) // 2
+    run = lambda pk: (pd.concat([F.predict(g, model, F.fit(g, model, [t for t in cal if t != y], k, pk), [y])
+                                 for y in cal]),
+                      F.predict(g, model, F.fit(g, model, cal[half:], k, pk), cal[:half]))
+    (lb, bb), (ln, bn) = run(None), run(PARENT_K)
+    moved = (ln.pred - lb.pred).abs() > 1e-9  # same rows in the same order: both come from g's groupby
+    out["predictions_changed"] = {"area_months": int(moved.sum()),
+                                  "share_of_predicted_pct": round(float(lb.pred[moved].sum() / lb.pred.sum() * 100), 4)}
+    out["rule1_small_area"] = paired(rng, lb, ln, "block", 50, cal)
+    w = paired(rng, lb, ln, "region", 100, cal)
+    w["margin"] = round(max(2.0, 2 * w["sd"]), 3)
+    w["status"] = "pass" if w["change_pts"] <= w["margin"] else "fail"
+    out["rule2_whole_area"] = w
+    gb, gn = base["rule4_backward_gap"], gap_rule(rng, bn, cal[:half])
+    r4 = {}
+    for key in ("all", "D", "N"):
+        b, n = gb[key], gn[key]
+        if b.get("status") == "pass":
+            st = n["status"]
+        else:
+            st = "pass" if abs(n["gap_pct"]) - abs(b["gap_pct"]) <= GAP_SLACK else "fail"
+        r4[key] = {"base": b.get("gap_pct"), "new": n.get("gap_pct"), "base_status": b.get("status"), "status": st}
+    out["rule4_backward_gap"] = r4
+    c5 = coverage_rule(ln, cal)
+    bpass = base["rule5_range_coverage"]["status"] == "pass"
+    out["rule5_range_coverage"] = {"base": base["rule5_range_coverage"]["block_pct"], "new": c5["block_pct"],
+                                   "status": c5["status"] if bpass else "not required (baseline fails)"}
+    out["rule3_tilt_reported"] = tilt_rule(rng, ln, cal)
+    harm_ok = (w["status"] == "pass" and all(v["status"] == "pass" for v in r4.values())
+               and out["rule5_range_coverage"]["status"] != "fail")
+    out["kept"] = bool(out["rule6"]["pass"] and harm_ok)
+    return out
+
+
 def area_report(rng, g: pd.DataFrame, model: str, cfg: Config) -> dict:
     k = float(cfg["harmonization"]["shrinkage_k"])
     cal = cfg.calibration_years
@@ -150,7 +254,7 @@ def run(cfg: Config) -> None:
     data = {m: F.load(cfg, m) for m in MODELS}
     areas = sorted(set().union(*(set(g.continent) for g in data.values())))
     for area in areas:
-        out["areas"][area] = {}
+        out["areas"][area], kept = {}, False
         for model in MODELS:
             g = data[model]
             g = g[g.continent == area].drop(columns="continent")
@@ -160,6 +264,17 @@ def run(cfg: Config) -> None:
                 print(f"{area:14s} {model:5s} cannot be fitted", flush=True)
                 continue
             r = area_report(rng, g, model, cfg)
+            if model == "aqua":
+                r["standin_r2"] = standin_report(g, model, cfg, r)
+                kept = r["standin_r2"]["kept"]
+                print(f"{area:14s} stand-in {json.dumps(r['standin_r2'])}", flush=True)
+            elif kept:  # Terra follows Aqua's decision, reported only
+                srng, cal, k = np.random.default_rng(SEED), cfg.calibration_years, float(cfg["harmonization"]["shrinkage_k"])
+                lo = lambda pk: pd.concat([F.predict(g, model, F.fit(g, model, [t for t in cal if t != y], k, pk), [y])
+                                           for y in cal])
+                lb, ln = lo(None), lo(PARENT_K)
+                r["standin_r2"] = {"reported_only": True, "small_area": paired(srng, lb, ln, "block", 50, cal),
+                                   "whole_area": paired(srng, lb, ln, "region", 100, cal)}
             out["areas"][area][model] = r
             t, gp = r["rule3_tilt"], r["rule4_backward_gap"]
             print(f"{area:14s} {model:5s} whole {r['whole_area']['median']} (sd {r['whole_area'].get('sd')})  "
