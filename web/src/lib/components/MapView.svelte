@@ -17,10 +17,9 @@
 		meta: Meta;
 		data: QueryResponse | null;
 		busy: boolean;
-		exampleMode: boolean;
 		onarea: (area: Area, name: string) => void;
 	}
-	let { meta, data, busy, exampleMode, onarea }: Props = $props();
+	let { meta, data, busy, onarea }: Props = $props();
 
 	type Tool = 'move' | 'rectangle' | 'polygon' | 'circle';
 	type Measure = 'month' | 'range';
@@ -155,7 +154,6 @@
 	});
 
 	function setTool(t: Tool) {
-		if (exampleMode && t !== 'move') return;
 		tool = t;
 		if (!draw) return;
 		draw.setMode(t === 'move' ? 'static' : t);
@@ -284,8 +282,8 @@
 					type="button"
 					class="tool"
 					aria-pressed={tool === t.id}
-					disabled={!ready || (exampleMode && t.id !== 'move')}
-					title={exampleMode && t.id !== 'move' ? 'Drawing an area needs the live firecal API.' : t.hint}
+					disabled={!ready}
+					title={t.hint}
 					onclick={() => setTool(t.id)}>{t.id === 'move' ? t.label : `Draw ${t.label.toLowerCase()}`}</button
 				>
 			{/each}
@@ -296,14 +294,12 @@
 			<label><input type="radio" name="measure" value="range" bind:group={measure} /> Date range</label>
 		</fieldset>
 	</div>
-	<p class="hint" aria-live="polite">{exampleMode ? 'Example data: drawing an area needs the live API. Presets work.' : hint}</p>
+	<p class="hint" aria-live="polite">{hint}</p>
 
 	<div class="frame">
 		<div class="map" bind:this={container} role="region" aria-label="Map of the selected area and its hexagons"></div>
 		{#if failed}
 			<p class="fail" role="alert">{failed}</p>
-		{:else if ready && data && data.cells === null}
-			<p class="over">Hexagon values for this selection are only in the live API.</p>
 		{:else if ready && data && shown.length === 0}
 			<p class="over">No fire detected in this area for the chosen {measure === 'month' ? 'month' : 'dates'}.</p>
 		{/if}

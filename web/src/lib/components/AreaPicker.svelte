@@ -4,10 +4,9 @@
 	interface Props {
 		meta: Meta;
 		area: Area;
-		exampleMode: boolean;
 		onarea: (area: Area, name: string) => void;
 	}
-	let { meta, area, exampleMode, onarea }: Props = $props();
+	let { meta, area, onarea }: Props = $props();
 
 	type Tab = 'preset' | 'box' | 'circle';
 	let tab = $state<Tab>('preset');
@@ -133,9 +132,6 @@
 		</div>
 	{:else if tab === 'box'}
 		<div id="panel-box" role="tabpanel" aria-labelledby="tab-box" class="panel">
-			{#if exampleMode}
-				<p class="notice" role="note">Custom areas need the live firecal API. You are viewing saved example data, which only covers the preset areas.</p>
-			{/if}
 			<form id="box-form" onsubmit={submitBox} novalidate>
 				<p class="hint">Decimal degrees; west and south are negative. Study region: longitude {rb[0]} to {rb[2]}, latitude {rb[1]} to {rb[3]}.</p>
 				<div class="grid4">
@@ -161,9 +157,6 @@
 		</div>
 	{:else}
 		<div id="panel-circle" role="tabpanel" aria-labelledby="tab-circle" class="panel">
-			{#if exampleMode}
-				<p class="notice" role="note">Custom areas need the live firecal API. You are viewing saved example data, which only covers the preset areas.</p>
-			{/if}
 			<form id="circle-form" onsubmit={submitCircle} novalidate>
 				<p class="hint">Decimal degrees; west and south are negative. The circle is drawn as a 64-sided polygon.</p>
 				<div class="grid4">
@@ -301,7 +294,6 @@
 	.err::before {
 		content: '⚠ ';
 	}
-	.notice,
 	.warn {
 		margin: 0 0 8px;
 		padding: 8px 10px;

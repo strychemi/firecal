@@ -1,6 +1,6 @@
 # API contract (v0, prototype)
 
-The Rust API (`api/`) serves this contract. `pipeline/firecal_pipeline/reference.py` implements the same contract in Python: it writes the example responses in `web/static/example/` and is the oracle the Rust tests compare against.
+The Rust API (`api/`) serves this contract. `pipeline/firecal_pipeline/reference.py` implements the same contract in Python and is the oracle the Rust API is compared against (`pipeline/tests/test_api_parity.py`).
 
 All counts are **burning cell-days**: one H3 resolution-8 cell (about 0.74 km²), on one local solar date, for one day or night pass, with at least one hotspot, so a cell can count twice a day. `value` is in **VIIRS-equivalent burning cell-days**: observed by VIIRS from February 2012 (S-NPP, with NOAA-20 on S-NPP outage days) and converted from MODIS before that; `raw`, `detections` and `frp` are the satellite's own numbers, never converted.
 

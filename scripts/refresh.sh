@@ -4,8 +4,8 @@
 # section 7). A running API picks up the new version within 10 seconds.
 #
 # Steps: download -> ingest -> cells -> publish -> prune. `fit` is skipped (recent days are after the
-# calibration and held-out years, so the model does not change) and so is `example` (it rewrites
-# committed files). Logs go to data/logs/refresh-<UTC time>.log; the last 30 are kept.
+# calibration and held-out years, so the model does not change).
+# Logs go to data/logs/refresh-<UTC time>.log; the last 30 are kept.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

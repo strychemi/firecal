@@ -23,7 +23,7 @@ mise run web:build  # build the frontend
 mise run api        # build and run the API, which serves the app: http://127.0.0.1:8080
 ```
 
-`mise tasks` lists every task. The pipeline steps behind `data` are `ingest` (zips, plus any recent days from `download` → `data/bronze/`), `cells` (burning cell-days → `data/silver/`), `fit` (multipliers and validation → `data/model/`), `publish` (→ `data/gold/vN/`, and `data/gold/CURRENT`) and `example` (example API responses → `web/static/example/`).
+`mise tasks` lists every task. The pipeline steps behind `data` are `ingest` (zips, plus any recent days from `download` → `data/bronze/`), `cells` (burning cell-days → `data/silver/`), `fit` (multipliers and validation → `data/model/`) and `publish` (→ `data/gold/vN/`, and `data/gold/CURRENT`).
 
 **Recent data (optional).** The zips end with `last_year` in `firecal.toml`. To add the days since, up to two days ago:
 1. Get a free [FIRMS MAP_KEY](https://firms.modaps.eosdis.nasa.gov/api/map_key/).
@@ -32,13 +32,13 @@ mise run api        # build and run the API, which serves the app: http://127.0.
 
 `download` writes one CSV per product and UTC day to `data/firms_api/`: standard-processing data where FIRMS has it, near-real-time after that. Running `refresh` again brings the series up to date. It fetches only new days, the last few near-real-time days again, and days whose standard-processing version has since appeared. The key is used only in the requests to FIRMS; mise does not load `.env`. When the series ends partway through a month, the app compares that month so far with the same days in earlier years.
 
-**Frontend work without the API:** `mise run web:examples`.
+**Frontend work:** `mise run web:dev` serves the app with live reload and sends its API requests to the API on :8080, so run `mise run api` alongside it. The app has no data of its own.
 
 **Without mise:** each task in `mise.toml` is a plain command you can run yourself, for example `cd pipeline && uv run python -m firecal_pipeline all`.
 
 ## Checks
 
-With the API running, `mise run parity` sends the same requests to the Rust API and to the Python reference implementation and compares the answers.
+With the API running, `mise run parity` sends the same requests to the Rust API and to the Python reference implementation and compares the answers. `mise run web:test` runs the browser tests against it (after `mise run web:build`): they load the app and check every number on screen against the API's answer for the same request.
 
 Before a pull request, run all checks:
 
@@ -49,8 +49,8 @@ mise run check      # or scripts/check.sh
 It runs everything on this machine, in about half a minute:
 1. Type-checks and builds the frontend.
 2. Builds the API.
-3. Runs the whole pipeline on a small sample, then compares the API with the reference on it.
-4. Compares them again on the full published data.
+3. Runs the whole pipeline on a small sample, then compares the API with the reference on it and runs the browser tests against the API serving the app.
+4. Does both again on the full published data.
 
 The sample is real FIRMS rows for a small box near the Paraná Delta, including recent near-real-time days. It's built from your local `data/` the first time (`--fresh-sample` rebuilds it) and is git-ignored, so no fire data goes into the repo. The pipeline and the API both read `FIRECAL_ROOT` to find it (`pipeline/tests/fixture/`). The script exits non-zero if any check fails.
 

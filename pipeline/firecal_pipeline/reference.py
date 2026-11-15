@@ -1,7 +1,7 @@
 """Reference implementation of the API contract (docs/api.md), in Python.
 
-Two uses: it writes example responses the frontend is built against (web/static/example/), and it
-is the oracle the Rust API is tested against (tests compare both on the same requests).
+It is the oracle the Rust API is tested against: tests/test_api_parity.py sends the same requests to both
+and compares the answers.
 """
 import calendar
 import json
@@ -11,7 +11,7 @@ import duckdb
 import h3
 import numpy as np
 
-from .config import ROOT, Config
+from .config import Config
 
 CATEGORIES = [(0.5, "much lower than usual"), (0.8, "lower than usual"), (1.25, "about usual"),
               (2.0, "higher than usual"), (math.inf, "much higher than usual")]
@@ -253,19 +253,3 @@ class Reference:
                 "ratio": None if ratio is None else round(ratio, 3), "rank": rank, "of": len(vals) + 1,
                 "percentile": pct, "category": category, "sentence": sentence,
                 "through": to_date[0] if to_date else None}
-
-
-def write_examples(cfg: Config) -> None:
-    ref = Reference(cfg)
-    out = ROOT / "web" / "static" / "example"
-    out.mkdir(parents=True, exist_ok=True)
-    (out / "meta.json").write_text(json.dumps(ref.meta(), indent=1))
-    for pid in ref.presets:
-        resp = ref.query({"area": {"preset": pid}})
-        if ref.in_progress:
-            # The browser cannot redo the days-1..D comparison from monthly totals, so save it for both baselines.
-            month = ref.in_progress["month"]
-            resp["to_date_stats"] = {b: ref.query({"area": {"preset": pid}, "month": month, "baseline": b})["stats"]
-                                     for b in ("median", "mean")}
-        (out / f"query-{pid}.json").write_text(json.dumps(resp))
-    print("examples written to", out, flush=True)

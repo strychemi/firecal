@@ -129,8 +129,8 @@ export interface QueryResponse {
 	end: YearMonth;
 	months: MonthRow[];
 	stats: Stats;
-	/** Hexagons with any fire; null when not available (example data for a different request). */
-	cells: CellValue[] | null;
+	/** Hexagons with any fire */
+	cells: CellValue[];
 }
 
 export interface ApiError {

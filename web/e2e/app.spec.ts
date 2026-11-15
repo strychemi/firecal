@@ -57,7 +57,6 @@ test('loads the newest month from the API', async ({ page, request }) => {
 	await open(page);
 	await expect(sentence(page)).toHaveText(r.stats.sentence);
 	await expect(areaMeta(page)).toContainText(hexText(r));
-	await expect(page.getByText('Example data')).toHaveCount(0);
 	const eyebrow = page.locator('#answer-title');
 	if (meta.in_progress) {
 		await expect(eyebrow).toContainText('so far');
@@ -174,6 +173,13 @@ test('an export over the row cap shows the server message', async ({ page, reque
 	await open(page);
 	await page.getByRole('button', { name: 'Hotspots CSV' }).click();
 	await expect(page.locator('.downloads [role=alert]')).toHaveText(msg);
+});
+
+test('without the API the page says so', async ({ page }) => {
+	await page.route('**/api/meta', (route) => route.fulfill({ status: 503, json: { error: 'down for maintenance' } }));
+	await page.goto('/');
+	await expect(page.locator('main [role=alert]')).toHaveText('Could not load firecal data: down for maintenance');
+	await expect(sentence(page)).toHaveCount(0);
 });
 
 test('a failed query is reported', async ({ page }) => {

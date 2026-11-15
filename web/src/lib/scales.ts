@@ -1,6 +1,18 @@
-import { categoryOf } from './stats';
 import { median } from './format';
 import type { Category, MonthRow, Source } from './types';
+
+// Category thresholds on value / usual (docs/api.md, "stats"), for colouring past months in the charts.
+const CATEGORIES: [number, Category][] = [
+	[0.5, 'much lower than usual'],
+	[0.8, 'lower than usual'],
+	[1.25, 'about usual'],
+	[2.0, 'higher than usual'],
+	[Infinity, 'much higher than usual']
+];
+
+export function categoryOf(ratio: number): Category {
+	return CATEGORIES.find(([t]) => ratio < t)![1];
+}
 
 export const ERA_VAR: Record<Source, string> = {
 	terra_harmonized: 'var(--era-terra)',

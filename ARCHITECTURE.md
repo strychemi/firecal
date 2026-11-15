@@ -133,23 +133,22 @@ An **area** is a GeoJSON polygon, a box, or a point and radius.
 | Downloads | Monthly CSV, hotspot CSV, per-hexagon CSV (opens in Kepler.gl), PNG/SVG of each chart |
 | Methods and limits | How the conversion works, test results from `validation.json`, known weaknesses, data credits, AI use |
 
-The frontend is developed against a saved example of the `/api/query` response, so app and pipeline work proceed in parallel.
+The frontend always reads the API; it has no saved data of its own. Browser tests (`web/e2e`, Playwright) load the built app from a running API and check every number on screen against the API's answer for the same request.
 
 ## 7. Operations
 
 - **One container:** the Rust binary serves the API and the built frontend; `gold/` is mounted as a volume.
 - **Recent data:** a daily job fetches new FIRMS days with the key from its own environment, then runs `cells` → `publish` for the affected months and updates `gold/CURRENT`. Prototype: `scripts/refresh.sh` (`mise run refresh`), run by hand. It republishes the whole series and keeps the newest three versions. Deployed, the server's scheduler runs the same script daily, with the key in that job's environment only.
 - **Snapshots:** a frozen, checksummed copy of `gold/` is used for the submission, so the demo, slides and video show the same numbers.
-- **Fallback:** a script saves the API's responses for every preset as JSON. If hosting fails during judging, the frontend runs from those files.
 
 ## 8. Repository layout
 
 ```
 firecal.toml          configuration for every step
-pipeline/             Python package: download, ingest, cells, fit, publish, and the reference API (example)
+pipeline/             Python package: download, ingest, cells, fit, publish, and the reference API
 science/              analysis, rule checks, primer
 api/                  Rust crate (axum)
-web/                  SvelteKit app
+web/                  SvelteKit app; e2e/ holds the browser tests
 docs/api.md           API contract
 data/                 git-ignored: FIRMS zips, firms_api/, bronze/, silver/, model/, gold/
 PREREGISTRATION.md    fixed keep/reject rules
@@ -168,7 +167,6 @@ AI_LOG.md             how AI was used
 | Risk | Fallback |
 |---|---|
 | Global run not ready or wrong | Ship Argentina plus showcase regions from the same pipeline |
-| API not ready | Frontend runs from saved preset JSON |
 | Hosting fails during judging | Local run plus the recorded video |
 | Hotspot export too slow globally | Cap the area and date span, or limit export to preset regions |
 
