@@ -18,13 +18,14 @@ All counts are **burning cell-days**: one H3 resolution-8 cell (about 0.74 km²)
   "eras": [{ "start": "2000-11-01", "end": "2002-07-31", "source": "terra_harmonized", "chain": ["terra", "aqua"] }],
   "gaps": [{ "start": "2001-06-15", "end": "2001-07-02", "days": 18 }],
   "days_filled_by": { "noaa20": 36, "terra": 9 },
-  "validation": { "aqua": { "whole_area_typical_error_pct": 9.95, "small_area_typical_error_pct": 22.23, "backward_join_gap_pct": 2.0 } },
+  "validation": { "aqua": { "whole_area_typical_error_pct": 9.95, "small_area_typical_error_pct": 22.23, "backward_join_gap_pct": 2.0, "converted": true } },
   "presets": [{ "id": "parana-delta", "name": "Paraná Delta", "note": "...", "bbox": [-60.8, -34.3, -58.3, -32.0] }],
   "export_limit": 250000
 }
 ```
 
 - `through` is the last local solar date with data. Days after the yearly FIRMS archive come from the FIRMS area API: standard-processing data where FIRMS has it, near-real-time after that. A local date counts only once the UTC morning after it is in, so `through` is two days before the newest UTC date FIRMS has.
+- `validation` has one entry per satellite tested against S-NPP (leaving one calibration year out). `converted` is false when the pre-registered rule rejected the fitted conversion (NOAA-20): the scores are then for counting it as S-NPP unchanged, which is what the data uses, and `backward_join_gap_pct` is that version's overall gap.
 - `in_progress` is set when the series ends partway through a month (`series_end`): that month and how many of its days (1..`days`) have data. It is `null` when `through` is a month's last day.
 
 ## `POST /api/query`

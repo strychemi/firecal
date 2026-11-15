@@ -356,11 +356,25 @@ pub fn meta(data: &Data, presets: &[Preset], export_limit: usize) -> Value {
     let mut validation = serde_json::Map::new();
     if let Some(obj) = data.validation.as_object() {
         for (k, d) in obj {
-            validation.insert(k.clone(), json!({
-                "whole_area_typical_error_pct": d["leave_one_year_out"]["whole_area"]["median"],
-                "small_area_typical_error_pct": d["leave_one_year_out"]["small_area_2deg"]["median"],
-                "backward_join_gap_pct": d["backward_join"]["gap_pct"]["all"],
-            }));
+            // A conversion the pre-registered rule rejected is not used: report the scores of what is (no conversion).
+            let converted = d["decision"]["kept"].as_bool().unwrap_or(true);
+            let entry = if converted {
+                json!({
+                    "whole_area_typical_error_pct": d["leave_one_year_out"]["whole_area"]["median"],
+                    "small_area_typical_error_pct": d["leave_one_year_out"]["small_area_2deg"]["median"],
+                    "backward_join_gap_pct": d["backward_join"]["gap_pct"]["all"],
+                    "converted": true,
+                })
+            } else {
+                let n = &d["no_conversion"]["leave_one_year_out"];
+                json!({
+                    "whole_area_typical_error_pct": n["whole_area"]["median"],
+                    "small_area_typical_error_pct": n["small_area_2deg"]["median"],
+                    "backward_join_gap_pct": n["gap_pct"]["all"],
+                    "converted": false,
+                })
+            };
+            validation.insert(k.clone(), entry);
         }
     }
     json!({
