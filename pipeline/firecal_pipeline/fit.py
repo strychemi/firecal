@@ -157,17 +157,17 @@ def run(cfg: Config) -> None:
             "held_out": {"years": held, "whole_area": typical_error(test, "region", 100), "gap_pct": gap(test)},
         }
         if model == "noaa20":
-            none = pd.concat([predict(g, model, IDENTITY, [y]) for y in cal])
+            none = predict(g, model, IDENTITY, cal)  # nothing is fitted, so no year needs leaving out
             conv, base = validation[model]["leave_one_year_out"], {
                 "whole_area": typical_error(none, "region", 100), "small_area_2deg": typical_error(none, "block", 50),
                 "tilt": tilt(none), "gap_pct": gap(none)}
             small_gain = base["small_area_2deg"]["median"] - conv["small_area_2deg"]["median"]
             whole_loss = conv["whole_area"]["median"] - base["whole_area"]["median"]
             keep = small_gain >= KEEP_SMALL_GAIN and whole_loss <= MAX_WHOLE_LOSS
+            none_held = predict(g, model, IDENTITY, held)
             validation[model]["no_conversion"] = {
                 "leave_one_year_out": base,
-                "held_out": {"whole_area": typical_error(predict(g, model, IDENTITY, held), "region", 100),
-                             "gap_pct": gap(predict(g, model, IDENTITY, held))}}
+                "held_out": {"whole_area": typical_error(none_held, "region", 100), "gap_pct": gap(none_held)}}
             validation[model]["decision"] = {"small_area_gain_pts": round(small_gain, 2),
                                              "whole_area_loss_pts": round(whole_loss, 2),
                                              "kept": bool(keep)}

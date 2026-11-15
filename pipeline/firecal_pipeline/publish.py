@@ -90,7 +90,10 @@ def run(cfg: Config) -> None:
     con.execute(f"""
         CREATE TABLE harmonized AS
         SELECT c.cell8, c.d, d.source, c.n_hot, c.frp,
-               CASE WHEN c.sat IN ('snpp', 'noaa20') THEN 1.0 ELSE coalesce(r.r, rr.r) END AS value
+               -- S-NPP is the target. NOAA-20 uses its multipliers only when model.json has them (the
+               -- pre-registered rule kept the conversion); otherwise it counts as S-NPP.
+               CASE WHEN c.sat = 'snpp' OR (c.sat = 'noaa20' AND rr.r IS NULL) THEN 1.0
+                    ELSE coalesce(r.r, rr.r) END AS value
         FROM read_parquet('{silver}/cell_day.parquet') c
         JOIN days d ON d.d = c.d AND d.sat = c.sat
         LEFT JOIN ratio r ON r.sat = c.sat AND r.dn = c.dn AND r.r3 = h3_cell_to_parent(c.cell8, {sr})
