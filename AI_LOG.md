@@ -6,7 +6,8 @@ The Space Apps rules ask every team to describe how it used AI. This file record
 
 | Tool | Models | Used for |
 |---|---|---|
-| Claude Code (Claude desktop app, Code tab) | Claude Opus 5.5 (`claude-opus-5-5`), Claude Fable 5.2 (`claude-fable-5-2`) | Method design, data analysis scripts, the explainer page, project documents, git and GitHub operations |
+| Claude Code (Claude desktop app, Code tab) | Claude Opus 5.5 (`claude-opus-5-5`), Claude Fable 5.2 (`claude-fable-5-2`) | Method design, data analysis scripts, the explainer page, project documents, the pipeline, API and app code, git and GitHub operations |
+| GitHub Copilot pull request reviewer | GitHub's choice | Automatic review comments on pull requests #5–#9; Claude Code fixed the valid ones and replied on each thread |
 
 Commits written with AI help carry a `Co-Authored-By: Claude …` line naming the model.
 
@@ -15,7 +16,7 @@ Commits written with AI help carry a `Co-Authored-By: Claude …` line naming th
 - **People decide; AI proposes and does the work.** The team chose the challenge, the scientific priorities, the data and the technology stack, and approves every commit, push, pull request and merge. Where a decision was proposed by the AI and accepted, the log says so.
 - **Every number comes from code run on our data.** Results quoted in our documents are produced by scripts in this repo, not written from the model's memory.
 - **AI mistakes are logged, not hidden.** Each session's entry lists errors the AI made and how they were caught.
-- **No secrets shared.** The FIRMS MAP_KEY has not been given to any AI tool.
+- **No secrets shared.** The FIRMS MAP_KEY's value has never been shown to an AI tool. The team put it in the git-ignored `.env` themselves. From 2026-11-15 the AI runs the download step, which reads the key from `.env` and sends it only to FIRMS; the AI checked that the key appears in no log, downloaded file, commit or pull request.
 
 ## Log
 
@@ -63,3 +64,44 @@ Commits written with AI help carry a `Co-Authored-By: Claude …` line naming th
 - Wrote that the commit order showed the rules came before the evidence. The team questioned it; the AI clarified that the Argentina analysis came first and the pre-registration only protects the global analysis and future upgrades.
 - Pushed `ARCHITECTURE.md` to pull request #1 after the team had already merged it, and edited the merged PR's description to include it. The team pointed this out; the AI restored the PR's description and moved the commit to a new PR (#2).
 - Could not view most of the primer's layout in its browser tool; the team was told which parts were unchecked.
+
+### 2026-11-14 to 15, session 1 continued (22:35–04:20): building out the prototype
+
+All work in this part was done with Opus 5.5. The session's context was summarised and continued along the way.
+
+**22:35–23:17 · Prototype pull request** (#5)
+- *AI did:* committed the prototype, opened pull request #5, and fixed the Copilot review comments on #1–#5. The team merged it.
+- *Decided by the team:* not to rewrite the git history.
+
+**23:17–23:49 · Naming the unit** (#6)
+- *Asked:* whether "burning places" was the right term, what its unit is, and how close "VIIRS-equivalent burning cell-days" is to the literature.
+- *AI did:* explained the unit (one H3 res-8 cell, one local solar date, one day or night pass) and compared candidate names with terms used in fire-count studies.
+- *Decided by the team:* "fire-days" in the app and "VIIRS-equivalent burning cell-days" in the documents. The AI renamed both, updated the primer, and opened #6.
+
+**23:49–02:03 · Map and area drawing** (#7)
+- *Asked:* whether to rebuild the interface on Kepler.gl; then to add map drawing.
+- *AI did:* compared Kepler.gl with building on its parts. The team chose MapLibre GL, deck.gl and Terra Draw (all open-source licences, checked by the AI), with OpenFreeMap basemaps. The AI built the map with drawn boxes, polygons and circles and per-hexagon fire-days. The API now returns the area outline and per-hexagon values, and the parity test covers them.
+- *Asked:* why drawing needed two clicks; the AI switched to press-and-drag. *Asked:* to try deck.gl's H3 layer and report the cost; the AI measured the bundle (+4.1 KB gzipped once imports were fixed).
+
+**02:03–03:37 · Hotspot CSV export** (#8)
+- *AI did:* added `POST /api/export.csv` in Rust and the Python reference: filtered hotspots for the searched hexagons and months, with a row cap. Exports are compared byte for byte in the parity test. A detection is marked `in_calendar` when it came from the satellite the calendar counts that day; for one test area this matched the calendar's own detection count exactly (14,851).
+
+**03:37–04:13 · Recent data and the in-progress month** (#9)
+- *Asked:* add recent data and compare the month in progress.
+- *AI did:* wrote the FIRMS area API download step and ingest of recent days. It extended the series to 2026-11-13 and compared the in-progress month with the same days in earlier years across the pipeline, both APIs and the app.
+- *Found:* near-real-time files lack FIRMS `type`. The AI tested a stand-in mask on 2023–2025 and logged it as a change in `PREREGISTRATION.md`, noting the check came first. S-NPP's near-real-time feed ends on 2 November, so November 2026 is NOAA-20 only.
+- *Asked:* whether an "ever flagged as static" mask is valid. The AI tested it on the same years: it catches slightly more non-vegetation detections but drops four times as much real fire. *Decided by the team:* keep the current mask.
+
+**04:13–04:20 · Status and next steps**
+- *Asked:* status against the challenge objectives. All nine work for the Argentina prototype. *Decided by the team:* bring this log and `ARCHITECTURE.md` up to date and add a NOAA-20 conversion before building a public demo.
+
+**Checks in this part:** the Rust API matched the Python reference on every parity request after each change (0 failures). The app was checked in the in-app browser after each feature. *Not verified:* screen readers, other browsers, and downloads through the browser's save dialog.
+
+**Errors the AI made in this part, and how they were caught**
+- A SQL month filter overflowed a 16-bit year column. Caught by the AI's test; fixed with a cast.
+- Several map set-up mistakes (MapLibre import, the worker file served as a web page, an empty legend class). Caught by the AI in the browser.
+- The first H3-layer bundle was 160 KB larger than needed because of how the module was imported. Caught when the AI measured the bundle for the team; fixed with named imports.
+- Drawing needed two clicks. The team noticed; fixed.
+- The export could write an empty `hex_id` for an invalid cell (caught by Copilot). The AI's first fix rejected every cell, because the validity check was given a number instead of a string; caught by the AI's own test.
+- A fallback end date could be invalid, such as 31 February (caught by Copilot); fixed in both APIs.
+- Browser screenshots sometimes showed stale pages. The AI rechecked through page scripts instead of trusting them.
