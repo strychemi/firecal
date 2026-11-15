@@ -73,6 +73,128 @@ def load(cfg: Config, model: str) -> pd.DataFrame:
         FROM cd JOIN fair USING (continent, u3, d, dn) GROUP BY ALL""").df()
 
 
+# ---- Tilt correction by fire strength (PREREGISTRATION.md §7, 2026-11-15, upgrade 3) ----
+# Each MODIS cell-day falls in one of three FRP classes, with edges at the terciles of MODIS cell-day FRP on
+# fair units in the training years, per study area (continent) and pass. A fold names a training set:
+# "all" (calibration years), "back" (the later half, for the backward join) and "y<year>" (leave that year out).
+N_CLASSES = 3
+POISSON_TOL, POISSON_MAX_IT = 1e-9, 20000
+
+
+def folds(cal) -> dict:
+    half = len(cal) // 2
+    return {"all": list(cal), "back": list(cal[half:]), **{f"y{y}": [t for t in cal if t != y] for y in cal}}
+
+
+def frp_edges(cfg: Config, model: str, continent: str | None = None) -> pd.DataFrame:
+    """Tercile edges of MODIS cell-day FRP on fair units, per fold, continent and pass."""
+    silver, con = cfg.out / "silver", connect()
+    where = f"AND continent = '{continent}'" if continent else ""
+    parts = []
+    for fid, years in folds(cfg.calibration_years).items():
+        parts.append(con.execute(f"""
+            WITH {fair_ctes(silver, model)}
+            SELECT '{fid}' AS fold, continent, dn, quantile_cont(coalesce(frp, 0), [1 / 3, 2 / 3]) AS q
+            FROM cd JOIN fair USING (continent, u3, d, dn)
+            WHERE sat = '{model}' AND year(d) IN ({", ".join(map(str, years))}) {where}
+            GROUP BY ALL""").df())
+    e = pd.concat(parts, ignore_index=True)
+    e["e1"], e["e2"] = e.q.str[0], e.q.str[1]
+    return e.drop(columns="q")
+
+
+def load_frp(cfg: Config, model: str, continent: str | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """load() plus, for every fold, the model satellite's cell-days per FRP class (columns c_<fold>_<class>)."""
+    silver, con = cfg.out / "silver", connect()
+    sr = int(cfg["harmonization"]["stratum_resolution"])
+    e = frp_edges(cfg, model, continent)
+    need = len(folds(cfg.calibration_years))
+    if e.empty or (e.groupby("dn").fold.nunique() < need).any() or e.dn.nunique() < 2:
+        return pd.DataFrame(), e  # a training set has no MODIS cell-days on a pass: cannot be fitted
+    w = e.pivot_table(index=["continent", "dn"], columns="fold", values=["e1", "e2"])
+    w.columns = [f"{a}_{f}" for a, f in w.columns]
+    con.register("edges", w.reset_index())
+    cls = []
+    for fid in folds(cfg.calibration_years):
+        x = "coalesce(cd.frp, 0)"
+        cls += [f"count(*) FILTER (WHERE sat = '{model}' AND {x} < e1_{fid})::INT AS c_{fid}_0",
+                f"count(*) FILTER (WHERE sat = '{model}' AND {x} >= e1_{fid} AND {x} < e2_{fid})::INT AS c_{fid}_1",
+                f"count(*) FILTER (WHERE sat = '{model}' AND {x} >= e2_{fid})::INT AS c_{fid}_2"]
+    where = f"WHERE continent = '{continent}'" if continent else ""
+    g = con.execute(f"""
+        WITH {fair_ctes(silver, model)}
+        SELECT continent, year(d) AS y, month(d) AS mo, dn, sat,
+               printf('%x', h3_cell_to_parent(cell8, {sr})) AS r3,
+               printf('%x', h3_cell_to_parent(cell8, {sr - 1})) AS r2,
+               printf('%x', h3_cell_to_parent(cell8, 4)) AS r4,
+               CAST(floor(h3_cell_to_lat(cell8) / 2) AS INT) AS blat,
+               CAST(floor(h3_cell_to_lng(cell8) / 2) AS INT) AS blon,
+               count(*)::BIGINT AS n, {", ".join(cls)}
+        FROM cd JOIN fair USING (continent, u3, d, dn) JOIN edges USING (continent, dn) {where}
+        GROUP BY ALL""").df()
+    return g, e
+
+
+def poisson_weights(M: np.ndarray, V: np.ndarray, start: float) -> np.ndarray:
+    """Poisson maximum likelihood, identity link, beta >= 0: E[V] = M @ beta. Multiplicative updates."""
+    keep = M.sum(axis=1) > 0
+    M, V = M[keep].astype(float), V[keep].astype(float)
+    beta = np.full(M.shape[1], start)
+    colsum = M.sum(axis=0)
+    ll_old = -np.inf
+    for _ in range(POISSON_MAX_IT):
+        mu = M @ beta
+        ll = float(np.sum(V * np.log(np.maximum(mu, 1e-300)) - mu))
+        if abs(ll - ll_old) <= POISSON_TOL * abs(ll):
+            break
+        ll_old = ll
+        beta = beta * (M.T @ (V / np.maximum(mu, 1e-300))) / np.where(colsum > 0, colsum, 1)
+    return beta
+
+
+def fit_frp(g: pd.DataFrame, model: str, fid: str, years, k: float, parent_k: float | None = None) -> dict:
+    """Class weights beta_f per pass on res-3 area-months, then per-area corrections c_s toward 1."""
+    t = g[g.y.isin(years)]
+    cols = [f"c_{fid}_{c}" for c in range(N_CLASSES)]
+    out = {"fold": fid, "beta": {}, "corr": {}, "parents": {}}
+    for dn, d in t.groupby("dn"):
+        a = d[d.sat == model].groupby(["r3", "r2", "mo", "y"])[cols].sum()
+        v = d[d.sat == "snpp"].groupby(["r3", "r2", "mo", "y"]).n.sum()
+        am = a.join(v.rename("V"), how="outer").fillna(0)
+        start = am.V.sum() / am[cols].to_numpy().sum()
+        beta = poisson_weights(am[cols].to_numpy(), am.V.to_numpy(), start)
+        am["W"] = am[cols].to_numpy() @ beta
+        out["beta"][dn] = [float(b) for b in beta]
+        for lvl, kk, key in (("r3", k, "corr"), ("r2", parent_k, "parents")):
+            if kk is None:
+                continue
+            s = am.groupby(level=lvl)[["V", "W"]].sum()
+            out[key][dn] = dict(zip(s.index, (s.V + kk) / (s.W + kk)))
+    if parent_k is None:
+        out.pop("parents")
+    return out
+
+
+def predict_frp(g: pd.DataFrame, model: str, m: dict, years) -> pd.DataFrame:
+    """Like predict(): V_hat = c_s x sum_f beta_f M_f, with c_s from the area, its parent, or 1."""
+    fid = m["fold"]
+    cols = [f"c_{fid}_{c}" for c in range(N_CLASSES)]
+    a = g[(g.sat == model) & g.y.isin(years)].copy()
+    w = np.zeros(len(a))
+    c = np.ones(len(a))
+    for dn in ("D", "N"):
+        sel = (a.dn == dn).to_numpy()
+        if not sel.any() or dn not in m["beta"]:
+            continue
+        w[sel] = a.loc[sel, cols].to_numpy() @ np.array(m["beta"][dn])
+        corr, par = m["corr"].get(dn, {}), m.get("parents", {}).get(dn, {})
+        c[sel] = [corr.get(r3, par.get(r2, 1.0)) for r3, r2 in zip(a.r3[sel], a.r2[sel])]
+    a["pred"] = w * c
+    v = g[(g.sat == "snpp") & g.y.isin(years)].rename(columns={"n": "obs"})
+    keys = ["y", "mo", "dn", "r3", "r4", "blat", "blon"]
+    return pd.concat([a[keys + ["pred"]], v[keys + ["obs"]]]).fillna(0).groupby(keys, as_index=False).sum()
+
+
 def shrunk(t: pd.DataFrame, level: str, model: str, reg: dict, k: float) -> dict:
     """{dn: {area: (V_s + k r) / (M_s + k)}} for every area at `level` with fair cell-days on that pass."""
     s = t.groupby([level, "dn", "sat"]).n.sum().unstack("sat", fill_value=0)
