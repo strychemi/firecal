@@ -13,7 +13,18 @@ NASA Space Apps 2026 · *Harmonization of MODIS and VIIRS Hot Spots*. Prototype:
 
 ## Run it
 
-Requirements: [mise](https://mise.jdx.dev), which installs the pinned Node, pnpm, Rust, uv and Python from `mise.toml`, plus the FIRMS yearly "all countries" archives (`modis_YYYY_all_countries.zip`, `viirs-snpp_…`, `viirs-jpss1_…`) in `data/`.
+Requirements: [mise](https://mise.jdx.dev), which installs the pinned Node, pnpm, Rust, uv and Python from `mise.toml`, plus the FIRMS yearly "all countries" archives (`modis_YYYY_all_countries.zip`, `viirs-snpp_…`, `viirs-jpss1_…`) in `data/`, plus the MODIS labels below.
+
+**MODIS labels.** FIRMS's MODIS archive carries older (version-2) hotspot type labels through 2017, so the pipeline takes the labels for 2000–2017 from the producer's version-3 monthly files (PREREGISTRATION.md §7). They are NASA data from the MODIS fire team's server at the University of Maryland, about 1.3 GB, reached by SFTP with the login the team publishes in its [user guide](https://www.earthdata.nasa.gov/s3fs-public/2023-09/MODIS_C6_C6.1_Fire_User_Guide_1.0.pdf). Section 4.3, "University of Maryland SFTP Server", gives the login:
+
+```bash
+mkdir -p data/mcd14ml
+sftp -o IdentityAgent=none -o PubkeyAuthentication=no fire@fuoco.geog.umd.edu
+# at sftp>:  cd data/MODIS/C6/MCD14ML   lcd data/mcd14ml
+#            get MCD14ML.200*.006.03.txt.gz   get MCD14ML.201[0-7]*.006.03.txt.gz   bye
+```
+
+`ingest` stops with an error if a year's files are missing, or if under 99.9 % of FIRMS rows find their label.
 
 ```bash
 mise install        # the pinned tools
@@ -56,6 +67,6 @@ The sample is real FIRMS rows for a small box near the Paraná Delta, including 
 
 ## Data credits
 
-Fire data: NASA FIRMS active-fire archives, MODIS Collection 6.1 (MCD14ML, Terra and Aqua) and VIIRS 375 m (S-NPP and NOAA-20).
+Fire data: NASA FIRMS active-fire archives: MODIS MCD14ML Collection 6 and 6.1 (Terra and Aqua) and VIIRS 375 m Collection 2 (S-NPP and NOAA-20). MODIS hotspot types for 2000–2017 from the MCD14ML Collection 6 version 3 files of the MODIS fire team, University of Maryland (Giglio, L., Schroeder, W. & Justice, C. O. (2016), The Collection 6 MODIS active fire detection algorithm and fire products, *Remote Sensing of Environment* 178, 31–41). NASA data, shared without restriction under the [EOSDIS Data Use and Citation Guidance](https://www.earthdata.nasa.gov/data/catalog/lancemodis-mcd14dl-6.1nrt).
 
 Basemap: [OpenFreeMap](https://openfreemap.org/) tiles, © [OpenMapTiles](https://openmaptiles.org/), data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors. Map libraries: MapLibre GL JS (BSD-3-Clause), deck.gl (MIT), Terra Draw (MIT), h3-js (Apache-2.0).

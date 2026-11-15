@@ -10,6 +10,10 @@ keep_versions = 3                # newest published versions kept by `prune` (sc
 countries = ["Argentina", "Bolivia", "Brazil", "Chile", "Paraguay", "Uruguay", "Falkland_Islands"]
 # Clip box [min_lon, min_lat, max_lon, max_lat].
 clip_bbox = [-76.0, -56.0, -50.0, -20.0]
+# MODIS hotspot types for first_year..modis_labels_through come from the producer's MCD14ML Collection 6
+# version 3 monthly files (University of Maryland), downloaded to this folder (README, MODIS labels).
+modis_labels_dir = "data/mcd14ml"
+modis_labels_through = 2017
 
 [filters]
 vegetation_only = true           # FIRMS type = 0
