@@ -1,4 +1,4 @@
-import type { MonthRow, Source, YearMonth } from './types';
+import type { Meta, MonthRow, Source, YearMonth } from './types';
 
 export const MONTH_NAMES = [
 	'January',
@@ -71,6 +71,16 @@ export const SOURCE_SHORT: Record<Source, string> = {
 	viirs: 'VIIRS'
 };
 export const SOURCES: Source[] = ['terra_harmonized', 'aqua_harmonized', 'viirs'];
+
+/** "South_America" -> "South America"; "World" for a search with no fire. */
+export function continentName(c: string): string {
+	return c.replace(/_/g, ' ');
+}
+
+/** True when the data has several continents, each with its own model (the global app). */
+export function isGlobal(meta: Meta): boolean {
+	return Object.keys(meta.continents ?? {}).length > 1;
+}
 
 /** Inclusive list of YYYY-MM between a and b. */
 export function monthRange(a: YearMonth, b: YearMonth): YearMonth[] {

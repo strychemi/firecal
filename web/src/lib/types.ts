@@ -34,6 +34,15 @@ export interface ValidationEntry {
 	converted?: boolean;
 }
 
+/** One continent's model and month status (data with one study area has the one entry "study_area"). */
+export interface ContinentInfo {
+	/** false: no model could be fitted (Antarctica), so MODIS months there have no data */
+	fitted: boolean;
+	validation: Record<string, ValidationEntry>;
+	gaps: Gap[];
+	days_filled_by: Record<string, number>;
+}
+
 export interface Preset {
 	id: string;
 	name: string;
@@ -46,14 +55,18 @@ export interface Meta {
 	series_start: YearMonth;
 	series_end: YearMonth;
 	unit: string;
-	region: { bbox: BBox; countries: string[] };
+	/** countries: the FIRMS country files read, or "all" (the global app) */
+	region: { bbox: BBox; countries: string[] | string };
 	eras: Era[];
 	gaps: Gap[];
 	days_filled_by: Record<string, number>;
+	/** Per-satellite scores for data with one study area; empty when there are several continents. */
 	validation: Record<string, ValidationEntry>;
+	/** Per continent; "World" (several continents only) is the month status of a search with no fire. */
+	continents?: Record<string, ContinentInfo>;
 	presets: Preset[];
-	/** Most rows the hotspot CSV export returns in one file. */
-	export_limit?: number;
+	/** Most rows the hotspot CSV export returns in one file; null when there is no hotspot export. */
+	export_limit?: number | null;
 	/** Last local solar date with data (YYYY-MM-DD). */
 	through?: string;
 	/** The series' last month when it ends partway through, with the days covered. */
@@ -125,6 +138,10 @@ export interface QueryResponse {
 	data_version: string;
 	/** ring: the area outline as a closed ring of [lon, lat] */
 	area: { resolution: number; hexagons: number; active_hexagons: number; ring: [number, number][] };
+	/** The continent whose model, ranges and month status the search uses: the one with most of its fire-days. */
+	continent?: string;
+	/** That continent's share of the search's fire-days; null when the search has no fire (or older data). */
+	continent_share?: number | null;
 	start: YearMonth;
 	end: YearMonth;
 	months: MonthRow[];

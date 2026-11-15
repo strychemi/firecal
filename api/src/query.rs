@@ -136,22 +136,43 @@ fn model_of(source: &str) -> Option<&'static str> {
     }
 }
 
-/// 80 % range: the miss table of the size of area nearest the search's area on a log scale
-/// (PREREGISTRATION.md §7, 2026-11-15), and the bin containing `value`.
-fn range_for(data: &Data, source: &str, value: f64, area_km2: f64) -> (Option<f64>, Option<f64>) {
+/// 80 % range: the search's continent's miss table of the size of area nearest the search's area on a log
+/// scale (PREREGISTRATION.md §7, 2026-11-15), and the bin containing `value`.
+fn range_for(data: &Data, continent: &str, source: &str, value: f64, area_km2: f64) -> (Option<f64>, Option<f64>) {
     let Some(model) = model_of(source) else { return (None, None) };
     if value <= 0.0 {
         return (None, None);
     }
+    let table = |b: &&crate::data::MissBin| b.continent == continent && b.model == model;
     let dist = |b: &&crate::data::MissBin| (b.area_km2.ln() - area_km2.ln()).abs();
-    let Some(size) = data.misses.iter().filter(|b| b.model == model).min_by(|a, b| dist(a).total_cmp(&dist(b)))
-    else {
+    let Some(size) = data.misses.iter().filter(table).min_by(|a, b| dist(a).total_cmp(&dist(b))) else {
         return (None, None);
     };
-    match data.misses.iter().find(|b| b.model == model && b.size == size.size && b.lo <= value && value < b.hi) {
+    match data.misses.iter().filter(table).find(|b| b.size == size.size && b.lo <= value && value < b.hi) {
         Some(b) => (Some(value * b.q10.exp()), Some(value * b.q90.exp())),
         None => (None, None),
     }
+}
+
+/// The search's continent: the one holding most of its fire-days over the whole series (ties: the first name),
+/// whose model, error ranges and month status the search uses (docs/api.md). A search with no fire uses "World"
+/// (several continents) or the one study area. Returns (index in `data.areas`, its share or None).
+fn continent_of(data: &Data, res: u8, cells: &HashSet<CellIndex>) -> (usize, Option<f64>) {
+    let fallback = data.areas.iter().position(|a| a == "World").unwrap_or(0);
+    let Some(table) = data.continents.get(&res) else { return (fallback, None) };
+    let mut sums = vec![0f64; data.areas.len()];
+    for cell in cells {
+        for &(i, v) in table.get(&u64::from(*cell)).map(Vec::as_slice).unwrap_or(&[]) {
+            sums[i as usize] += v as f64;
+        }
+    }
+    let total: f64 = sums.iter().sum();
+    if total <= 0.0 {
+        return (fallback, None);
+    }
+    // First maximum: `areas` is sorted, so ties go to the first name.
+    let (best, top) = sums.iter().enumerate().fold((0, f64::MIN), |acc, (i, &v)| if v > acc.1 { (i, v) } else { acc });
+    (best, Some(round(top / total, 3)))
 }
 
 fn ordinal(n: usize) -> String {
@@ -250,6 +271,9 @@ pub fn query(data: &Data, presets: &[Preset], max_hex: usize, req: &QueryRequest
     let (res, cells) = area_cells(&ring, &data.resolutions, max_hex)?;
     let area_km2: f64 = cells.iter().map(|c| c.area_km2()).sum();
     let table = data.cells.get(&res).context("resolution not loaded")?;
+    let (ci, share) = continent_of(data, res, &cells);
+    let continent = data.areas[ci].as_str();
+    let status = data.status.get(continent).context("no month status")?;
 
     let series_start = month_label(data.start, 0);
     let series_end = month_label(data.start, data.n_months - 1);
@@ -278,21 +302,22 @@ pub fn query(data: &Data, presets: &[Preset], max_hex: usize, req: &QueryRequest
     // Per-hexagon values for the map: the selected month and the start..end total.
     let mut per_cell: Vec<(String, f64, f64)> = Vec::new();
     for cell in &cells {
-        if let Some(rows) = table.get(&u64::from(*cell)) {
+        if let Some(rows) = table.get(u64::from(*cell)) {
             active += 1;
             let (mut in_month, mut in_range) = (0f64, 0f64);
             for r in rows {
                 let s = &mut sums[r.month as usize];
-                s.0 += r.value;
+                let value = r.value as f64;
+                s.0 += value;
                 s.1 += r.raw as u64;
                 s.2 += r.detections as u64;
-                s.3 += r.frp;
+                s.3 += r.frp as f64;
                 let i = r.month as i64;
                 if i == sel_idx as i64 {
-                    in_month += r.value;
+                    in_month += value;
                 }
                 if i >= start_idx as i64 && i <= end_idx as i64 {
-                    in_range += r.value;
+                    in_range += value;
                 }
             }
             if in_month > 0.0 || in_range > 0.0 {
@@ -306,9 +331,9 @@ pub fn query(data: &Data, presets: &[Preset], max_hex: usize, req: &QueryRequest
 
     let series: Vec<MonthOut> = (0..data.n_months)
         .map(|i| {
-            let st = &data.status[i];
+            let st = &status[i];
             let (value, raw, detections, frp) = sums[i];
-            let (lo, hi) = range_for(data, &st.source, value, area_km2);
+            let (lo, hi) = range_for(data, continent, &st.source, value, area_km2);
             MonthOut {
                 month: month_label(data.start, i),
                 source: st.source.clone(),
@@ -353,43 +378,66 @@ pub fn query(data: &Data, presets: &[Preset], max_hex: usize, req: &QueryRequest
     Ok(json!({
         "data_version": data.version,
         "area": {"resolution": res, "hexagons": cells.len(), "active_hexagons": active, "ring": outline},
+        "continent": continent, "continent_share": share,
         "start": start, "end": end, "months": shown,
         "stats": stats(&compared, &selected, &baseline, to_date)?,
         "cells": hexes,
     }))
 }
 
+/// validation.json for one study area -> meta's per-satellite scores. A satellite that could not be fitted
+/// (Antarctica) has no entry.
+fn validation_entries(v: &Value) -> serde_json::Map<String, Value> {
+    let mut out = serde_json::Map::new();
+    for (k, d) in v.as_object().into_iter().flatten() {
+        if d.get("leave_one_year_out").is_none() {
+            continue;
+        }
+        // A conversion the pre-registered rule rejected is not used: report the scores of what is (no conversion).
+        let converted = d["decision"]["kept"].as_bool().unwrap_or(true);
+        let entry = if converted {
+            json!({
+                "whole_area_typical_error_pct": d["leave_one_year_out"]["whole_area"]["median"],
+                "small_area_typical_error_pct": d["leave_one_year_out"]["small_area_2deg"]["median"],
+                "backward_join_gap_pct": d["backward_join"]["gap_pct"]["all"],
+                "converted": true,
+            })
+        } else {
+            let n = &d["no_conversion"]["leave_one_year_out"];
+            json!({
+                "whole_area_typical_error_pct": n["whole_area"]["median"],
+                "small_area_typical_error_pct": n["small_area_2deg"]["median"],
+                "backward_join_gap_pct": n["gap_pct"]["all"],
+                "converted": false,
+            })
+        };
+        out.insert(k.clone(), entry);
+    }
+    out
+}
+
 pub fn meta(data: &Data, presets: &[Preset], export_limit: usize) -> Value {
     let m = &data.manifest;
-    let mut validation = serde_json::Map::new();
-    if let Some(obj) = data.validation.as_object() {
-        for (k, d) in obj {
-            // A conversion the pre-registered rule rejected is not used: report the scores of what is (no conversion).
-            let converted = d["decision"]["kept"].as_bool().unwrap_or(true);
-            let entry = if converted {
-                json!({
-                    "whole_area_typical_error_pct": d["leave_one_year_out"]["whole_area"]["median"],
-                    "small_area_typical_error_pct": d["leave_one_year_out"]["small_area_2deg"]["median"],
-                    "backward_join_gap_pct": d["backward_join"]["gap_pct"]["all"],
-                    "converted": true,
-                })
-            } else {
-                let n = &d["no_conversion"]["leave_one_year_out"];
-                json!({
-                    "whole_area_typical_error_pct": n["whole_area"]["median"],
-                    "small_area_typical_error_pct": n["small_area_2deg"]["median"],
-                    "backward_join_gap_pct": n["gap_pct"]["all"],
-                    "converted": false,
-                })
-            };
-            validation.insert(k.clone(), entry);
-        }
+    let nested = data.validation.get("continents");
+    // Per continent (Argentina: the one study area): fitted or not, validation scores, its own gaps and filled days.
+    let mut continents = serde_json::Map::new();
+    for c in &data.areas {
+        let info = &m["continents"][c.as_str()];
+        let v = validation_entries(match nested {
+            Some(n) => &n[c.as_str()],
+            None => &data.validation,
+        });
+        let fitted = info["fitted"].as_bool().unwrap_or(true) && (c == "World" || !v.is_empty());
+        let (gaps, filled) =
+            if info.is_object() { (&info["gaps"], &info["days_filled_by"]) } else { (&m["gaps"], &m["days_filled_by"]) };
+        continents.insert(c.clone(), json!({"fitted": fitted, "validation": v, "gaps": gaps, "days_filled_by": filled}));
     }
+    let validation = if nested.is_some() { serde_json::Map::new() } else { validation_entries(&data.validation) };
     json!({
         "data_version": data.version, "series_start": m["series_start"], "series_end": m["series_end"],
         "through": data.through, "in_progress": m["in_progress"],
         "unit": m["unit"], "region": m["region"], "eras": m["eras"], "gaps": m["gaps"],
-        "days_filled_by": m["days_filled_by"], "validation": validation, "presets": presets,
-        "export_limit": export_limit,
+        "days_filled_by": m["days_filled_by"], "validation": validation, "continents": continents, "presets": presets,
+        "export_limit": if data.has_export { Some(export_limit) } else { None },
     })
 }

@@ -13,3 +13,4 @@ __pycache__/
 # Local check sample: built from data/ by make_sample.py, never committed
 /pipeline/tests/fixture/raw/
 /pipeline/tests/fixture/out/
+/pipeline/tests/fixture_global/out/

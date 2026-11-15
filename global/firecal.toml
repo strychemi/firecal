@@ -53,4 +53,62 @@ eras = [
 [api]
 max_hexagons = 3000              # finest level that keeps an area under this many hexagons
 max_export_rows = 250000        # hotspot CSV export: larger searches are refused with their row count
+# The hotspot CSV export is not published globally yet (its file would hold billions of rows, unsplit);
+# the API refuses it with a message and the app hides the button.
+hotspot_export = false
 bind = "127.0.0.1:8080"
+
+# Places shown as buttons in the global app, one or more per continent. The first opens the app.
+[[presets]]
+id = "central-africa"
+name = "Central African savanna"
+note = "The world's busiest fire belt; burns November to February"
+bbox = [18.0, 4.0, 28.0, 10.0]
+
+[[presets]]
+id = "southern-amazon"
+name = "Southern Amazon (Rondônia)"
+note = "Forest clearing fires, August to October"
+bbox = [-66.0, -13.0, -60.0, -8.0]
+
+[[presets]]
+id = "parana-delta"
+name = "Paraná Delta"
+note = "Wetland fires, notably 2020 and 2022"
+bbox = [-60.8, -34.3, -58.3, -32.0]
+
+[[presets]]
+id = "mainland-se-asia"
+name = "Northern Thailand and Laos"
+note = "Dry-season burning, February to April"
+bbox = [98.0, 17.0, 104.0, 21.0]
+
+[[presets]]
+id = "yakutia"
+name = "Yakutia (Sakha)"
+note = "Boreal forest fires, notably 2021"
+bbox = [120.0, 60.0, 135.0, 66.0]
+
+[[presets]]
+id = "northern-california"
+name = "Northern California"
+note = "Wildfires, notably 2018 and 2020"
+bbox = [-124.0, 38.0, -120.0, 42.0]
+
+[[presets]]
+id = "central-portugal"
+name = "Central Portugal"
+note = "Summer wildfires, notably 2003, 2005 and 2017"
+bbox = [-9.5, 39.0, -7.0, 41.5]
+
+[[presets]]
+id = "top-end"
+name = "Top End (Northern Territory)"
+note = "Savanna burning, May to November"
+bbox = [129.0, -16.0, 137.0, -11.0]
+
+[[presets]]
+id = "panama-colombia"
+name = "Panama–Colombia border"
+note = "Spans North and South America"
+bbox = [-80.0, 6.0, -75.0, 10.0]

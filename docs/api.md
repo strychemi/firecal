@@ -19,6 +19,7 @@ All counts are **burning cell-days**: one H3 resolution-8 cell (about 0.74 km²)
   "gaps": [{ "start": "2001-06-15", "end": "2001-07-02", "days": 18 }],
   "days_filled_by": { "noaa20": 36, "terra": 9 },
   "validation": { "aqua": { "whole_area_typical_error_pct": 9.95, "small_area_typical_error_pct": 22.23, "backward_join_gap_pct": 2.0, "converted": true } },
+  "continents": { "study_area": { "fitted": true, "validation": { "aqua": { "...": "..." } }, "gaps": [], "days_filled_by": {} } },
   "presets": [{ "id": "parana-delta", "name": "Paraná Delta", "note": "...", "bbox": [-60.8, -34.3, -58.3, -32.0] }],
   "export_limit": 250000
 }
@@ -26,6 +27,8 @@ All counts are **burning cell-days**: one H3 resolution-8 cell (about 0.74 km²)
 
 - `through` is the last local solar date with data. Days after the yearly FIRMS archive come from the FIRMS area API: standard-processing data where FIRMS has it, near-real-time after that. A local date counts only once the UTC morning after it is in, so `through` is two days before the newest UTC date FIRMS has.
 - `validation` has one entry per satellite tested against S-NPP (leaving one calibration year out). `converted` is false when the pre-registered rule rejected the fitted conversion (NOAA-20): the scores are then for counting it as S-NPP unchanged, which is what the data uses, and `backward_join_gap_pct` is that version's overall gap.
+- `continents` has one entry per continent with its own model and month status: the global data has `Africa`, `Antarctica`, `Asia`, `Europe`, `North_America`, `Oceania`, `South_America` and `World`; Argentina has the one entry `study_area`. Each holds `fitted` (false for Antarctica, too sparse to fit, and so without MODIS months), `validation` (as above, for that continent), and `gaps` and `days_filled_by` from that continent's own satellite choice. `World` is the whole run's satellite choice, used only for a search with no fire. With several continents the top-level `validation` is empty and `gaps` and `days_filled_by` are `World`'s; with one they are that continent's.
+- `export_limit` is `null` when the data has no hotspot file (the global data): `/api/export.csv` is then refused.
 - `in_progress` is set when the series ends partway through a month (`series_end`): that month and how many of its days (1..`days`) have data. It is `null` when `through` is a month's last day.
 
 ## `POST /api/query`
@@ -62,6 +65,8 @@ Response:
   "data_version": "v2",
   "area": { "resolution": 6, "hexagons": 2247, "active_hexagons": 2046,
             "ring": [[-60.8, -34.3], [-58.3, -34.3], [-58.3, -32.0], [-60.8, -32.0], [-60.8, -34.3]] },
+  "continent": "South_America",
+  "continent_share": 1.0,
   "start": "2000-11",
   "end": "2025-12",
   "months": [
@@ -88,12 +93,13 @@ Response:
 
 Field rules:
 
+- `continent` is the continent whose model the search uses: the one holding most of the search's fire-days (`value`) over the whole series, summed over its hexagons (ties: the first name alphabetically); `continent_share` is that continent's share, rounded to 3 decimals. Each fire-day was already converted with its own continent's multipliers when the data was published; the search's continent decides the 80 % ranges and the month status (`days_with_data`, `complete`). A search with no fire uses `World` (several continents) or the one study area, with `continent_share` `null` (also `null` for data published before continents).
 - `months` lists every month from `start` to `end`, including months with no fire (zeros).
 - `area.ring` is the outline the hexagons were chosen from, as a closed ring of `[lon, lat]` rounded to 5 decimals: the box corners, the polygon as sent (closed), or the circle's 64-sided polygon. The map draws this, so it always shows the area the numbers cover.
 - `cells` has one entry per hexagon in the area with any fire in the selected `month` or from `start` to `end`, sorted by `h3` (the H3 index as a hex string, at `area.resolution`). `month` is its fire-days in the selected month and `range` its fire-days from `start` to `end`, both rounded to 2 decimals.
 - `source` is `terra_harmonized`, `aqua_harmonized` or `viirs`.
-- `lower` and `upper` form the 80 % range for converted months: `value × e^q10` to `value × e^q90`, with `q10` and `q90` taken from `misses.parquet` for that satellite's model, the size of area (`size`: res-4 cell, res-3 cell, 2° block or study area) whose typical `area_km2` is nearest the searched area on a log scale (the sum of the areas of the search's hexagons), and the bin containing `value`. They are `null` for VIIRS months (observed, not converted) and for months with `value` 0.
-- `days` is the number of days in the calendar month and `days_with_data` the days with satellite data in the study box. `complete` is false when they differ: days with no data, or the in-progress month. Such months are left out of baselines.
+- `lower` and `upper` form the 80 % range for converted months: `value × e^q10` to `value × e^q90`, with `q10` and `q90` taken from `misses.parquet` for the search's `continent` and that satellite's model, the size of area (`size`: res-4 cell, res-3 cell, 2° block or study area) whose typical `area_km2` is nearest the searched area on a log scale (the sum of the areas of the search's hexagons), and the bin containing `value`. They are `null` for VIIRS months (observed, not converted), for months with `value` 0, and for a continent without error tables (Antarctica, `World`).
+- `days` is the number of days in the calendar month and `days_with_data` the days with satellite data in the search's `continent` (Argentina: the study box): a satellite with no detection anywhere in the continent that day has no data there. In Antarctica, MODIS days (before February 2012) have no data. `complete` is false when they differ: days with no data, or the in-progress month. Such months are left out of baselines.
 - `in_progress` is true only for the in-progress month (meta `in_progress`).
 - `stats` compares the selected month with the same calendar month in every other complete year of the whole series (not limited by `start`/`end`):
   - `baseline_value` is the median or mean of those years;
@@ -135,4 +141,4 @@ hex_id,latitude,longitude,acq_date,acq_time,local_solar_date,satellite,instrumen
 
 Only detections that pass the filters are included (`type = 0`; MODIS confidence ≥ 30; VIIRS nominal or high), from every satellite, including those not used for the calendar that day.
 
-A search with more than `max_export_rows` (`export_limit` in `/api/meta`, 250,000) detections is refused with HTTP 413 and `{ "error": "message", "rows": 11465418, "limit": 250000 }`. Bad requests return HTTP 400 as for `/api/query`.
+A search with more than `max_export_rows` (`export_limit` in `/api/meta`, 250,000) detections is refused with HTTP 413 and `{ "error": "message", "rows": 11465418, "limit": 250000 }`. Bad requests return HTTP 400 as for `/api/query`. Data published without a hotspot file (the global data, meta `export_limit` `null`) refuses every export with HTTP 404 and `{ "error": "The hotspot CSV is not available for this data yet; download hotspots from NASA FIRMS instead." }`.

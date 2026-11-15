@@ -233,7 +233,8 @@
 			const maplibregl = await import('maplibre-gl');
 			maplibregl.setWorkerUrl(workerUrl);
 			const { MapboxOverlay } = await import('@deck.gl/mapbox');
-			const b = meta.region.bbox;
+			// Web Mercator cannot show the poles: the global app's box [-180, -90, 180, 90] opens on the inhabited world.
+			const b = meta.region.bbox.map((v, i) => (i % 2 ? Math.max(-60, Math.min(75, v)) : v));
 			const m = new maplibregl.Map({
 				container,
 				style: STYLE[scheme],

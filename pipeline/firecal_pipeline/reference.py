@@ -18,6 +18,36 @@ CATEGORIES = [(0.5, "much lower than usual"), (0.8, "lower than usual"), (1.25, 
 MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September",
           "October", "November", "December"]
 MODEL_OF = {"terra_harmonized": "terra", "aqua_harmonized": "aqua"}
+# Data published before continents (Argentina up to v11) is one continent, named as its cell-days are.
+SINGLE = "study_area"
+
+
+class NoExport(Exception):
+    """The published data has no hotspot file (the global run): the export is refused."""
+    MESSAGE = "The hotspot CSV is not available for this data yet; download hotspots from NASA FIRMS instead."
+
+    def __init__(self):
+        super().__init__(self.MESSAGE)
+
+
+def validation_entries(v: dict) -> dict:
+    """validation.json for one study area -> meta's per-satellite scores. A satellite that could not be fitted
+    (Antarctica) has no entry."""
+    out = {}
+    for k, d in v.items():
+        if "leave_one_year_out" not in d:
+            continue
+        # A conversion the pre-registered rule rejected is not used: report the scores of what is (no conversion).
+        if d.get("decision", {}).get("kept", True):
+            out[k] = {"whole_area_typical_error_pct": d["leave_one_year_out"]["whole_area"]["median"],
+                      "small_area_typical_error_pct": d["leave_one_year_out"]["small_area_2deg"]["median"],
+                      "backward_join_gap_pct": d["backward_join"]["gap_pct"]["all"], "converted": True}
+        else:
+            n = d["no_conversion"]["leave_one_year_out"]
+            out[k] = {"whole_area_typical_error_pct": n["whole_area"]["median"],
+                      "small_area_typical_error_pct": n["small_area_2deg"]["median"],
+                      "backward_join_gap_pct": n["gap_pct"]["all"], "converted": False}
+    return out
 
 
 def ordinal(n: int) -> str:
@@ -98,41 +128,72 @@ class Reference:
         self.validation = json.loads((self.dir / "validation.json").read_text())
         self.presets = {p["id"]: p for p in cfg.raw.get("presets", [])}
         self.misses = duckdb.sql(f"SELECT * FROM '{self.dir}/misses.parquet'").df()
+        if "continent" not in self.misses:
+            self.misses["continent"] = SINGLE
         st = duckdb.sql(f"SELECT * FROM '{self.dir}/month_status.parquet'").df()
-        self.status = {f"{r.year:04d}-{r.month:02d}": r for r in st.itertuples()}
+        if "continent" not in st:
+            st["continent"] = SINGLE
+        self.status = {(r.continent, f"{r.year:04d}-{r.month:02d}"): r for r in st.itertuples()}
+        self.areas = sorted(st.continent.unique())
         # Older manifests have no `through`: the series then ends on its last month's last day.
         ey, em = map(int, self.manifest["series_end"].split("-"))
         self.through = self.manifest.get("through") or f"{ey:04d}-{em:02d}-{calendar.monthrange(ey, em)[1]:02d}"
         self.in_progress = self.manifest.get("in_progress")
 
+    def continents(self) -> dict:
+        """meta `continents`: per continent (Argentina: the one study area), whether it has a fitted model, its
+        validation scores, and its own gaps and filled days. "World" (several continents only) has no model of
+        its own: it is the month status used for a search with no fire."""
+        m = self.manifest
+        nested = self.validation.get("continents")
+        out = {}
+        for c in self.areas:
+            info = m.get("continents", {}).get(c, {"fitted": True, "gaps": m["gaps"], "days_filled_by": m["days_filled_by"]})
+            v = validation_entries(nested.get(c, {}) if nested is not None else self.validation)
+            out[c] = {"fitted": bool(info["fitted"]) and (c == "World" or bool(v)), "validation": v,
+                      "gaps": info["gaps"], "days_filled_by": info["days_filled_by"]}
+        return out
+
     def meta(self) -> dict:
         m = self.manifest
-        v = {}
-        for k, d in self.validation.items():
-            # A conversion the pre-registered rule rejected is not used: report the scores of what is (no conversion).
-            if d.get("decision", {}).get("kept", True):
-                v[k] = {"whole_area_typical_error_pct": d["leave_one_year_out"]["whole_area"]["median"],
-                        "small_area_typical_error_pct": d["leave_one_year_out"]["small_area_2deg"]["median"],
-                        "backward_join_gap_pct": d["backward_join"]["gap_pct"]["all"], "converted": True}
-            else:
-                n = d["no_conversion"]["leave_one_year_out"]
-                v[k] = {"whole_area_typical_error_pct": n["whole_area"]["median"],
-                        "small_area_typical_error_pct": n["small_area_2deg"]["median"],
-                        "backward_join_gap_pct": n["gap_pct"]["all"], "converted": False}
+        nested = "continents" in self.validation
         return {"data_version": self.version, "series_start": m["series_start"], "series_end": m["series_end"],
                 "through": self.through, "in_progress": m.get("in_progress"),
                 "unit": m["unit"], "region": m["region"], "eras": m["eras"], "gaps": m["gaps"],
-                "days_filled_by": m["days_filled_by"], "validation": v,
+                "days_filled_by": m["days_filled_by"],
+                "validation": {} if nested else validation_entries(self.validation),
+                "continents": self.continents(),
                 "presets": [{k: p[k] for k in ("id", "name", "note", "bbox")} for p in self.presets.values()],
-                "export_limit": int(self.cfg["api"].get("max_export_rows", 250000))}
+                "export_limit": int(self.cfg["api"].get("max_export_rows", 250000)) if self.has_export else None}
 
-    def range_for(self, source: str, value: float, area_km2: float):
-        """80 % range: the miss table of the size of area nearest the search's area on a log scale
-        (PREREGISTRATION.md §7, 2026-11-15), and the bin containing value."""
+    @property
+    def has_export(self) -> bool:
+        return (self.dir / "hotspots.parquet").exists()
+
+    def continent_of(self, con, res: int):
+        """The search's continent: the one holding most of its fire-days over the whole series (ties: the first
+        name), whose model, error ranges and month status the search uses (docs/api.md). A search with no fire
+        uses "World" (several continents) or the one study area. Returns (continent, its share or None)."""
+        path = self.dir / f"continents_res{res}.parquet"
+        if not path.exists():
+            return self.areas[0], None
+        rows = con.execute(f"""SELECT continent, sum(value)::DOUBLE FROM '{path}' JOIN sel USING (cell)
+                               GROUP BY continent""").fetchall()
+        total = sum(v for _, v in rows)
+        if total <= 0:
+            return ("World" if "World" in self.areas else self.areas[0]), None
+        name, top = min(rows, key=lambda r: (-r[1], r[0]))
+        return name, round(top / total, 3)
+
+    def range_for(self, continent: str, source: str, value: float, area_km2: float):
+        """80 % range: the search's continent's miss table of the size of area nearest the search's area on a
+        log scale (PREREGISTRATION.md §7, 2026-11-15), and the bin containing value."""
         model = MODEL_OF.get(source)
         if model is None or value <= 0:
             return None, None
-        m = self.misses[self.misses.model == model]
+        m = self.misses[(self.misses.continent == continent) & (self.misses.model == model)]
+        if m.empty:
+            return None, None
         sizes = m.drop_duplicates("size")
         size = sizes.iloc[int(np.argmin(np.abs(np.log(sizes.area_km2.to_numpy()) - math.log(area_km2))))]["size"]
         t = m[(m["size"] == size) & (m.lo <= value) & (value < m.hi)].iloc[0]
@@ -164,12 +225,13 @@ class Reference:
         hexes = sorted(({"h3": h3.int_to_str(c), "month": round(float(m), 2), "range": round(float(r), 2)}
                         for c, m, r in per_cell if m > 0 or r > 0), key=lambda h: h["h3"])
         by_month = {f"{r.year:04d}-{r.month:02d}": r for r in sums.itertuples()}
+        continent, share = self.continent_of(con, res)
 
         series = []
         for mo in month_range(self.manifest["series_start"], self.manifest["series_end"]):
-            s, r = self.status[mo], by_month.get(mo)
+            s, r = self.status[(continent, mo)], by_month.get(mo)
             value = float(r.value) if r is not None else 0.0
-            lo, hi = self.range_for(s.source, value, area_km2)
+            lo, hi = self.range_for(continent, s.source, value, area_km2)
             series.append({"month": mo, "source": s.source, "value": round(value, 2),
                            "lower": None if lo is None else round(lo, 2), "upper": None if hi is None else round(hi, 2),
                            "raw": int(r.raw) if r is not None else 0,
@@ -192,6 +254,7 @@ class Reference:
         return {"data_version": self.version,
                 "area": {"resolution": res, "hexagons": len(ids), "active_hexagons": int(active),
                          "ring": [[round(x, 5), round(y, 5)] for x, y in ring]},
+                "continent": continent, "continent_share": share,
                 "start": start, "end": end, "months": shown,
                 "stats": self.stats(compared, selected, baseline, to_date), "cells": hexes}
 
@@ -200,6 +263,8 @@ class Reference:
         api = self.cfg["api"]
         ring = area_ring(req["area"], self.presets)
         res, cells = area_cells(ring, self.manifest["resolutions"], int(api["max_hexagons"]))
+        if not self.has_export:
+            raise NoExport()
         start = req.get("start") or self.manifest["series_start"]
         end = req.get("end") or self.manifest["series_end"]
         ey, em = int(end[:4]), int(end[5:])

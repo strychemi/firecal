@@ -88,7 +88,9 @@ SvelteKit static build (served by the same Rust binary) ── MapLibre map + ch
 
 `source` is one of `terra_harmonized`, `aqua_harmonized`, `viirs` (S-NPP, or NOAA-20 as its successor).
 
-**Sizes** are not measured yet. As a rough estimate, the global res 6 table is probably a few hundred MB, res 5 under 100 MB and res 4 tens of MB. Measure one global year on the first run before relying on these.
+`continents_res{4,5,6}.parquet` holds each hexagon's fire-days per continent, from which the API picks a search's continent; `month_status.parquet` and `misses.parquet` have a `continent` column (Argentina: `study_area`).
+
+**Sizes** (global data v2): `monthly_res6` 249 MB (44 M rows), `monthly_res5` 110 MB, `monthly_res4` 43 MB. The API holds all three in memory, about 1.8 GB (README, global app).
 
 ## 5. Rust API (`api/`)
 

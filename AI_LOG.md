@@ -334,3 +334,21 @@ All work in this part was done with Opus 5.5.
 
 **22:10 · Review comment** (#22)
 - Copilot noted that the reported small-area tilt fits a line with `np.polyfit`, which fails with fewer than 2 points and would stop the whole `tilt` run for a metric that is only reported. Valid in principle; every study area has thousands of block-months. The AI made it report nothing below 3 points. Argentina's tilt report is unchanged byte for byte.
+
+### 2026-11-15, session 2 (21:25–22:20): the global app (side session, own branch)
+
+**21:25–21:35 · Brief and plan** (Opus 5.5, started by session 1 with a written brief while it tests the tilt correction on another branch)
+- *Asked:* build the global app, archive only, with the global run's per-continent models; recent days and the global hotspot CSV out of scope.
+- *AI did:* worked in its own git worktree (branch `global-app`) so session 1's checkout was untouched, and waited for session 1's global steps to finish before running its own (checked with `pgrep`).
+
+**21:35–22:00 · Pipeline, API, app**
+- *AI did:* `cells` writes coverage per continent (a new `coverage` step rewrites only that file, 7 s globally); `publish` applies each continent's multipliers to its own cell-days, picks each day's satellite per continent, and writes month status per continent plus each hexagon's fire-days per continent. The API and the Python reference give a search the error ranges and month status of the continent holding most of its fire-days, and `meta` lists each continent's scores and gaps. The app says which continent's model a search used and the Methods page shows that continent's numbers. The global hotspot CSV is refused with a message.
+- *Decided by the AI, for the team to review:* the search-continent rule (most fire-days over the whole series; no fire → the whole globe's days with data); Antarctica's MODIS months have no data rather than unconverted counts, and its VIIRS days use the whole globe's satellite choice, since it has detections on only a third of days; res 6 stays in memory (measured below) rather than read from disk.
+- *Measured:* global publish 27 s, 7.6 GB peak. Data v2 is 405 MB (res 6: 44 M rows). The API first held 3.3 GB; storing each level as one array cut that to 1.8 GB. Searches take 3–16 ms, about 0.5 s for a box over all of Africa.
+- *Checks:* Argentina's sample publishes byte for byte as before (every monthly, month-to-date and hotspot file). Parity: 0 failures on the Argentina sample, on Argentina v11 (published before continents, read unchanged), on a new global sample (`pipeline/tests/fixture_global`, 16 searches on every continent, across the Panama–Colombia border, Heard Island and open ocean) and on the full global data. Browser tests: 11 passed on the global sample, including a new test that every preset names its continent's model and the Methods page shows its scores.
+
+**Errors the AI made in this part, and how they were caught**
+- A first comparison of old and new `publish` ran the new code twice (the package path pointed at the new code); caught because the "old" output had the new continent column, and re-run with the old code.
+- The parity list first used two presets only the global sample has, so it could not run on the full global data; caught when planning that run, and changed to boxes.
+
+**Seen, not changed:** for a continent-sized search the 80 % range can sit entirely below the converted value (Africa, January 2004: 700,316 with range 638,387–698,633), because the whole-continent miss table says the conversion overshoots there. And a month with no data (Antarctica before 2012) still gets a "0.0× the usual" sentence, as an incomplete month does in Argentina.
