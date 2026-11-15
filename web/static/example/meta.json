@@ -1,7 +1,12 @@
 {
- "data_version": "v3",
+ "data_version": "v4",
  "series_start": "2000-11",
- "series_end": "2025-12",
+ "series_end": "2026-11",
+ "through": "2026-11-13",
+ "in_progress": {
+  "month": "2026-11",
+  "days": 13
+ },
  "unit": "VIIRS-equivalent burning cell-days (H3 res-8 cell, local solar date, day or night pass)",
  "region": {
   "bbox": [
@@ -41,7 +46,7 @@
   },
   {
    "start": "2012-02-01",
-   "end": "2025-12-31",
+   "end": "2026-11-13",
    "source": "viirs",
    "chain": [
     "snpp",
@@ -77,7 +82,7 @@
   }
  ],
  "days_filled_by": {
-  "noaa20": 36,
+  "noaa20": 63,
   "terra": 9
  },
  "validation": {

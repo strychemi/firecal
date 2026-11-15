@@ -52,6 +52,10 @@ export interface Meta {
 	presets: Preset[];
 	/** Most rows the hotspot CSV export returns in one file. */
 	export_limit?: number;
+	/** Last local solar date with data (YYYY-MM-DD). */
+	through?: string;
+	/** The series' last month when it ends partway through, with the days covered. */
+	in_progress?: { month: YearMonth; days: number } | null;
 }
 
 export type Area =
@@ -80,6 +84,8 @@ export interface MonthRow {
 	days: number;
 	days_with_data: number;
 	complete: boolean;
+	/** The series' last month, still in progress (also not complete). */
+	in_progress?: boolean;
 }
 
 export interface Stats {
@@ -99,6 +105,8 @@ export interface Stats {
 	/** null when ratio is null (baseline 0) (reference implementation; not in docs/api.md) */
 	category: Category | null;
 	sentence: string;
+	/** Set when `month` is in progress: values compare days 1..D up to this date (YYYY-MM-DD). */
+	through?: string | null;
 }
 
 /** One hexagon with fire in the selected month or the date range. */

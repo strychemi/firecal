@@ -3,6 +3,7 @@
 Two uses: it writes example responses the frontend is built against (web/static/example/), and it
 is the oracle the Rust API is tested against (tests compare both on the same requests).
 """
+import calendar
 import json
 import math
 
@@ -59,6 +60,10 @@ def area_cells(ring, resolutions, max_hex):
     return finest, {h3.latlng_to_cell(lat, lon, finest)}
 
 
+def days_label(mname: str, days: int) -> str:
+    return f"{mname} 1" if days == 1 else f"{mname} 1–{days}"
+
+
 def month_range(start: str, end: str) -> list[str]:
     y, m = map(int, start.split("-"))
     ye, me = map(int, end.split("-"))
@@ -95,6 +100,10 @@ class Reference:
         self.misses = duckdb.sql(f"SELECT * FROM '{self.dir}/misses.parquet'").df()
         st = duckdb.sql(f"SELECT * FROM '{self.dir}/month_status.parquet'").df()
         self.status = {f"{r.year:04d}-{r.month:02d}": r for r in st.itertuples()}
+        # Older manifests have no `through`: the series then ends on its last month's last day.
+        ey, em = map(int, self.manifest["series_end"].split("-"))
+        self.through = self.manifest.get("through") or f"{ey:04d}-{em:02d}-{calendar.monthrange(ey, em)[1]:02d}"
+        self.in_progress = self.manifest.get("in_progress")
 
     def meta(self) -> dict:
         m = self.manifest
@@ -102,6 +111,7 @@ class Reference:
                  "small_area_typical_error_pct": d["leave_one_year_out"]["small_area_2deg"]["median"],
                  "backward_join_gap_pct": d["backward_join"]["gap_pct"]["all"]} for k, d in self.validation.items()}
         return {"data_version": self.version, "series_start": m["series_start"], "series_end": m["series_end"],
+                "through": self.through, "in_progress": m.get("in_progress"),
                 "unit": m["unit"], "region": m["region"], "eras": m["eras"], "gaps": m["gaps"],
                 "days_filled_by": m["days_filled_by"], "validation": v,
                 "presets": [{k: p[k] for k in ("id", "name", "note", "bbox")} for p in self.presets.values()],
@@ -151,7 +161,16 @@ class Reference:
                            "detections": int(r.detections) if r is not None else 0,
                            "frp": round(float(r.frp), 1) if r is not None else 0.0,
                            "days": int(s.days), "days_with_data": int(s.days_with_data),
-                           "complete": bool(s.days_with_data == s.days)})
+                           "complete": bool(s.days_with_data == s.days),
+                           "in_progress": bool(self.in_progress and mo == self.in_progress["month"])})
+
+        # The in-progress month is compared on days 1..D: every year's same-month value becomes its month to date.
+        compared, to_date = series, None
+        if self.in_progress and selected == self.in_progress["month"]:
+            mtd = dict(con.execute(f"SELECT year, sum(value) FROM '{self.dir}/mtd_res{res}.parquet' JOIN sel USING (cell) GROUP BY year").fetchall())
+            compared = [{**m, "value": round(float(mtd.get(int(m["month"][:4]), 0.0)), 2)} if m["month"][5:] == selected[5:] else m
+                        for m in series]
+            to_date = (self.through, int(self.in_progress["days"]))
 
         baseline = req.get("baseline", "median")
         shown = [m for m in series if start <= m["month"] <= end]
@@ -159,7 +178,7 @@ class Reference:
                 "area": {"resolution": res, "hexagons": len(ids), "active_hexagons": int(active),
                          "ring": [[round(x, 5), round(y, 5)] for x, y in ring]},
                 "start": start, "end": end, "months": shown,
-                "stats": self.stats(series, selected, baseline), "cells": hexes}
+                "stats": self.stats(compared, selected, baseline, to_date), "cells": hexes}
 
     def export(self, req: dict) -> str:
         """POST /api/export.csv: the filtered hotspots behind a search, as CSV text."""
@@ -193,7 +212,8 @@ class Reference:
                        f"{csv_field(conf or '')},{'' if frp is None else f'{frp:.1f}'},{'true' if used else 'false'}")
         return "\n".join(out) + "\n"
 
-    def stats(self, series, selected: str, baseline: str) -> dict:
+    def stats(self, series, selected: str, baseline: str, to_date=None) -> dict:
+        """to_date = (through, D) when series values are days 1..D of the in-progress month."""
         cur = next(m for m in series if m["month"] == selected)
         mon = selected[5:]
         others = [m for m in series if m["month"][5:] == mon and m["month"] != selected and m["complete"]]
@@ -203,21 +223,27 @@ class Reference:
         rank = 1 + int((vals > cur["value"]).sum())
         pct = round(float((vals < cur["value"]).mean() * 100), 1) if len(vals) else None
         category = None if ratio is None else next(c for t, c in CATEGORIES if ratio < t)
-        name = f"{MONTHS[int(mon) - 1]} {selected[:4]}"
+        mname = MONTHS[int(mon) - 1]
+        if to_date:
+            usual, same = days_label(mname, to_date[1]), "the same days are"
+            name = f"{usual}, {selected[:4]}"
+        else:
+            usual, same, name = mname, "the same month is", f"{mname} {selected[:4]}"
         word = "median" if baseline == "median" else "average"
         if cur["value"] == 0 and base == 0:
-            sentence = f"No fire was detected in {name}, and the same month is usually fire-free here."
+            sentence = f"No fire was detected in {name}, and {same} usually fire-free here."
         elif ratio is None:
-            sentence = f"{name} had {cur['value']:,.0f} fire-days; the same month is usually fire-free here."
+            sentence = f"{name} had {cur['value']:,.0f} fire-days; {same} usually fire-free here."
         else:
             sentence = (f"{name} had {cur['value']:,.0f} fire-days, {ratio:.1f}× the usual "
-                        f"{MONTHS[int(mon) - 1]} ({word} of {len(vals)} years), "
+                        f"{usual} ({word} of {len(vals)} years), "
                         f"{ordinal(rank)} highest of {len(vals) + 1} years.")
         return {"month": selected, "value": cur["value"], "lower": cur["lower"], "upper": cur["upper"],
                 "source": cur["source"], "baseline": baseline, "baseline_value": round(base, 2),
                 "baseline_years": [int(m["month"][:4]) for m in others],
                 "ratio": None if ratio is None else round(ratio, 3), "rank": rank, "of": len(vals) + 1,
-                "percentile": pct, "category": category, "sentence": sentence}
+                "percentile": pct, "category": category, "sentence": sentence,
+                "through": to_date[0] if to_date else None}
 
 
 def write_examples(cfg: Config) -> None:
@@ -226,5 +252,11 @@ def write_examples(cfg: Config) -> None:
     out.mkdir(parents=True, exist_ok=True)
     (out / "meta.json").write_text(json.dumps(ref.meta(), indent=1))
     for pid in ref.presets:
-        (out / f"query-{pid}.json").write_text(json.dumps(ref.query({"area": {"preset": pid}})))
+        resp = ref.query({"area": {"preset": pid}})
+        if ref.in_progress:
+            # The browser cannot redo the days-1..D comparison from monthly totals, so save it for both baselines.
+            month = ref.in_progress["month"]
+            resp["to_date_stats"] = {b: ref.query({"area": {"preset": pid}, "month": month, "baseline": b})["stats"]
+                                     for b in ("median", "mean")}
+        (out / f"query-{pid}.json").write_text(json.dumps(resp))
     print("examples written to", out, flush=True)

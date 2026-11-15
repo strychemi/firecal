@@ -21,6 +21,7 @@ const r = (x: number, d: number) => Math.round(x * 10 ** d) / 10 ** d;
 export function computeStats(series: MonthRow[], selected: YearMonth, baseline: Baseline): Stats {
 	const cur = series.find((m) => m.month === selected);
 	if (!cur) throw new Error(`Month ${selected} is outside the data.`);
+	if (cur.in_progress) throw new Error(`${selected} is in progress; its comparison needs the API.`);
 	const mon = selected.slice(5);
 	const others = series.filter((m) => m.month.slice(5) === mon && m.month !== selected && m.complete);
 	const vals = others.map((m) => m.value);
@@ -66,7 +67,7 @@ export function computeStats(series: MonthRow[], selected: YearMonth, baseline: 
 
 /** Re-shape a full-range example response as if the API had answered `req`. */
 export function reshapeExample(
-	full: QueryResponse,
+	full: QueryResponse & { to_date_stats?: Record<Baseline, Stats> },
 	start: YearMonth,
 	end: YearMonth,
 	month: YearMonth,
@@ -77,7 +78,10 @@ export function reshapeExample(
 		start,
 		end,
 		months: full.months.filter((m) => m.month >= start && m.month <= end),
-		stats: computeStats(full.months, month, baseline),
+		// The in-progress month's days-1..D comparison is saved in the example file (reference.write_examples).
+		stats: full.months.find((m) => m.month === month)?.in_progress
+			? (full.to_date_stats?.[baseline] ?? full.stats)
+			: computeStats(full.months, month, baseline),
 		// Per-hexagon values in an example file are only valid for the request it was saved from.
 		cells: start === full.start && end === full.end && month === full.stats.month ? full.cells : null
 	};

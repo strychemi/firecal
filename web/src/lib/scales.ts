@@ -118,6 +118,8 @@ export function anomalies(months: MonthRow[]): Map<string, Anomaly> {
 		byCal.get(k)!.push(m);
 	}
 	for (const m of months) {
+		// An in-progress month is compared on days 1..D by the API (answer card), not here against whole months.
+		if (m.in_progress) continue;
 		const others = byCal.get(m.month.slice(5))!.filter((o) => o.month !== m.month && o.complete);
 		const base = median(others.map((o) => o.value));
 		let ratio: number | null = null;

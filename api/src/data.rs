@@ -44,6 +44,12 @@ pub struct Data {
     pub cells: HashMap<u8, HashMap<u64, Vec<Row>>>,
     pub status: Vec<MonthStatus>,
     pub misses: Vec<MissBin>,
+    /// Last local date with data (manifest `through`).
+    pub through: String,
+    /// The series' last month when it ends partway through: (month index, days 1..D covered).
+    pub in_progress: Option<(usize, u32)>,
+    /// Days 1..D of the in-progress calendar month in every year: level -> cell -> (month index, value).
+    pub mtd: HashMap<u8, HashMap<u64, Vec<(u16, f64)>>>,
 }
 
 pub fn parse_month(s: &str) -> Result<(i32, u32)> {
@@ -60,6 +66,15 @@ pub fn month_index(start: (i32, u32), ym: (i32, u32)) -> i64 {
 pub fn month_label(start: (i32, u32), idx: usize) -> String {
     let total = start.0 as i64 * 12 + start.1 as i64 - 1 + idx as i64;
     format!("{:04}-{:02}", total / 12, total % 12 + 1)
+}
+
+pub fn days_in_month(y: i32, m: u32) -> u32 {
+    match m {
+        2 if (y % 4 == 0 && y % 100 != 0) || y % 400 == 0 => 29,
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    }
 }
 
 pub fn current_version(gold: &Path) -> Result<String> {
@@ -137,6 +152,47 @@ impl Data {
             misses.push(MissBin { model: r.get(0)?, lo: r.get(1)?, hi: r.get(2)?, q10: r.get(3)?, q90: r.get(4)? });
         }
 
-        Ok(Self { version: version.to_string(), dir, manifest, validation, start, n_months, resolutions, cells, status, misses })
+        // Older manifests have no `through`: the series then ends on its last month's last day.
+        let through = match manifest["through"].as_str() {
+            Some(t) => t.to_string(),
+            None => {
+                let (y, m) = parse_month(&month_label(start, n_months - 1))?;
+                format!("{y:04}-{m:02}-{:02}", days_in_month(y, m))
+            }
+        };
+        let in_progress = match manifest["in_progress"].as_object() {
+            Some(ip) => {
+                let ym = parse_month(ip.get("month").and_then(|v| v.as_str()).context("in_progress.month")?)?;
+                let days = ip.get("days").and_then(|v| v.as_u64()).context("in_progress.days")? as u32;
+                Some((month_index(start, ym) as usize, days))
+            }
+            None => None,
+        };
+        let mut mtd = HashMap::new();
+        if let Some((idx, _)) = in_progress {
+            let month = month_label(start, idx)[5..].parse::<u32>()?;
+            for &res in &resolutions {
+                let mut stmt = con.prepare(&format!(
+                    "SELECT cell, year, value FROM read_parquet('{}')",
+                    dir.join(format!("mtd_res{res}.parquet")).display()
+                ))?;
+                let mut map: HashMap<u64, Vec<(u16, f64)>> = HashMap::new();
+                let mut rows = stmt.query([])?;
+                while let Some(r) = rows.next()? {
+                    let y: i16 = r.get(1)?;
+                    let i = month_index(start, (y as i32, month));
+                    if i < 0 || i as usize >= n_months {
+                        continue;
+                    }
+                    map.entry(r.get(0)?).or_default().push((i as u16, r.get::<_, f32>(2)? as f64));
+                }
+                mtd.insert(res, map);
+            }
+        }
+
+        Ok(Self {
+            version: version.to_string(), dir, manifest, validation, start, n_months, resolutions, cells, status, misses,
+            through, in_progress, mtd,
+        })
     }
 }

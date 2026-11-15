@@ -2,7 +2,7 @@
 
 **Challenge:** NASA Space Apps 2026, *Harmonization of MODIS and VIIRS Hot Spots*.
 **Shape:** offline Python + DuckDB pipeline → versioned Parquet → Rust (axum) API → SvelteKit static frontend.
-**Status:** design only, 2026-11-14. The method is tested on Argentina (`science/rule_checks/`) and its keep/reject rules are fixed in `PREREGISTRATION.md`. No pipeline, API or app code exists yet.
+**Status:** prototype for Argentina, 2026-11-14. The method is tested in `science/rule_checks/` with its keep/reject rules fixed in `PREREGISTRATION.md`; the pipeline (`pipeline/`), API (`api/`) and app (`web/`) run end to end, including recent days from the FIRMS API and the in-progress month comparison. The rest of this document is the design for the global version.
 
 ## 1. Challenge objectives → where they are met
 

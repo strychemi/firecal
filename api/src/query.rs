@@ -46,6 +46,7 @@ pub struct MonthOut {
     pub days: u8,
     pub days_with_data: u8,
     pub complete: bool,
+    pub in_progress: bool,
 }
 
 fn round(x: f64, dp: i32) -> f64 {
@@ -179,7 +180,13 @@ fn median(v: &mut [f64]) -> f64 {
     if n % 2 == 1 { v[n / 2] } else { (v[n / 2 - 1] + v[n / 2]) / 2.0 }
 }
 
-fn stats(series: &[MonthOut], selected: &str, baseline: &str) -> Result<Value> {
+/// "November 1–13" (or "November 1" for one day).
+fn days_label(mname: &str, days: u32) -> String {
+    if days == 1 { format!("{mname} 1") } else { format!("{mname} 1–{days}") }
+}
+
+/// `to_date`: Some((through, D)) when `series` values are days 1..D of the in-progress month.
+fn stats(series: &[MonthOut], selected: &str, baseline: &str, to_date: Option<(&str, u32)>) -> Result<Value> {
     let cur = series.iter().find(|m| m.month == selected).with_context(|| format!("month {selected} is outside the series"))?;
     let mon = &selected[5..];
     let others: Vec<&MonthOut> =
@@ -204,15 +211,18 @@ fn stats(series: &[MonthOut], selected: &str, baseline: &str) -> Result<Value> {
         _ => "much higher than usual",
     });
     let mname = MONTHS[mon.parse::<usize>()? - 1];
-    let name = format!("{mname} {}", &selected[..4]);
+    let (name, usual, same) = match to_date {
+        Some((_, d)) => (format!("{}, {}", days_label(mname, d), &selected[..4]), days_label(mname, d), "the same days are"),
+        None => (format!("{mname} {}", &selected[..4]), mname.to_string(), "the same month is"),
+    };
     let word = if baseline == "median" { "median" } else { "average" };
     let sentence = match ratio {
         _ if cur.value == 0.0 && base == 0.0 => {
-            format!("No fire was detected in {name}, and the same month is usually fire-free here.")
+            format!("No fire was detected in {name}, and {same} usually fire-free here.")
         }
-        None => format!("{name} had {} fire-days; the same month is usually fire-free here.", thousands(cur.value)),
+        None => format!("{name} had {} fire-days; {same} usually fire-free here.", thousands(cur.value)),
         Some(r) => format!(
-            "{name} had {} fire-days, {r:.1}× the usual {mname} ({word} of {n} years), {} highest of {} years.",
+            "{name} had {} fire-days, {r:.1}× the usual {usual} ({word} of {n} years), {} highest of {} years.",
             thousands(cur.value),
             ordinal(rank),
             n + 1
@@ -224,7 +234,7 @@ fn stats(series: &[MonthOut], selected: &str, baseline: &str) -> Result<Value> {
         "baseline": baseline, "baseline_value": round(base, 2),
         "baseline_years": others.iter().map(|m| m.month[..4].parse::<i32>().unwrap_or(0)).collect::<Vec<_>>(),
         "ratio": ratio.map(|r| round(r, 3)), "rank": rank, "of": n + 1, "percentile": pct,
-        "category": category, "sentence": sentence,
+        "category": category, "sentence": sentence, "through": to_date.map(|(t, _)| t),
     }))
 }
 
@@ -303,9 +313,32 @@ pub fn query(data: &Data, presets: &[Preset], max_hex: usize, req: &QueryRequest
                 days: st.days,
                 days_with_data: st.days_with_data,
                 complete: st.days_with_data == st.days,
+                in_progress: data.in_progress.is_some_and(|(ip, _)| ip == i),
             }
         })
         .collect();
+
+    // The in-progress month is compared on days 1..D: every year's same-month value becomes its month to date.
+    let mut compared = series.clone();
+    let to_date = match data.in_progress {
+        Some((ip, days)) if ip as i64 == sel_idx => {
+            let mtd = data.mtd.get(&res).context("month-to-date level not loaded")?;
+            let mut sums = vec![0f64; data.n_months];
+            for cell in &cells {
+                for &(i, v) in mtd.get(&u64::from(*cell)).map(Vec::as_slice).unwrap_or(&[]) {
+                    sums[i as usize] += v;
+                }
+            }
+            let mon = &selected[5..];
+            for (i, m) in compared.iter_mut().enumerate() {
+                if &m.month[5..] == mon {
+                    m.value = round(sums[i], 2);
+                }
+            }
+            Some((data.through.as_str(), days))
+        }
+        _ => None,
+    };
 
     let shown: Vec<&MonthOut> = series.iter().filter(|m| m.month >= start && m.month <= end).collect();
     let outline: Vec<[f64; 2]> = ring.iter().map(|&(x, y)| [round(x, 5), round(y, 5)]).collect();
@@ -313,7 +346,7 @@ pub fn query(data: &Data, presets: &[Preset], max_hex: usize, req: &QueryRequest
         "data_version": data.version,
         "area": {"resolution": res, "hexagons": cells.len(), "active_hexagons": active, "ring": outline},
         "start": start, "end": end, "months": shown,
-        "stats": stats(&series, &selected, &baseline)?,
+        "stats": stats(&compared, &selected, &baseline, to_date)?,
         "cells": hexes,
     }))
 }
@@ -332,6 +365,7 @@ pub fn meta(data: &Data, presets: &[Preset], export_limit: usize) -> Value {
     }
     json!({
         "data_version": data.version, "series_start": m["series_start"], "series_end": m["series_end"],
+        "through": data.through, "in_progress": m["in_progress"],
         "unit": m["unit"], "region": m["region"], "eras": m["eras"], "gaps": m["gaps"],
         "days_filled_by": m["days_filled_by"], "validation": validation, "presets": presets,
         "export_limit": export_limit,

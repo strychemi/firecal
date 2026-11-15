@@ -125,4 +125,4 @@ Any change to a rule, pass mark or definition is added below with the date, the 
 
 | Date | Change | Reason | Before or after seeing affected results |
 |---|---|---|---|
-| | | | |
+| 2026-11-14 | Near-real-time (NRT) hotspots, used only for days after the yearly archive, have no FIRMS `type`. For those rows the `type = 0` filter is replaced by a stand-in: drop detections in H3 res-8 cells where at least half of the archive detections had `type` ≠ 0. Standard-processing rows keep the `type = 0` filter. | FIRMS NRT files omit `type`. Built from 2012–2022 and applied to 2023–2025 VIIRS, the stand-in removes 83 % of the detections `type` removes and wrongly drops 0.2 % of vegetation detections. | After: the 2023–2025 check above was run to choose the 50 % threshold. No pass/fail test uses NRT data. |
