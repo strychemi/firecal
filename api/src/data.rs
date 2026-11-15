@@ -68,6 +68,15 @@ pub fn month_label(start: (i32, u32), idx: usize) -> String {
     format!("{:04}-{:02}", total / 12, total % 12 + 1)
 }
 
+pub fn days_in_month(y: i32, m: u32) -> u32 {
+    match m {
+        2 if (y % 4 == 0 && y % 100 != 0) || y % 400 == 0 => 29,
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    }
+}
+
 pub fn current_version(gold: &Path) -> Result<String> {
     Ok(std::fs::read_to_string(gold.join("CURRENT")).context("reading gold/CURRENT")?.trim().to_string())
 }
@@ -143,7 +152,14 @@ impl Data {
             misses.push(MissBin { model: r.get(0)?, lo: r.get(1)?, hi: r.get(2)?, q10: r.get(3)?, q90: r.get(4)? });
         }
 
-        let through = manifest["through"].as_str().map(str::to_string).unwrap_or_else(|| format!("{}-31", month_label(start, n_months - 1)));
+        // Older manifests have no `through`: the series then ends on its last month's last day.
+        let through = match manifest["through"].as_str() {
+            Some(t) => t.to_string(),
+            None => {
+                let (y, m) = parse_month(&month_label(start, n_months - 1))?;
+                format!("{y:04}-{m:02}-{:02}", days_in_month(y, m))
+            }
+        };
         let in_progress = match manifest["in_progress"].as_object() {
             Some(ip) => {
                 let ym = parse_month(ip.get("month").and_then(|v| v.as_str()).context("in_progress.month")?)?;

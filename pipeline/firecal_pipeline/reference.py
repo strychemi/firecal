@@ -3,6 +3,7 @@
 Two uses: it writes example responses the frontend is built against (web/static/example/), and it
 is the oracle the Rust API is tested against (tests compare both on the same requests).
 """
+import calendar
 import json
 import math
 
@@ -99,7 +100,9 @@ class Reference:
         self.misses = duckdb.sql(f"SELECT * FROM '{self.dir}/misses.parquet'").df()
         st = duckdb.sql(f"SELECT * FROM '{self.dir}/month_status.parquet'").df()
         self.status = {f"{r.year:04d}-{r.month:02d}": r for r in st.itertuples()}
-        self.through = self.manifest.get("through") or f"{self.manifest['series_end']}-31"
+        # Older manifests have no `through`: the series then ends on its last month's last day.
+        ey, em = map(int, self.manifest["series_end"].split("-"))
+        self.through = self.manifest.get("through") or f"{ey:04d}-{em:02d}-{calendar.monthrange(ey, em)[1]:02d}"
         self.in_progress = self.manifest.get("in_progress")
 
     def meta(self) -> dict:
