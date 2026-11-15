@@ -2,10 +2,13 @@
 
 silver/cell_day.parquet   sat, d, dn, cell8, n_hot, frp       (filtered hotspots only)
 silver/coverage.parquet   sat, d, n_raw                       (any detection in the box, unfiltered)
+silver/observed.parquet   sat, r3, d, dn, src                 (outage-check units each satellite observed)
 
-A satellite with no detection anywhere in the study box on a day is treated as having no data
-that day (PREREGISTRATION.md, rule 7). Coverage is what that rule reads.
+Coverage picks the satellite for each published day: one with no detection anywhere in the study box
+that day has no data (PREREGISTRATION.md, rule 7). Observed decides which units the fit may use
+(PREREGISTRATION.md §7, 2026-11-15; see granules.py).
 """
+from . import granules
 from .config import Config, connect
 
 
@@ -22,3 +25,4 @@ def run(cfg: Config) -> None:
     for row in con.execute(f"""SELECT sat, count(*), min(d), max(d)
                                FROM read_parquet('{silver}/cell_day.parquet') GROUP BY sat ORDER BY sat""").fetchall():
         print("cell-days", *row, flush=True)
+    granules.build(cfg, con, silver)

@@ -14,6 +14,9 @@ clip_bbox = [-76.0, -56.0, -50.0, -20.0]
 # version 3 monthly files (University of Maryland), downloaded to this folder (README, MODIS labels).
 modis_labels_dir = "data/mcd14ml"
 modis_labels_through = 2017
+# NASA CMR granule records (when and where each satellite observed) for the fit years, from `granules`.
+# They decide which outage-check units both satellites observed (PREREGISTRATION.md §7, 2026-11-15).
+granules_dir = "data/granules"
 
 [filters]
 vegetation_only = true           # FIRMS type = 0

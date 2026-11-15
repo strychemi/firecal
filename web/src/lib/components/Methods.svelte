@@ -41,8 +41,8 @@
 			</p>
 			<h3>Converted to one scale</h3>
 			<p>
-				MODIS months are converted to what S-NPP VIIRS would have counted, using day and night multipliers fitted where
-				both satellites flew (2013–2022). VIIRS months are observed, not converted. On days without S-NPP data, NOAA-20
+				MODIS months are converted to what S-NPP VIIRS would have counted, using day and night multipliers fitted only on
+				places and passes both satellites observed (2013–2022), from NASA's records of where each one looked. VIIRS months are observed, not converted. On days without S-NPP data, NOAA-20
 				is counted as S-NPP: fitted multipliers (about 1.01) did not improve on that, so none is applied. Converted months carry an
 				<strong>80 % range</strong>: in tests, 8 times out of 10 the true count fell inside it.
 			</p>

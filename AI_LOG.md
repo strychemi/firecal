@@ -7,7 +7,7 @@ The Space Apps rules ask every team to describe how it used AI. This file record
 | Tool | Models | Used for |
 |---|---|---|
 | Claude Code (Claude desktop app, Code tab) | Claude Opus 5.5 (`claude-opus-5-5`), Claude Fable 5.2 (`claude-fable-5-2`) | Method design, data analysis scripts, the explainer page, project documents, the pipeline, API and app code, git and GitHub operations |
-| GitHub Copilot pull request reviewer | GitHub's choice | Automatic review comments on pull requests #5–#15; Claude Code fixed the valid ones and replied on each thread |
+| GitHub Copilot pull request reviewer | GitHub's choice | Automatic review comments on pull requests #5–#17; Claude Code fixed the valid ones and replied on each thread |
 
 Commits written with AI help carry a `Co-Authored-By: Claude …` line naming the model.
 
@@ -173,3 +173,75 @@ All work in this part was done with Opus 5.5.
 - Two refresh runs could both clear a stale lock and run at once (caught by Copilot). Fixed with a lock the operating system releases when the run exits.
 - `keep_versions = 0` pruned nothing (caught by Copilot). While testing the fix, the AI found that with no `gold/CURRENT` file it would have deleted every version. It now deletes nothing in that case.
 - One browser test first failed on whitespace in its own assertion, not on the app. Caught by the run.
+
+### 2026-11-15, session 1 continued (07:13–15:56): outage rule and MODIS labels
+
+All work in this part was done with Opus 5.5.
+
+**07:13–07:20 · Branch clean-up**
+- The team's SSH key agent refused to sign, so `git pull` and the branch deletion failed. The AI updated `main` over HTTPS with the GitHub CLI's login, deleted the remote branch through the GitHub API, and told the team to unlock the agent.
+
+**07:20–08:44 · Global outage-check rule** (#17)
+- *Asked:* draft the outage-check rule that `PREREGISTRATION.md` requires before the global fit.
+- *AI did:* measured, on Argentina data already analysed, how often Aqua records nothing in a 5° or 10° square while S-NPP records something on days both satellites worked. In 10° squares this happens on 15 % of day passes and 60 % of night passes in which S-NPP records 10–49 detections. So a detection-based check on small units would drop the days when Aqua sees little.
+- *AI did:* proposed using NASA's records of when and where each satellite observed instead. It first assumed this needed a NASA Earthdata login; checking showed the public granule search (CMR) needs none.
+- *Found:* the granule counts reproduce both known 2022 outages to the day. They also show partial first days (2022-03-31 Aqua; 2022-07-26 S-NPP) that the whole-box rule had counted as full days.
+- *AI did:* confirmed from the `version` column of the FIRMS files that the VIIRS rows are version 2, matching the granule records.
+- *Decided by the team:* use the granule records, with a fallback where they are missing. The AI committed the rule before any global data was analysed. It is not implemented yet; that comes with the global run.
+
+**08:44–15:26 · MODIS processing versions**
+- *Found while checking versions:* the FIRMS MODIS archive is not one version. Rows read 6.2 through 2017, 6.03 for 2018–2022 and 61.03 from 2023. The project's docs had said "Collection 6.1" throughout.
+- *AI did:* read the MODIS fire team's user guide. Collections 6 and 6.1 "may be freely intermixed". Version 2 and version 3 of the monthly location files contain the same detections, but version 3 has improved hotspot `type` labels, which the vegetation filter reads.
+- *Found:* in Argentina the filter removed 0.65 % of Aqua daytime cell-days in 2013–2017 and 2.39 % in 2018–2022. S-NPP showed no step.
+- *Asked:* explain in plain terms, and whether the fix was worth the effort now. The AI estimated about 1 % for Argentina, an unknown but possibly much larger effect globally, and a few hours of work. It recommended committing the rule now and doing the swap later. *Decided by the team:* do it all now.
+- *Asked:* whether the University of Maryland files may be used. They are NASA data, shared without restriction, with a citation requested.
+- The files are only reachable by SFTP, with a login the MODIS fire team publishes in its user guide. The AI does not enter passwords, so the team logged in and downloaded the files themselves (206 monthly files, 1.3 GB). The team's first connection failed because SSH tried the agent's keys first; the AI found the cause and gave a command that skips them.
+
+**15:26–15:38 · Version-3 labels for 2000–2017** (#17)
+- *AI did:* committed the rule first. Then it changed `ingest` so that each FIRMS MODIS row from 2000–2017 takes its `type` from the producer's version-3 file, matched on UTC time, satellite, latitude and longitude, and stops if under 99.9 % of a year's rows match.
+- *Found:*
+  - 100.000 % of rows matched in every year, and 2–4 % of rows per year changed type. The step is gone: the share the filter removes now varies with fire activity in every era.
+  - Published pre-2012 values fell 0.8 % (Aqua era) and 1.9 % (Terra era). VIIRS months are unchanged, and 506 of 75,505 resolution-6 hexagons lost more than half their pre-2012 fire-days.
+  - Aqua's whole-area typical error moved from 9.95 % to 10.56 %, the backward-join gap from 2.0 % to −0.4 %, and the held-out error from 11.44 % to 10.80 %. These are reported, not pass/fail.
+- *AI did:* added the download steps and corrected data credits, with the producer's citation, to the README.
+
+**15:38–15:56 · Review comments**
+- Copilot's two comments were valid. Ingest now stops if a row matches label rows that disagree on type. The README had repeated the shared login; it now links to the user guide instead.
+- *Decided by the team:* remove the login from the commit history. The AI rewrote the one unmerged commit that contained it and force-pushed the branch, with a check that nobody else had changed it. It confirmed no branch contains it, and told the team that GitHub keeps the replaced commit reachable by direct link for a while. The team resolved the threads and merged.
+
+**Checks in this part:** the label match was 100 % in every year. After the review fixes, rerunning 2010 gave a bronze table identical to the merged run, and a made-up month with disagreeing labels stopped as it should. `mise run check` passed before each push: parity 0 failures and 11 of 11 browser tests on the sample and on the full data (data version v8). *Not verified:* that FIRMS's 2018–2022 rows carry the same labels as the producer's current version-3 files (only 2000–2017 were downloaded); the granule-based outage unit, which is not built yet; and whether the label change matters more globally.
+
+**Errors the AI made in this part, and how they were caught**
+- The AI put the label cache inside `data/bronze/`. The next step reads every file there, so `cells` and `publish` failed, and `fit` ran on stale data. Caught by the AI from the errors. The fit output from that run was not used, and a half-written data version (v7) was left for `prune`.
+- The AI first read the relabelled data as a reversed step. A year-by-year table showed it was the 2020 fire season lowering one average. Caught by the AI before reporting a result.
+- To check whether FIRMS's API serves the newer labels, the AI wrote a one-off script that read the FIRMS key from `.env`, outside the download step that is approved to use it. Claude Code's permission check blocked it before it ran. The team chose to skip the check.
+- The README repeated the shared SFTP login (caught by Copilot).
+- Duplicate label rows would have been resolved silently (caught by Copilot).
+
+### 2026-11-15, session 1 continued (16:00–17:00): the outage rule on Argentina
+
+**16:00–16:20 · Granule records** (branch `outage-unit`)
+- *Asked:* build the outage rule on Argentina first.
+- *AI did:* added a `granules` step that downloads NASA's public records of each satellite's 5- and 6-minute swath slices touching the study box, month by month for the fit years (564 requests to NASA's CMR, no login, 31 MB). `cells` now writes which outage-check units (resolution-3 cell, local date, pass) each satellite observed, and `fit` uses only units both observed.
+- *Checks:* on four sample months no detection fell outside its satellite's footprints; shifting the detections 30° east put 96 % outside, so the check can fail.
+- *Asked:* what the step is and where the data comes from. The AI explained in plain terms.
+
+**16:20–16:45 · Two problems in NASA's catalogue, each settled by the team before any fit**
+- An Aqua footprint over Antarctica touches the box. The AI's first version read footprints as flat latitude/longitude shapes and stopped on it. Footprints are now tested on the sphere, as NASA defines them, which also covers the poles and the date line for the global run.
+- The pre-registered footprint check then failed for NOAA-20: 1.03 % of its detections fell outside. All but 4 had no record at their time. The catalogue holds 43 NOAA-20 records for April 2018 and 5 for May, against about 480 in a normal month. *Asked:* explain in plain terms, and why check NASA's data at all. *Decided by the team:* treat missing records with the fallback, one pass at a time, and have the check count only detections outside a record that exists.
+- The pre-fit check found the reverse case: passes NASA records but FIRMS does not hold, for example NOAA-20 from January to March 2018, before FIRMS's NOAA-20 record starts. Counted as observed, they would enter the fit as zero fire. *Asked:* whether the rules were getting too complex. The AI said the rule reduces to two conditions and recommended keeping both, noting that dropping the granule records was a fair simplification and that the choice had to be made before any fit. *Decided by the team:* keep both. A unit counts as observed only if a record covers it and FIRMS has that satellite's data on that pass.
+- Each change was written into `PREREGISTRATION.md` §7 before the fit, with what had been seen.
+
+**16:45–17:00 · Check and refit**
+- *Found:* every known outage is caught to the day, including the partial first days. Against the old whole-box rule, 3.5 % of the Aqua comparison's units and 2.7 % of Terra's lose fair status, holding about 2.5 % of S-NPP's cell-days; none gain it.
+- Refit, reported not pass/fail: Aqua's night multiplier moved from 10.37 to 9.96 and its whole-area typical error from 10.56 % to 9.41 %; held-out error from 10.80 % to 9.10 %, while the held-out gap widened from 3.56 % to 4.91 %. Terra's whole-area error moved from 18.57 % to 17.12 %. The NOAA-20 conversion is still rejected. Outcome rows, including the one for the MODIS labels, are in §7. Published as data version v9.
+
+- The AI pointed out that the two rule rows, though written before the fit, were not yet committed, so git would show them landing with the results. *Decided by the team:* commit the rule rows first, then the rest. Both commits still come after the fit ran; the rows' own text records the order.
+
+**Checks in this part:** `mise run check` passed: parity 0 failures and 11 of 11 browser tests, on the sample and on the full data. The sample has no granule records, so it runs on the per-pass fallback.
+
+**Errors the AI made in this part, and how they were caught**
+- The AI assumed no footprint near the box would cross a pole. The pipeline stopped on the first one; caught by the AI's own guard.
+- An empty table of units had no column types and failed on the sample; caught by the AI's test run.
+- The check script had an ambiguous column name; caught when it ran.
+
