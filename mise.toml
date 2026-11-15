@@ -1,0 +1,90 @@
+# Tool versions and tasks for firecal (https://mise.jdx.dev).
+#   mise install        install the pinned tools
+#   mise tasks          list the tasks below
+#   mise run <task>     run one, e.g. `mise run check`
+#
+# .env (the FIRMS MAP_KEY) is deliberately not loaded here: only the download step reads it.
+
+[tools]
+node = "24.19.0"
+pnpm = "11.21.0"
+rust = "1.98.0"
+uv = "0.13.7"
+python = "3.13"   # the pipeline's interpreter; uv creates pipeline/.venv from it
+
+# ---- setup ---------------------------------------------------------------------------------------
+
+[tasks.setup]
+description = "Install the frontend and pipeline dependencies"
+run = [
+  "pnpm --dir web install --frozen-lockfile",
+  "uv --directory pipeline sync --locked",
+]
+
+# ---- data ----------------------------------------------------------------------------------------
+
+[tasks.data]
+description = "Build the published data from the FIRMS zips (and any downloaded recent days)"
+dir = "{{config_root}}/pipeline"
+run = "uv run python -m firecal_pipeline all"
+
+[tasks.download]
+description = "Download recent days from the FIRMS API (needs FIRMS_MAP_KEY in .env)"
+dir = "{{config_root}}/pipeline"
+run = "uv run python -m firecal_pipeline download"
+
+[tasks.refresh]
+description = "Bring the data up to date: download recent days, then rebuild"
+run = [
+  { task = "download" },
+  { task = "data" },
+]
+
+[tasks.example]
+description = "Rewrite the example API responses in web/static/example from the current data"
+dir = "{{config_root}}/pipeline"
+run = "uv run python -m firecal_pipeline example"
+
+# ---- api -----------------------------------------------------------------------------------------
+
+[tasks."api:build"]
+description = "Build the Rust API (release)"
+run = "cargo build --release --locked --manifest-path api/Cargo.toml"
+
+[tasks.api]
+description = "Run the API on 127.0.0.1:8080; it also serves the built frontend"
+depends = ["api:build"]
+run = "api/target/release/firecal-api"
+
+# ---- web -----------------------------------------------------------------------------------------
+
+[tasks."web:dev"]
+description = "Frontend dev server, using the API on :8080"
+dir = "{{config_root}}/web"
+run = "pnpm dev"
+
+[tasks."web:examples"]
+description = "Frontend dev server on the saved example responses (no API needed)"
+dir = "{{config_root}}/web"
+run = "pnpm dev:examples"
+
+[tasks."web:check"]
+description = "Type-check the frontend"
+dir = "{{config_root}}/web"
+run = "pnpm check"
+
+[tasks."web:build"]
+description = "Build the frontend into web/build"
+dir = "{{config_root}}/web"
+run = "pnpm build"
+
+# ---- checks --------------------------------------------------------------------------------------
+
+[tasks.parity]
+description = "Compare the running API on :8080 with the Python reference"
+dir = "{{config_root}}/pipeline"
+run = "uv run python tests/test_api_parity.py http://127.0.0.1:8080"
+
+[tasks.check]
+description = "All checks before a pull request (frontend, API, sample pipeline, parity); see scripts/check.sh"
+run = "scripts/check.sh"
