@@ -105,3 +105,29 @@ All work in this part was done with Opus 5.5. The session's context was summaris
 - The export could write an empty `hex_id` for an invalid cell (caught by Copilot). The AI's first fix rejected every cell, because the validity check was given a number instead of a string; caught by the AI's own test.
 - A fallback end date could be invalid, such as 31 February (caught by Copilot); fixed in both APIs.
 - Browser screenshots sometimes showed stale pages. The AI rechecked through page scripts instead of trusting them.
+
+### 2026-11-15, session 1 continued (04:20–04:40): documents and the NOAA-20 check
+
+All work in this part was done with Opus 5.5.
+
+**04:20–04:22 · This log and the architecture** (#10)
+- *Asked:* do the important follow-ups in the suggested order, checking in along the way. The AI began preparing a public demo. *Decided by the team:* set the demo aside for later.
+- *AI did:* added the build-out entry above, listed the Copilot reviewer as a tool, and corrected the key-handling note. In `ARCHITECTURE.md` it updated file and step names and marked where the prototype differs from the global design.
+
+**04:22–04:29 · NOAA-20 against S-NPP** (#11)
+- *Why:* S-NPP's near-real-time feed ended on 2026-11-02, so recent months are counted from NOAA-20 alone, treated as S-NPP with no conversion. The two had never been compared.
+- *Decided by the team:* fix the keep/reject rule before fitting. The AI proposed the rule (the margins of pre-registered rules 1 and 2, against no conversion). It committed the rule to `PREREGISTRATION.md` before running any NOAA-20 fit.
+- *AI did:* fitted NOAA-20 with the same model as Aqua on 2018–2022, leaving one year out.
+- *Found:* NOAA-20 and S-NPP count almost the same (multipliers 1.006 by day, 1.008 at night). With no conversion the typical error is 2.54 % for the whole area and 8.19 % for small areas. The fitted conversion made small areas 0.22 points worse, so the rule rejected it and NOAA-20 stays unconverted. On held-out 2023–2025 (reported only), the whole-area error was 2.34 % without conversion and 1.83 % with it.
+- *AI did:* recorded the outcome under the rule. The methods page and the API's `meta` now show NOAA-20's scores as used, without conversion. Published counts did not change (row for row).
+
+**04:29–04:38 · Review comments**
+- Copilot's four comments were all valid; the AI fixed them, replied on each thread and resolved it. The team merged #10 and #11.
+
+**Checks in this part:** the Aqua and Terra fit results reproduced exactly. The parity test passed (0 failures). After the review fixes, `validation.json` was byte-identical and the published data matched row for row. *Not tested:* the publish path for a NOAA-20 conversion the rule keeps, since none was kept.
+
+**Errors the AI made in this part, and how they were caught**
+- The first run of the new fit code crashed on a variable the AI had moved. Caught by the run; fixed before any result was used.
+- The methods page would have listed NOAA-20 under "Converted satellite" with the scores of the rejected conversion. Caught by the AI before committing.
+- The publish step still gave NOAA-20 a fixed multiplier of 1, so a conversion the rule kept would have been silently ignored (caught by Copilot).
+- `ARCHITECTURE.md` presented the global endpoint table without saying so, and wrote `gold/current` for the real `gold/CURRENT` file (caught by Copilot).
