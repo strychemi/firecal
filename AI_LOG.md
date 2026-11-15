@@ -312,3 +312,6 @@ All work in this part was done with Opus 5.5.
 
 **Errors the AI made in this part, and how they were caught**
 - None found in the results. The Terra check used all cell-days rather than fair units because the global fit was using the memory; the write-up says so.
+
+**21:30 · Review comment** (#21)
+- Copilot noted that a bin can be empty if quantile edges repeat (many identical predictions), leaving its range as NaN. Valid in principle; no current table has an empty bin (Argentina 40 rows, global 240). The AI made an empty bin borrow the nearest non-empty bin's range, as the old fixed-bin table did, and checked on a forced case. Argentina's tables and validation are unchanged byte for byte.

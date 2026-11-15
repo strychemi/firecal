@@ -149,6 +149,9 @@ def bin_table(m: pd.DataFrame) -> pd.DataFrame:
     b = np.searchsorted(edges, np.log(m.pred), side="right")
     q = m.groupby(b).miss.agg(q10=lambda s: s.quantile(0.1), q90=lambda s: s.quantile(0.9), n="size")
     q = q.reindex(range(N_BINS))
+    ok = q.index[q.n.fillna(0) > 0]
+    for i in q.index[q.n.fillna(0) == 0]:  # empty bin (repeated quantile edges): borrow the nearest bin's range
+        q.loc[i, ["q10", "q90"]] = q.loc[ok[np.argmin(np.abs(ok - i))], ["q10", "q90"]].to_numpy()
     lo = np.concatenate([[0.0], np.exp(edges)])
     hi = np.concatenate([np.exp(edges), [np.inf]])
     return pd.DataFrame({"lo": lo, "hi": hi, "q10": q.q10.to_numpy(), "q90": q.q90.to_numpy(),
