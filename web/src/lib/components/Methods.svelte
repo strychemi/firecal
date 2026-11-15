@@ -45,7 +45,9 @@
 				places and passes both satellites observed (2013–2022), from NASA's records of where each one looked. A place where
 				neither satellite saw fire on those shared passes borrows the multiplier of the larger region around it. VIIRS months are observed, not converted. On days without S-NPP data, NOAA-20
 				is counted as S-NPP: fitted multipliers (about 1.01) did not improve on that, so none is applied. Converted months carry an
-				<strong>80 % range</strong>: in tests, 8 times out of 10 the true count fell inside it.
+				<strong>80 % range</strong>, built for the size of the area searched: in tests on years left out, the true
+				count fell inside it 8 times out of 10 for areas from about 1,500 km² to 2° squares (about 40,000 km²), and about 7
+				times out of 10 for the whole study area, where 12 months a year make the figure rough.
 			</p>
 		</div>
 		<div>

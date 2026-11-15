@@ -126,11 +126,16 @@ class Reference:
                 "presets": [{k: p[k] for k in ("id", "name", "note", "bbox")} for p in self.presets.values()],
                 "export_limit": int(self.cfg["api"].get("max_export_rows", 250000))}
 
-    def range_for(self, source: str, value: float):
+    def range_for(self, source: str, value: float, area_km2: float):
+        """80 % range: the miss table of the size of area nearest the search's area on a log scale
+        (PREREGISTRATION.md §7, 2026-11-15), and the bin containing value."""
         model = MODEL_OF.get(source)
         if model is None or value <= 0:
             return None, None
-        t = self.misses[(self.misses.model == model) & (self.misses.lo <= value) & (value < self.misses.hi)].iloc[0]
+        m = self.misses[self.misses.model == model]
+        sizes = m.drop_duplicates("size")
+        size = sizes.iloc[int(np.argmin(np.abs(np.log(sizes.area_km2.to_numpy()) - math.log(area_km2))))]["size"]
+        t = m[(m["size"] == size) & (m.lo <= value) & (value < m.hi)].iloc[0]
         return value * math.exp(t.q10), value * math.exp(t.q90)
 
     def query(self, req: dict) -> dict:
@@ -138,6 +143,7 @@ class Reference:
         ring = area_ring(req["area"], self.presets)
         res, cells = area_cells(ring, self.manifest["resolutions"], int(api["max_hexagons"]))
         ids = [h3.str_to_int(c) for c in cells]
+        area_km2 = sum(h3.cell_area(c, unit="km^2") for c in cells)
         con = duckdb.connect()
         con.execute("CREATE TABLE sel(cell UBIGINT)")
         con.executemany("INSERT INTO sel VALUES (?)", [[i] for i in ids])
@@ -163,7 +169,7 @@ class Reference:
         for mo in month_range(self.manifest["series_start"], self.manifest["series_end"]):
             s, r = self.status[mo], by_month.get(mo)
             value = float(r.value) if r is not None else 0.0
-            lo, hi = self.range_for(s.source, value)
+            lo, hi = self.range_for(s.source, value, area_km2)
             series.append({"month": mo, "source": s.source, "value": round(value, 2),
                            "lower": None if lo is None else round(lo, 2), "upper": None if hi is None else round(hi, 2),
                            "raw": int(r.raw) if r is not None else 0,

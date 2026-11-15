@@ -26,6 +26,9 @@ pub struct MonthStatus {
 #[derive(Debug, Clone)]
 pub struct MissBin {
     pub model: String,
+    /// Size of area this table is for (r4, r3, block, region) and its typical area in km².
+    pub size: String,
+    pub area_km2: f64,
     pub lo: f64,
     pub hi: f64,
     pub q10: f64,
@@ -144,12 +147,20 @@ impl Data {
 
         let mut misses = Vec::new();
         let mut stmt = con.prepare(&format!(
-            "SELECT model, lo, hi, q10, q90 FROM read_parquet('{}')",
+            "SELECT model, size, area_km2, lo, hi, q10, q90 FROM read_parquet('{}')",
             dir.join("misses.parquet").display()
         ))?;
         let mut rows = stmt.query([])?;
         while let Some(r) = rows.next()? {
-            misses.push(MissBin { model: r.get(0)?, lo: r.get(1)?, hi: r.get(2)?, q10: r.get(3)?, q90: r.get(4)? });
+            misses.push(MissBin {
+                model: r.get(0)?,
+                size: r.get(1)?,
+                area_km2: r.get(2)?,
+                lo: r.get(3)?,
+                hi: r.get(4)?,
+                q10: r.get(5)?,
+                q90: r.get(6)?,
+            });
         }
 
         // Older manifests have no `through`: the series then ends on its last month's last day.

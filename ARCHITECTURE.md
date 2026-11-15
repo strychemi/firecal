@@ -80,7 +80,7 @@ SvelteKit static build (served by the same Rust binary) ── MapLibre map + ch
 | `monthly_res4.parquet`, `monthly_res5.parquet`, `monthly_res6.parquet` | One row per hexagon per month with any fire, sorted by cell: `cell, year, month, source, value, raw, detections, frp`. `value` is VIIRS-equivalent burning cell-days; `raw` is the source satellite's own count; `detections` is its hotspot count. |
 | `mtd_res4.parquet`, `mtd_res5.parquet`, `mtd_res6.parquet` | `cell, year, value` for days 1–D of the in-progress month, in every year. Absent when no month is in progress. |
 | `month_status.parquet` | Per month: source, days in the month, days with satellite data, days filled by a fallback satellite. Marks incomplete and in-progress months. |
-| `misses.parquet` | Past misses `ln(V / V̂)` by predicted-count bin, from leave-one-year-out. Used to build error ranges for any area. |
+| `misses.parquet` | 80 % ranges from leave-one-year-out misses `ln(V / V̂)`: one table per size of area (res-4 cell, res-3 cell, 2° block, study area) with its typical area, 5 bins of predicted count each (`PREREGISTRATION.md` §7). |
 | `hotspots.parquet` | Filtered hotspot rows with their level 4–6 hexagons and an `in_calendar` flag, for the CSV export. Prototype: one file (161 MB for Argentina); split by year and coarse parent hexagon before going global. |
 | `model.json`, `validation.json` | Multipliers and test results, shown on the methods page. |
 | `manifest.json` | Data version, coverage dates (including `through`, the last day with data, and `in_progress`), satellites and outages filled, input file checksums, model version. |
@@ -113,7 +113,7 @@ An **area** is a GeoJSON polygon, a box, or a point and radius.
 1. Turn the area into hexagons. Use the finest level that keeps it under about 3,000 hexagons (res 6 for a province, res 4 for a continent). Cache the result keyed by a hash of the shape.
 2. Sum those hexagons' rows into one monthly series.
 3. Compute the stats on that series: same month in earlier years, median or mean, rank, ratio.
-4. Build the 80 % range from `misses.parquet`, using the area's own predicted total.
+4. Build the 80 % range from `misses.parquet`: the table for the size of area nearest the search's area, and the bin of the area's own predicted total.
 
 **Design choices**
 

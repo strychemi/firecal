@@ -16,7 +16,8 @@ standin_areas: a res-3 area with no fair cell-days on a pass uses its res-2 pare
 
 model/model.json        multipliers used by publish
 model/validation.json   leave-one-year-out scores, tilt, backward join, held-out years
-model/misses.parquet    past misses ln(V / V_hat) by predicted-count bin (10th/90th percentiles)
+model/misses.parquet    80 % ranges: per size of area (res-4, res-3, 2° block, study area) with its typical
+                        area, 5 bins of predicted count, 10th/90th percentiles of past misses ln(V / V_hat)
 """
 import json
 
@@ -31,9 +32,9 @@ FIRST_YEAR = {"noaa20": 2018}  # NOAA-20 data starts 2018-04-01
 # at least this much on the small-area score and is no worse than this on the whole-area score.
 KEEP_SMALL_GAIN, MAX_WHOLE_LOSS = 0.5, 2.0
 IDENTITY = {"region": {"D": 1.0, "N": 1.0}, "strata": {}}
-LEVELS = ("r4", "r3", "block", "region")  # aggregation levels pooled for the miss table
-BIN_EDGES = [0, 10, 30, 100, 300, 1000, 3000, 10000, 30000, np.inf]
-MIN_BIN_N = 30
+LEVELS = ("r4", "r3", "block", "region")  # sizes of area, each with its own miss table
+N_BINS = 5  # quintiles of ln V_hat within each size (rule 5; PREREGISTRATION.md §7, 2026-11-15)
+EARTH_R_KM = 6371.0088
 
 
 def fair_ctes(silver, model: str) -> str:
@@ -142,26 +143,58 @@ def misses(p: pd.DataFrame) -> pd.DataFrame:
 
 
 def bin_table(m: pd.DataFrame) -> pd.DataFrame:
-    m = m.assign(bin=pd.cut(m.pred, BIN_EDGES, right=False, labels=False))
-    q = m.groupby("bin").miss.agg(q10=lambda s: s.quantile(0.1), q90=lambda s: s.quantile(0.9), n="size")
-    q = q.reindex(range(len(BIN_EDGES) - 1))
-    ok = q.index[q.n.fillna(0) >= MIN_BIN_N]
-    for b in q.index[q.n.fillna(0) < MIN_BIN_N]:  # borrow from the nearest bin with enough months
-        near = ok[np.argmin(np.abs(ok - b))]
-        q.loc[b, ["q10", "q90"]] = q.loc[near, ["q10", "q90"]]
-    q["lo"], q["hi"] = BIN_EDGES[:-1], BIN_EDGES[1:]
-    return q.reset_index()[["lo", "hi", "q10", "q90", "n"]].fillna({"n": 0})
+    """80 % ranges for one size of area: 5 bins at the quintiles of ln V_hat, 10th/90th percentile of the
+    miss in each (rule 5's method). lo/hi are V_hat edges; the outer bins are open."""
+    edges = np.quantile(np.log(m.pred), np.linspace(0, 1, N_BINS + 1)[1:-1])
+    b = np.searchsorted(edges, np.log(m.pred), side="right")
+    q = m.groupby(b).miss.agg(q10=lambda s: s.quantile(0.1), q90=lambda s: s.quantile(0.9), n="size")
+    q = q.reindex(range(N_BINS))
+    lo = np.concatenate([[0.0], np.exp(edges)])
+    hi = np.concatenate([np.exp(edges), [np.inf]])
+    return pd.DataFrame({"lo": lo, "hi": hi, "q10": q.q10.to_numpy(), "q90": q.q90.to_numpy(),
+                         "n": q.n.fillna(0).astype(int).to_numpy()})
+
+
+def size_tables(m: pd.DataFrame, areas: dict) -> pd.DataFrame:
+    """One bin table per size of area, with that size's typical area (km²)."""
+    return pd.concat([bin_table(m[m.level == lv]).assign(size=lv, area_km2=areas[lv]) for lv in LEVELS],
+                     ignore_index=True)
 
 
 def coverage(m: pd.DataFrame, level: str, years) -> float:
-    """Share of left-out-year months inside an 80 % range built from the other years."""
+    """Share of left-out-year months of one size inside an 80 % range built from the other years' months
+    of that size."""
     inside = []
     for y in years:
-        t = bin_table(m[(m.y != y)])
+        t = bin_table(m[(m.y != y) & (m.level == level)])
         h = m[(m.y == y) & (m.level == level)]
-        b = pd.cut(h.pred, BIN_EDGES, right=False, labels=False)
-        inside.append(((h.miss >= t.q10.values[b]) & (h.miss <= t.q90.values[b])).mean())
+        if h.empty:
+            continue
+        b = np.searchsorted(t.hi.to_numpy()[:-1], h.pred.to_numpy(), side="right")
+        inside.append(((h.miss >= t.q10.to_numpy()[b]) & (h.miss <= t.q90.to_numpy()[b])).mean())
     return round(float(np.mean(inside)) * 100, 1)
+
+
+def typical_areas(g: pd.DataFrame) -> dict:
+    """Median area (km²) of the units of each size in the study area; the whole area for "region"."""
+    con = connect()
+    cell_km2 = lambda cells: con.execute(
+        "SELECT h3_cell_area(h3_string_to_h3(c), 'km^2') FROM unnest(?) t(c)", [list(cells)]).df().iloc[:, 0]
+    r3 = cell_km2(g.r3.unique())
+    b = g[["blat", "blon"]].drop_duplicates()
+    block = EARTH_R_KM ** 2 * np.radians(2) * (np.sin(np.radians(2 * b.blat + 2)) - np.sin(np.radians(2 * b.blat)))
+    return {"r4": round(float(cell_km2(g.r4.unique()).median()), 1), "r3": round(float(r3.median()), 1),
+            "block": round(float(block.median()), 1), "region": round(float(r3.sum()), 1)}
+
+
+COVERAGE_MARKS = (75.0, 85.0)  # rule 5, by size of area (PREREGISTRATION.md §7, 2026-11-15)
+
+
+def coverage_by_size(mm: pd.DataFrame, cal) -> dict:
+    out = {lv: coverage(mm, lv, cal) for lv in LEVELS}
+    out["status"] = "pass" if all(COVERAGE_MARKS[0] <= out[lv] <= COVERAGE_MARKS[1]
+                                  for lv in ("r4", "r3", "block")) else "fail"
+    return out
 
 
 def fittable(g: pd.DataFrame, model: str, cal) -> bool:
@@ -205,8 +238,7 @@ def fit_area(g_all: dict, cfg: Config, label: str, area: str = "study_area") -> 
             "leave_one_year_out": {"whole_area": typical_error(loyo, "region", 100),
                                    "small_area_2deg": typical_error(loyo, "block", 50),
                                    "tilt": tilt(loyo), "gap_pct": gap(loyo),
-                                   "range_coverage_pct": {"r4": coverage(mm, "r4", cal),
-                                                          "block": coverage(mm, "block", cal)}},
+                                   "range_coverage_pct": coverage_by_size(mm, cal)},
             "backward_join": {"fit": [cal[half], cal[-1]], "predict": [cal[0], cal[half - 1]], "gap_pct": gap(back)},
             "held_out": {"years": held, "whole_area": typical_error(test, "region", 100), "gap_pct": gap(test)},
         }
@@ -236,7 +268,7 @@ def fit_area(g_all: dict, cfg: Config, label: str, area: str = "study_area") -> 
         if "parents" in final:
             models[model]["parents"] = {dn: {s: round(r, 4) for s, r in d.items()} for dn, d in final["parents"].items()}
         if model != "noaa20":  # VIIRS months carry no error range
-            tables.append(bin_table(mm).assign(model=model))
+            tables.append(size_tables(mm, typical_areas(g)).assign(model=model))
         print(label, model, json.dumps(validation[model]["leave_one_year_out"]), "multipliers", models[model]["region"], flush=True)
     return models, validation, tables
 
@@ -256,7 +288,7 @@ def run(cfg: Config) -> None:
         if parent_k(cfg, "study_area") is not None:
             model_json["parent_k"] = parent_k(cfg, "study_area")
         model_json["models"] = models
-        misses_df = pd.concat(tables)[["model", "lo", "hi", "q10", "q90", "n"]]
+        misses_df = pd.concat(tables)[["model", "size", "area_km2", "lo", "hi", "q10", "q90", "n"]]
     else:
         model_json["continents"], validation, tables = {}, {"continents": {}}, []
         for c in areas:
@@ -267,7 +299,7 @@ def run(cfg: Config) -> None:
                 model_json["continents"][c]["parent_k"] = parent_k(cfg, c)
             validation["continents"][c] = val
             tables += [t.assign(continent=c) for t in tab]
-        misses_df = pd.concat(tables)[["continent", "model", "lo", "hi", "q10", "q90", "n"]]
+        misses_df = pd.concat(tables)[["continent", "model", "size", "area_km2", "lo", "hi", "q10", "q90", "n"]]
     (out_dir / "model.json").write_text(json.dumps(model_json, indent=1))
     (out_dir / "validation.json").write_text(json.dumps(validation, indent=1))
     misses_df.to_parquet(out_dir / "misses.parquet", index=False)
