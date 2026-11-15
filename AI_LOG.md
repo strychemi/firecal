@@ -110,11 +110,11 @@ All work in this part was done with Opus 5.5. The session's context was summaris
 
 All work in this part was done with Opus 5.5.
 
-**04:20–04:29 · This log and the architecture** (#10)
+**04:20–04:22 · This log and the architecture** (#10)
 - *Asked:* do the important follow-ups in the suggested order, checking in along the way. The AI began preparing a public demo. *Decided by the team:* set the demo aside for later.
 - *AI did:* added the build-out entry above, listed the Copilot reviewer as a tool, and corrected the key-handling note. In `ARCHITECTURE.md` it updated file and step names and marked where the prototype differs from the global design.
 
-**04:20–04:29 · NOAA-20 against S-NPP** (#11)
+**04:22–04:29 · NOAA-20 against S-NPP** (#11)
 - *Why:* S-NPP's near-real-time feed ended on 2026-11-02, so recent months are counted from NOAA-20 alone, treated as S-NPP with no conversion. The two had never been compared.
 - *Decided by the team:* fix the keep/reject rule before fitting. The AI proposed the rule (the margins of pre-registered rules 1 and 2, against no conversion). It committed the rule to `PREREGISTRATION.md` before running any NOAA-20 fit.
 - *AI did:* fitted NOAA-20 with the same model as Aqua on 2018–2022, leaving one year out.
