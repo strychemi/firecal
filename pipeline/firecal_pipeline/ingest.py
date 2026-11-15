@@ -125,17 +125,21 @@ def ingest_recent(cfg: Config, product: str, availability: dict, static: pathlib
     con = connect()
     con.execute(f"CREATE TABLE static AS SELECT cell8 FROM '{static}'")
     names = ", ".join(f"'{p}'" for p in files)
+    csv = f"""read_csv([{names}], header = true, union_by_name = true,
+                       types = {{'acq_time': 'VARCHAR', 'acq_date': 'VARCHAR', 'confidence': 'VARCHAR',
+                                 'satellite': 'VARCHAR', 'daynight': 'VARCHAR'}})"""
+    # Only standard-processing files have `type`; when every file is near-real-time the column is absent.
+    has_type = "type" in {r[0] for r in con.execute(f"DESCRIBE SELECT * FROM {csv}").fetchall()}
+    type_col = "TRY_CAST(type AS INTEGER)" if has_type else "CAST(NULL AS INTEGER)"
     con.execute(f"""
         CREATE TABLE b AS
         WITH raw AS (
             SELECT {PRODUCTS[product][1]} AS sat, latitude AS lat, longitude AS lon, t AS acq_utc,
                    CAST(t + to_seconds(CAST(round(longitude / 15.0 * 3600) AS BIGINT)) AS DATE) AS local_date,
-                   daynight AS dn, frp, confidence, TRY_CAST(type AS INTEGER) AS type,
+                   daynight AS dn, frp, confidence, {type_col} AS type,
                    h3_latlng_to_cell(latitude, longitude, {res}) AS cell8
             FROM (SELECT *, strptime(acq_date || ' ' || lpad(acq_time, 4, '0'), '%Y-%m-%d %H%M') AS t
-                  FROM read_csv([{names}], header = true, union_by_name = true,
-                       types = {{'acq_time': 'VARCHAR', 'acq_date': 'VARCHAR', 'confidence': 'VARCHAR',
-                                 'satellite': 'VARCHAR', 'daynight': 'VARCHAR'}}))
+                  FROM {csv})
             WHERE longitude BETWEEN {x0} AND {x1} AND latitude BETWEEN {y0} AND {y1})
         SELECT raw.sat, raw.lat, raw.lon, raw.acq_utc, raw.local_date, raw.dn, raw.frp, raw.confidence, raw.type,
                {keep} AS keep, raw.cell8

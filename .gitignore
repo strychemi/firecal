@@ -9,3 +9,7 @@ __pycache__/
 
 # Secrets (FIRMS MAP_KEY): never commit
 .env
+
+# Local check sample: built from data/ by make_sample.py, never committed
+/pipeline/tests/fixture/raw/
+/pipeline/tests/fixture/out/

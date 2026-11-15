@@ -55,6 +55,20 @@ cd pipeline && uv run python tests/test_api_parity.py
 
 With the API running, this sends the same requests to the Rust API and to the Python reference implementation and compares the answers.
 
+## Run all checks before a pull request
+
+```bash
+scripts/check.sh
+```
+
+It runs everything on this machine, in about half a minute:
+1. Type-checks and builds the frontend.
+2. Builds the API.
+3. Runs the whole pipeline on a small sample, then compares the API with the reference on it.
+4. Compares them again on the full published data.
+
+The sample is real FIRMS rows for a small box near the Paraná Delta, including recent near-real-time days. It's built from your local `data/` the first time (`--fresh-sample` rebuilds it) and is git-ignored, so no fire data goes into the repo. The pipeline and the API both read `FIRECAL_ROOT` to find it (`pipeline/tests/fixture/`). The script exits non-zero if any check fails.
+
 ## Data credits
 
 Fire data: NASA FIRMS active-fire archives, MODIS Collection 6.1 (MCD14ML, Terra and Aqua) and VIIRS 375 m (S-NPP and NOAA-20).
