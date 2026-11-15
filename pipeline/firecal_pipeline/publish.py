@@ -36,6 +36,26 @@ def fingerprint(cfg: Config) -> str:
     return h.hexdigest()
 
 
+def prune(cfg: Config) -> None:
+    """Delete all but the newest [data] keep_versions published versions (default 3). The version named
+    in gold/CURRENT is always kept, and nothing is deleted without one. 0 keeps only that version. Older
+    versions are rebuilt by re-running the pipeline if needed."""
+    gold = cfg.out / "gold"
+    keep = int(cfg["data"].get("keep_versions", 3))
+    if keep < 0:
+        raise ValueError(f"[data] keep_versions must be 0 or more, not {keep}")
+    if not (gold / "CURRENT").exists():
+        print("no gold/CURRENT, so nothing is known to be in use; not pruning", flush=True)
+        return
+    current = (gold / "CURRENT").read_text().strip()
+    versions = sorted((p for p in gold.glob("v*") if p.is_dir() and p.name[1:].isdigit()), key=lambda p: int(p.name[1:]))
+    old = [p for p in versions[:len(versions) - keep] if p.name != current]  # keep = 0: only CURRENT is left
+    for p in old:
+        shutil.rmtree(p)
+    print(f"pruned {len(old)} old version(s): {', '.join(p.name for p in old) or 'none'}; kept "
+          f"{', '.join(p.name for p in versions if p not in old)}", flush=True)
+
+
 def resolve_eras(cfg: Config) -> list[dict]:
     """Replace end = "latest" with the last complete local date: the newest of the era's satellites in
     bronze/recent.json (a day falls back down the chain), or December 31 of last_year without recent data."""

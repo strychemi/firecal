@@ -34,16 +34,8 @@ dir = "{{config_root}}/pipeline"
 run = "uv run python -m firecal_pipeline download"
 
 [tasks.refresh]
-description = "Bring the data up to date: download recent days, then rebuild"
-run = [
-  { task = "download" },
-  { task = "data" },
-]
-
-[tasks.example]
-description = "Rewrite the example API responses in web/static/example from the current data"
-dir = "{{config_root}}/pipeline"
-run = "uv run python -m firecal_pipeline example"
+description = "Bring the data up to date: download, rebuild, publish, prune old versions (see scripts/refresh.sh)"
+run = "scripts/refresh.sh"
 
 # ---- api -----------------------------------------------------------------------------------------
 
@@ -63,10 +55,11 @@ description = "Frontend dev server, using the API on :8080"
 dir = "{{config_root}}/web"
 run = "pnpm dev"
 
-[tasks."web:examples"]
-description = "Frontend dev server on the saved example responses (no API needed)"
+[tasks."web:test"]
+description = "Browser tests against the running API on :8080 (start it with `mise run api` after `web:build`)"
 dir = "{{config_root}}/web"
-run = "pnpm dev:examples"
+env = { FIRECAL_URL = "http://127.0.0.1:8080" }
+run = "pnpm exec playwright test"
 
 [tasks."web:check"]
 description = "Type-check the frontend"
@@ -86,5 +79,5 @@ dir = "{{config_root}}/pipeline"
 run = "uv run python tests/test_api_parity.py http://127.0.0.1:8080"
 
 [tasks.check]
-description = "All checks before a pull request (frontend, API, sample pipeline, parity); see scripts/check.sh"
+description = "All checks before a pull request (frontend, API, sample pipeline, parity, browser tests); see scripts/check.sh"
 run = "scripts/check.sh"

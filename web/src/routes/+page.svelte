@@ -1,7 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import { onMount } from 'svelte';
-	import { CustomAreaUnavailable, exportHotspots, fetchMeta, query, type DataMode } from '#lib/api.ts';
+	import { exportHotspots, fetchMeta, query } from '#lib/api.ts';
 	import { cellsToCsv, downloadBlob, monthsToCsv } from '#lib/download.ts';
 	import { monthLabel } from '#lib/format.ts';
 	import type { Area, Baseline, Meta, QueryResponse, YearMonth } from '#lib/types.ts';
@@ -15,7 +15,6 @@
 	import MapView from '#lib/components/MapView.svelte';
 
 	let meta = $state<Meta | null>(null);
-	let mode = $state<DataMode>('api');
 	let fatal = $state('');
 
 	let area = $state<Area>({ preset: 'argentina-box' });
@@ -30,19 +29,17 @@
 	let busy = $state(false);
 	let notice = $state('');
 	let seq = 0;
-	// Last area that loaded, so a custom area refused in example mode can fall back to it.
-	let lastGood: { area: Area; name: string } | null = null;
-	let reverting = false;
+	// The area behind the numbers on screen, which may differ from `area` while a new one loads.
+	let dataArea: Area | null = null;
 
 	onMount(async () => {
 		try {
-			const r = await fetchMeta();
-			meta = r.meta;
-			mode = r.mode;
-			start = r.meta.series_start;
-			end = r.meta.series_end;
-			month = r.meta.series_end;
-			const first = r.meta.presets.find((p) => p.id === 'argentina-box') ?? r.meta.presets[0];
+			const m = await fetchMeta();
+			meta = m;
+			start = m.series_start;
+			end = m.series_end;
+			month = m.series_end;
+			const first = m.presets.find((p) => p.id === 'argentina-box') ?? m.presets[0];
 			if (first) {
 				area = { preset: first.id };
 				areaName = first.name;
@@ -59,27 +56,17 @@
 		const name = areaName;
 		const my = ++seq;
 		busy = true;
-		query(req, meta)
+		query(req)
 			.then((res) => {
 				if (my !== seq) return;
 				data = res;
 				dataAreaName = name;
-				lastGood = { area: req.area, name };
-				if (!reverting) notice = '';
-				reverting = false;
+				dataArea = req.area;
+				notice = '';
 			})
 			.catch((e) => {
 				if (my !== seq) return;
-				if (e instanceof CustomAreaUnavailable) {
-					notice = e.message + ' Showing the last area that loaded instead.';
-					if (lastGood) {
-						reverting = true;
-						area = lastGood.area;
-						areaName = lastGood.name;
-					}
-				} else {
-					notice = `The query failed: ${e instanceof Error ? e.message : String(e)}`;
-				}
+				notice = `The query failed: ${e instanceof Error ? e.message : String(e)}`;
 			})
 			.finally(() => {
 				if (my === seq) busy = false;
@@ -124,7 +111,7 @@
 		exportMsg = '';
 		try {
 			// The area that produced the numbers on screen, even if a new one is still loading.
-			const shownArea = lastGood?.area ?? ($state.snapshot(area) as Area);
+			const shownArea = dataArea ?? ($state.snapshot(area) as Area);
 			const blob = await exportHotspots({ area: shownArea, start: data.start, end: data.end });
 			downloadBlob(`${fileBase}-hotspots.csv`, blob);
 		} catch (e) {
@@ -135,7 +122,7 @@
 	}
 
 	function downloadHexCsv() {
-		if (!data?.cells) return;
+		if (!data) return;
 		downloadBlob(`${fileBase}-hexagons.csv`, new Blob([cellsToCsv(data)], { type: 'text/csv' }));
 	}
 </script>
@@ -153,11 +140,6 @@
 			<h1>firecal</h1>
 			<p>Is this month's burning unusual? Satellite fire counts from 2000 to today, on one scale.</p>
 		</div>
-		{#if meta && mode === 'examples'}
-			<span class="badge" title="The live API is not connected. Showing saved example responses for the preset areas.">
-				<span aria-hidden="true">●</span> Example data
-			</span>
-		{/if}
 	</div>
 </header>
 
@@ -170,9 +152,9 @@
 		<section class="choose" aria-labelledby="choose-title">
 			<div class="card">
 				<h2 id="choose-title" class="h">Choose an area</h2>
-				<AreaPicker {meta} {area} exampleMode={mode === 'examples'} onarea={setArea} />
+				<AreaPicker {meta} {area} onarea={setArea} />
 			</div>
-			<MapView {meta} {data} {busy} exampleMode={mode === 'examples'} onarea={setArea} />
+			<MapView {meta} {data} {busy} onarea={setArea} />
 		</section>
 
 		<section class="card filters" aria-label="Dates and comparison">
@@ -194,7 +176,7 @@
 
 		<div id="answer">
 			{#if data}
-				<AnswerCard {data} areaName={dataAreaName} {busy} computedLocally={mode === 'examples'} />
+				<AnswerCard {data} areaName={dataAreaName} {busy} />
 			{:else if busy}
 				<p class="card" role="status">Loading…</p>
 			{/if}
@@ -221,11 +203,11 @@
 				</p>
 				<div class="dl-row">
 					<button class="btn primary" type="button" onclick={downloadCsv}>Download CSV ({data.months.length} months)</button>
-					<button class="btn" type="button" onclick={downloadHotspots} disabled={exporting || mode === 'examples'} aria-describedby="hotspot-note">
+					<button class="btn" type="button" onclick={downloadHotspots} disabled={exporting} aria-describedby="hotspot-note">
 						{exporting ? 'Preparing hotspots…' : 'Hotspots CSV'}
 					</button>
-					<button class="btn" type="button" onclick={downloadHexCsv} disabled={!data.cells}>
-						Hexagon CSV for Kepler.gl{data.cells ? ` (${data.cells.length.toLocaleString('en-US')} hexagons)` : ''}
+					<button class="btn" type="button" onclick={downloadHexCsv} disabled={data.cells.length === 0}>
+						Hexagon CSV for Kepler.gl ({data.cells.length.toLocaleString('en-US')} hexagons)
 					</button>
 				</div>
 				<p class="small">
@@ -234,14 +216,10 @@
 					draws the H3 column as hexagons. Each chart has its own SVG and PNG buttons.
 				</p>
 				<p class="small" id="hotspot-note">
-					{#if mode === 'examples'}
-						The hotspots CSV needs the live firecal API.
-					{:else}
-						The hotspots CSV lists every detection that passed the filters in this area, {monthLabel(data.start)} to {monthLabel(data.end)},
-						from every satellite: position, UTC and local solar time, satellite, day or night, confidence and fire power.
-						<code>in_calendar</code> is true for the detections from the satellite the calendar counts that day. Up to
-						{(meta.export_limit ?? 250000).toLocaleString('en-US')} rows per file; narrow the dates for large areas.
-					{/if}
+					The hotspots CSV lists every detection that passed the filters in this area, {monthLabel(data.start)} to {monthLabel(data.end)},
+					from every satellite: position, UTC and local solar time, satellite, day or night, confidence and fire power.
+					<code>in_calendar</code> is true for the detections from the satellite the calendar counts that day. Up to
+					{(meta.export_limit ?? 250000).toLocaleString('en-US')} rows per file; narrow the dates for large areas.
 				</p>
 				{#if exportMsg}<p class="notice small" role="alert">{exportMsg}</p>{/if}
 			</section>
@@ -295,17 +273,6 @@
 		margin: 2px 0 0;
 		color: var(--text-2);
 		font-size: 0.9rem;
-	}
-	.badge {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		padding: 4px 10px;
-		border-radius: 999px;
-		font-size: 0.8rem;
-		font-weight: 600;
-		background: var(--warn-bg);
-		border: 1px solid var(--warn-border);
 	}
 	main {
 		display: flex;

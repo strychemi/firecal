@@ -7,9 +7,8 @@
 		data: QueryResponse;
 		areaName: string;
 		busy?: boolean;
-		computedLocally?: boolean;
 	}
-	let { data, areaName, busy = false, computedLocally = false }: Props = $props();
+	let { data, areaName, busy = false }: Props = $props();
 
 	const s = $derived(data.stats);
 	const row = $derived<MonthRow | undefined>(data.months.find((m) => m.month === s.month));
@@ -79,9 +78,6 @@
 				<span aria-hidden="true">⚠</span> Incomplete month: satellite data on {row.days_with_data} of {row.days} days, so the
 				count is likely too low.
 			</li>
-		{/if}
-		{#if computedLocally}
-			<li>Worked out in your browser from the example data, using the same rules as the API.</li>
 		{/if}
 	</ul>
 </section>

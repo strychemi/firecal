@@ -72,11 +72,6 @@ export const SOURCE_SHORT: Record<Source, string> = {
 };
 export const SOURCES: Source[] = ['terra_harmonized', 'aqua_harmonized', 'viirs'];
 
-export function ordinal(n: number): string {
-	const s = n % 100 >= 10 && n % 100 <= 20 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th';
-	return `${n}${s}`;
-}
-
 /** Inclusive list of YYYY-MM between a and b. */
 export function monthRange(a: YearMonth, b: YearMonth): YearMonth[] {
 	const out: YearMonth[] = [];

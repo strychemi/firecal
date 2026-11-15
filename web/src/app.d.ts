@@ -3,8 +3,4 @@ declare global {
 	namespace App {}
 }
 
-interface ImportMetaEnv {
-	readonly VITE_EXAMPLES?: string;
-}
-
 export {};
