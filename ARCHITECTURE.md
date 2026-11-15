@@ -44,7 +44,7 @@ FIRMS API ──▶ recent cell-days ──▶ republish recent months ──▶
 
 ONLINE
 ──────
-Rust API (axum) ── reads gold/current/ ── swaps when a new version lands
+Rust API (axum) ── reads the version named in gold/CURRENT ── swaps when it changes
      │  small JSON, streamed CSV
      ▼
 SvelteKit static build (served by the same Rust binary) ── MapLibre map + charts
@@ -91,6 +91,8 @@ SvelteKit static build (served by the same Rust binary) ── MapLibre map + ch
 
 Crates: `axum`, `tokio`, `duckdb` (bundled), `h3o`, `geo`, `serde`, `tower-http` (compression, static files).
 
+Endpoints in the global design. The prototype exposes only `meta`, `query` and `export.csv`; see the prototype status below and `docs/api.md`.
+
 | Endpoint | Request | Response |
 |---|---|---|
 | `POST /api/query` | area, metric (`cell_days`, `detections`, `frp`), harmonized or raw, date range, comparison (mean or median) | Monthly series with 80 % ranges, calendar grid, stats card for the selected month |
@@ -116,7 +118,7 @@ An **area** is a GeoJSON polygon, a box, or a point and radius.
 - **Stateless.** Every request carries its area; nothing is stored per user, so restarts and extra instances are harmless.
 - **Coarse levels in memory, fine levels from disk.** Res 4 and 5 are loaded at start-up. Res 6 and hotspot rows are read through DuckDB from cell-sorted Parquet.
 - **Cacheable.** A response depends only on the request and the data version, so the data version is the HTTP cache key (`ETag`). Prototype: not yet implemented, and neither is the per-shape hexagon cache.
-- **Version swap.** `gold/current` points at one version. When it changes, the API loads the new version and swaps atomically.
+- **Version swap.** `gold/CURRENT` names one version. When it changes, the API loads the new version and swaps atomically.
 
 ## 6. Frontend (`web/`, SvelteKit with `adapter-static`)
 
@@ -136,7 +138,7 @@ The frontend is developed against a saved example of the `/api/query` response, 
 ## 7. Operations
 
 - **One container:** the Rust binary serves the API and the built frontend; `gold/` is mounted as a volume.
-- **Recent data:** a daily job fetches new FIRMS days with the key from its own environment, then runs `cells` → `publish` for the affected months and flips `gold/current`. Prototype: run by hand (`download`, then `all`), and it republishes the whole series.
+- **Recent data:** a daily job fetches new FIRMS days with the key from its own environment, then runs `cells` → `publish` for the affected months and updates `gold/CURRENT`. Prototype: run by hand (`download`, then `all`), and it republishes the whole series.
 - **Snapshots:** a frozen, checksummed copy of `gold/` is used for the submission, so the demo, slides and video show the same numbers.
 - **Fallback:** a script saves the API's responses for every preset as JSON. If hosting fails during judging, the frontend runs from those files.
 
