@@ -365,3 +365,27 @@ All work in this part was done with Opus 5.5.
 - *Decided by the team:* adopt and record. The AI added `seasonal_areas` to both configs, `seasons` in `model.json`, and a seasonal join in `publish` by calendar month. Argentina refitted to exactly the test's numbers (whole-area 7.57 %, small-area 20.37 %) and published as v12; the global data refitted and republished. Methods page, ARCHITECTURE, README and the §7 outcome row updated.
 
 **Checks in this part:** `mise run check` passed all five stages (parity 0 failures and 11 of 11 browser tests on the sample, on Argentina v12 and on a global sample). The global refit matches the seasonal test's numbers on every continent; global data published as v3.
+
+### 2026-11-15, session 1 continued (23:05–23:50): map-first layouts
+
+**23:05–23:35 · Three prototypes**
+- *Asked:* three layouts that still meet every objective, with the map as the centrepiece and controls for quick insight, closer to kepler.gl's demo, each built for one of the likeliest groups of users.
+- *AI did:* chose the groups from the challenge's own list: responders and firefighters ("is burning unusual now, and where?"), scientists and analysts ("how did it change over 25 years?"), land managers and planners ("when does my area burn, and was this year worse?"). Built a shared full-screen map component and three pages under `/proto/`: **A · Now** (the map view is the search; each hexagon coloured against its own usual month), **B · Explore** (kepler-style layer panel, 3D, a time bar with brush and play) and **C · Seasons** (the calendar as the time control, a change map between two years, a typical-season chart). B and C were written by two parallel sub-agents from the AI's design brief while the AI wrote A; the AI checked all three in the browser on the global data.
+- *Found:* the API turns a search box more than 180° wide into one hexagon (H3 cannot fill such a polygon); the map views cut wide views to their middle 180° and say so. Not fixed in the API yet. A's per-hexagon comparison needs one search per comparison year, since the API has no per-hexagon usual value.
+
+**23:35–23:50 · B becomes the app**
+- *Decided by the team:* start from B.
+- *AI did:* made B the home page, adding back what the old page had: exact From/To/month pickers and the median/mean choice (Dates tab), the hexagon count and continent note, the monthly line chart, Methods, and the download notes. Removed the old map component; A and C stay at `/proto/`. Browser tests updated for the panel tabs.
+- *Decided by the AI, for the team to review:* the left panel opens on Area.
+
+**23:50–00:10 · Review against modern web guidance**
+- *Asked:* review the page against Google's modern-web-guidance skill.
+- *AI did:* checked it against the tabs, dark-mode, spinner, slider, toolbar and accessibility guides, and changed: the panel tabs became a real tab list (arrow keys, Home/End, `aria-selected`, a tab panel, and an underline so colour is not the only cue); the page follows the system's light or dark setting instead of forcing dark, as the B prototype did; the loading spinner is a native `<progress>` that slows down for reduced motion; the map tools are a labelled group rather than a toolbar (a toolbar promises arrow-key navigation it did not have); the time bar's instructions moved from its label to a description, and it no longer blocks vertical scrolling on touch screens; the skip link points at the answer panel, which exists even when collapsed; selected buttons keep a visible state in forced-colours mode; hover styles apply only where hovering exists.
+
+**00:10–00:40 · Accessibility gaps**
+- *Asked:* is the page accessible? The AI said partly: the objectives can all be done without the map or a mouse, but listed five gaps and that it had not been tested with an automated scan, a keyboard-only pass, a screen reader or at 200 % zoom. *Decided by the team:* fix gaps 1–4 and add axe to the tests.
+- *AI did:* the answer stops announcing to screen readers while the months play (it changed every 0.7 s); the map's camera flights, 3D tilt and growing columns are off for people who ask for reduced motion; an "On the map" card and the map's description say in words how many hexagons had fire and where the five busiest are, and point to the hexagon CSV for the rest (hexagon centres from `h3-js`, now a direct dependency at the version already installed); the time bar shows a month's details when it has keyboard focus, speaks each month's value, takes Home and End, and points to the Dates tab for typing dates. Added `@axe-core/playwright` and a test that scans every panel tab in light and dark mode against WCAG 2.2 A and AA.
+- *Found:* axe reported no violations, but could not check text contrast on 50 elements because the panels were slightly see-through over the map (gap 5). The panels are now solid; 13 remain unchecked, all chart labels inside SVGs (which axe does not check) and one arrow glyph. Their colours are the same text tokens as the panels, about 8:1 in light mode and 10:1 in dark.
+- *Found by the new test on the Argentina sample:* the Methods page's "Known gaps" list scrolls when there are more than 12 gaps, and keyboard users could not scroll it (nothing in it takes focus). It predates this work. It is now a labelled region that takes focus.
+- *Still not done:* a keyboard-only walk-through, a screen-reader session, and a 200 % zoom check.
+

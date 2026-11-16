@@ -96,11 +96,20 @@
 			<h3>Known gaps</h3>
 			{#if gaps.length}
 				<p>Days with no satellite data in {place} (those months are marked incomplete and left out of the "usual" comparison):</p>
-				<ul class:scroll={gaps.length > 12}>
-					{#each gaps as g (g.start)}
-						<li>{g.start === g.end ? fmtDate(g.start) : `${fmtDate(g.start)} – ${fmtDate(g.end)}`} ({g.days} {g.days === 1 ? 'day' : 'days'})</li>
-					{/each}
-				</ul>
+				{#snippet gapList()}
+					<ul>
+						{#each gaps as g (g.start)}
+							<li>{g.start === g.end ? fmtDate(g.start) : `${fmtDate(g.start)} – ${fmtDate(g.end)}`} ({g.days} {g.days === 1 ? 'day' : 'days'})</li>
+						{/each}
+					</ul>
+				{/snippet}
+				{#if gaps.length > 12}
+					<!-- A long list scrolls; tabindex lets keyboard users focus and scroll it (axe: scrollable-region-focusable). -->
+					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+					<div class="scroll" role="region" aria-label="Known gaps, {gaps.length} periods" tabindex="0">{@render gapList()}</div>
+				{:else}
+					{@render gapList()}
+				{/if}
 			{:else}
 				<p>None.</p>
 			{/if}
@@ -150,9 +159,13 @@
 		grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 		gap: 0 32px;
 	}
-	ul.scroll {
+	div.scroll {
 		max-height: 16em;
 		overflow-y: auto;
+	}
+	div.scroll:focus-visible {
+		outline: 2px solid var(--focus);
+		outline-offset: 2px;
 	}
 	.credit {
 		margin-top: 12px;

@@ -128,6 +128,8 @@ An **area** is a GeoJSON polygon, a box, or a point and radius.
 
 ## 6. Frontend (`web/`, SvelteKit with `adapter-static`)
 
+The map fills the window, as in kepler.gl. Panels float over it: on the left, area, dates, layer style and downloads; on the right, the answer, charts and methods; along the bottom, a time bar (the whole series as a histogram coloured by satellite era: drag to set the dates, click to pick the month, play to step through the months). Light or dark follows the system setting. Two other layouts, for responders (`/proto/now`) and land managers (`/proto/seasons`), are kept as prototypes.
+
 | View | Purpose |
 |---|---|
 | Area input | Map drawing (box, polygon or circle), a latitude/longitude form (box, or point and radius), and presets |
@@ -135,7 +137,8 @@ An **area** is a GeoJSON polygon, a box, or a point and radius.
 | Calendar heatmap | Years × months; sequential ramp for counts, diverging for anomalies |
 | Yearly totals | Raw-to-harmonized toggle that removes the 2012 jump (the demo moment) |
 | Monthly series | Every month in the chosen dates with 80 % ranges for converted months. Prototype: in place of the seasonal curve (typical year with its normal range), which is not built yet |
-| Map | Hexagons for the selected month against the average. Prototype: fire-days per hexagon for the selected month or the whole date range |
+| Map | Hexagons for the selected month against the average. Prototype: fire-days per hexagon for the selected month or the whole date range, flat or in 3D (height = date-range fire-days) |
+| Time bar | The whole series for the area; sets the dates and the month, and plays through the months (one search per month, cached) |
 | Downloads | Monthly CSV, hotspot CSV, per-hexagon CSV (opens in Kepler.gl), PNG/SVG of each chart |
 | Methods and limits | How the conversion works, test results from `validation.json`, known weaknesses, data credits, AI use |
 
