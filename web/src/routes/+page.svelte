@@ -271,7 +271,7 @@
 	function useView() {
 		if (!lastView) return;
 		area = { bbox: lastView.bbox };
-		areaName = lastView.clipped ? 'Map view (middle 180°)' : 'Map view';
+		areaName = lastView.clipped ? 'Map view (to the 180° line)' : 'Map view';
 	}
 
 	// Downloads
@@ -373,7 +373,7 @@
 								{/each}
 							</div>
 							<p><button class="pbtn" type="button" onclick={useView} disabled={!lastView}>Search the map view</button></p>
-							{#if lastView?.clipped}<p class="small">The view is wider than 180°; the search uses its middle 180°.</p>{/if}
+							{#if lastView?.clipped}<p class="small">The view crosses the 180° line; the search stops at it.</p>{/if}
 						</section>
 						<section class="picker">
 							<h2 class="p-h">Places and coordinates</h2>

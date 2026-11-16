@@ -53,8 +53,8 @@ export function stepColor(i: number, k: number, colors: RGB[]): RGB {
 }
 
 /**
- * The map view as a search box. The API turns a box into hexagons with H3, which cannot handle
- * a box more than 180° wide (it returns one hexagon), so wider views are cut to the middle 180°.
+ * The map view as a search box. A view showing the whole world (or more) searches the whole world.
+ * Boxes cannot cross the 180° line, so a view across it is cut there, keeping the side with the centre.
  */
 export function viewBox(b: { getWest(): number; getEast(): number; getSouth(): number; getNorth(): number }): {
 	bbox: BBox;
@@ -67,13 +67,11 @@ export function viewBox(b: { getWest(): number; getEast(): number; getSouth(): n
 	const s = Math.min(LAT, Math.max(-LAT, b.getSouth()));
 	const n = Math.min(LAT, Math.max(-LAT, b.getNorth()));
 	let clipped = false;
-	if (e - w > 179) {
-		const c = (w + e) / 2;
-		w = c - 89.5;
-		e = c + 89.5;
-		clipped = true;
+	if (e - w >= 360) {
+		w = -180;
+		e = 180;
 	}
-	// Shift into [-180, 180]; a view across the antimeridian keeps the side with the centre.
+	// Shift into [-180, 180].
 	const shift = Math.round((w + e) / 2 / 360) * 360;
 	w -= shift;
 	e -= shift;

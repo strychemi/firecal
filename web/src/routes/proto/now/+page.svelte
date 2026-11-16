@@ -330,7 +330,7 @@
 				<button class="pbtn" type="button" aria-expanded={sheet === 'download'} onclick={() => (sheet = sheet === 'download' ? '' : 'download')} disabled={!data}>Download</button>
 			</div>
 			{#if notice}<p class="warn" role="alert">{notice}</p>{/if}
-			{#if clipped && follow}<p class="fine">The view is wider than 180°, so the middle 180° is searched.</p>{/if}
+			{#if clipped && follow}<p class="fine">The view crosses the 180° line; the search stops at it.</p>{/if}
 		</section>
 
 		<!-- Tools -->

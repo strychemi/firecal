@@ -393,3 +393,16 @@ All work in this part was done with Opus 5.5.
 **00:40–01:10 · Copilot's review of PR #25**
 - *Asked:* address Copilot's twelve comments.
 - *AI did:* agreed with all twelve and fixed them. The map's zoom buttons were hidden behind the time panel (and the insights panel); pages now lift them clear. A search box near a pole could put south above north, and rounding could shrink a tiny box to nothing; both edges are now clamped to the map's ±85.05° limit and rounded outwards. The fitted view and, on A, the per-hexagon comparison and hotspot export could pair a newly chosen area with the previous area's results; each now uses the area its results answer. Map colours now redraw when the system switches light/dark (A) and whenever the palette changes (home page). A failed search opens the insights panel, where its message is. Legend lists are keyed by position, not label. On C, the calendar scrolls vertically when it needs to, and the typical-season chart no longer says "no fire" when some years burned but the usual value of every month is zero.
+
+### 2026-11-16, session 1 continued (01:15–01:45): searches wider than 180°
+
+**01:15–01:45 · Wide boxes**
+- *Asked:* fix the API for search boxes wider than 180° (found while building the prototypes; the pages had been cutting wide map views to their middle 180°).
+- *Found:* H3 takes each edge of an area the short way round the globe, so a box more than 180° wide is read as the rest of the world. Tested in the Python reference: a 200°-wide box came back with exactly the hexagons of a 160°-wide box, and a whole-world box with none. Adding points along the long edges worked up to about 200° and then failed, so the AI chose strips.
+- *AI did:* the API and the Python reference fill a box more than 180° wide as strips at most 90° wide and merge them; a drawn polygon that wide is refused with a 400 (splitting arbitrary shapes needs geometry clipping, and drawn areas that wide are rare). The map pages no longer cut wide views: a view showing the whole world searches it all. A view across the 180° line is still cut there, and says so. Parity cases added (a 340° box on Argentina, a whole-world and a 200° box on the global sample, and the refused polygon), plus two Rust unit tests, which `mise run check` now runs. `docs/api.md` describes the rule.
+
+**Checks:** `mise run check` passed all five stages (Rust unit tests 2 of 2; parity 0 failures and 13 browser tests on each data set). On the global data, a whole-world search returns 287,098 hexagons at level 4 (69,285 with fire in August 2010) in about 4 s; checked in the browser from a zoomed-out map view.
+
+**01:50–02:00 · Copilot's review of PR #26**
+- *Found by Copilot:* a box such as `[-1e12, -1, 1e12, 1]` passed the order check and would have asked for about 22 billion strips, in both the API and the Python reference, before H3 looked at the coordinates. The AI agreed: it had not bounded the width when it added the strips.
+- *AI did:* both now refuse an area with a coordinate that is not a finite number, or more than 360° of longitude wide, before splitting. Added a parity case for the refused box, a Rust unit test, and a sentence in `docs/api.md`.
