@@ -270,10 +270,14 @@ test('clicking a calendar month describes it', async ({ page, request }) => {
 	await setMonth(page, 'end', '2020-12');
 	const r = await api(request, { area: { preset: 'parana-delta' }, start: '2020-01', end: '2020-12', month: '2020-12', baseline: 'median' });
 	await expect(sentence(page)).toHaveText(r.stats.sentence);
+	// The map shows the date range until a calendar month is clicked.
+	await panel(page, 'Layer');
+	await page.getByRole('button', { name: 'Date range', exact: true }).click();
 	// One cell per month in order, so August 2020 is the eighth.
 	await calendar(page).locator('.cell').nth(7).click();
 	const aug = await api(request, { area: { preset: 'parana-delta' }, start: '2020-01', end: '2020-12', month: '2020-08', baseline: 'median' });
 	await expect(sentence(page)).toHaveText(aug.stats.sentence);
+	await expect(page.getByRole('button', { name: 'Selected month', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('each search names the continent whose model it used, and the methods show its numbers', async ({ page, request }) => {
