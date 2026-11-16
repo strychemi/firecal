@@ -438,7 +438,7 @@ fn area_work(data: &Data, ring: &[(f64, f64)], max_hex: usize) -> Result<AreaWor
     Ok(AreaWork { res, hexagons: cells.len(), area_km2, ci, share, active, sums, mtd })
 }
 
-/// The most recent areas' work, keyed by data version and outline. A few hundred kB per area at most
+/// The most recently used areas' work, keyed by data version and outline. A few hundred kB per area at most
 /// (the whole world: 69,000 hexagons with fire).
 pub struct AreaCache {
     capacity: usize,
@@ -452,8 +452,17 @@ impl AreaCache {
 
     fn get_or_make(&self, data: &Data, ring: &[(f64, f64)], max_hex: usize) -> Result<Arc<AreaWork>> {
         let key = format!("{}|{max_hex}|{:?}", data.version, ring.iter().map(|&(x, y)| (x.to_bits(), y.to_bits())).collect::<Vec<_>>());
-        if let Some(w) = self.inner.lock().unwrap().0.get(&key) {
-            return Ok(w.clone());
+        {
+            let mut g = self.inner.lock().unwrap();
+            let (map, order) = &mut *g;
+            if let Some(w) = map.get(&key).cloned() {
+                // Most recently used last, so an area in steady use is not evicted (at most 64 entries).
+                if let Some(i) = order.iter().position(|k| *k == key) {
+                    order.remove(i);
+                }
+                order.push_back(key);
+                return Ok(w);
+            }
         }
         // Made outside the lock: two searches of a new area at once both make it, and nobody waits.
         let w = Arc::new(area_work(data, ring, max_hex)?);

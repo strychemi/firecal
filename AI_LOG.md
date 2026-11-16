@@ -492,3 +492,7 @@ All work in this part was done with Opus 5.5.
 - *Found:* two check runs at once (this session and the Copilot session) tested each other's server: `scripts/check.sh` always used port 8090, and on macOS both servers could bind it, so its "is this our server?" check passed.
 - *AI did:* each stage now takes a free port from the system and stops if anything already answers there before its own server starts. PR #28 was rebased onto `main` after PR #27 merged (only this log conflicted; both entries kept).
 - *Checks:* `mise run check` passed all five stages (Rust unit tests 4 of 4; parity 0 failures and 17 browser tests on each data set).
+
+**07:20–07:35 · Copilot's review of PR #28**
+- *Found by Copilot, three comments, all valid:* (1) the API freed a search's slot before encoding its JSON, so a several-MB answer was encoded outside both the slot and the 30 s limit while another search took the core; (2) the area cache kept the 64 most recently *added* areas, so an area in constant use was still evicted by the 64th new one; (3) in the browser, a cancelled search stayed in the cache until its rejection arrived, so the same search asked for in that moment (a Play prefetch, say) got the cancelled one.
+- *AI did:* (1) the answer is encoded inside the slot and returned as bytes (gzip still runs after, in the server's compression layer); (2) a cache hit moves the area to the back of the queue; (3) a cancelled search leaves the cache before it is aborted.

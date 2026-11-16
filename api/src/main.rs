@@ -73,23 +73,26 @@ async fn meta(State(state): State<Shared>) -> Json<serde_json::Value> {
 async fn run_query(
     State(state): State<Shared>,
     body: Result<Json<query::QueryRequest>, axum::extract::rejection::JsonRejection>,
-) -> Result<Json<serde_json::Value>, ApiError> {
+) -> Result<Response, ApiError> {
     let Json(req) = body.map_err(|e| ApiError(StatusCode::BAD_REQUEST, e.body_text()))?;
     let permit = slot(&state).await?;
     let data = snapshot(&state);
     let max_hex = state.max_hex;
     let presets = state.presets.clone();
     let areas = state.areas.clone();
+    // The answer is encoded as JSON inside the slot too: for the whole world that is several MB, and
+    // encoding it outside would let another search start while this one still uses the core.
     let work = tokio::task::spawn_blocking(move || {
         let _permit = permit;
-        query::query(&data, &presets, max_hex, &req, &areas)
+        let value = query::query(&data, &presets, max_hex, &req, &areas)
+            .map_err(|e| ApiError(StatusCode::BAD_REQUEST, e.to_string()))?;
+        serde_json::to_vec(&value).map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
     });
-    tokio::time::timeout(WORK_WAIT, work)
+    let body = tokio::time::timeout(WORK_WAIT, work)
         .await
         .map_err(|_| too_slow())?
-        .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-        .map(Json)
-        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, e.to_string()))
+        .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))??;
+    Ok(([(axum::http::header::CONTENT_TYPE, "application/json")], body).into_response())
 }
 
 /// POST /api/export.csv: the filtered hotspots for an area and dates, or 413 with the row count if over the cap.

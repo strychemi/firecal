@@ -174,7 +174,12 @@ export function cachedQuery(req: QueryRequest, signal?: AbortSignal): Promise<Qu
 			'abort',
 			() => {
 				entry.waiting--;
-				if (entry.waiting <= 0 && !entry.keep && !entry.done) entry.ctrl.abort();
+				if (entry.waiting <= 0 && !entry.keep && !entry.done) {
+					// Out of the cache first, so the same search asked for now (a Play prefetch, say) starts
+					// afresh instead of getting this cancelled one. `drop` only removes this very entry.
+					drop(key, entry);
+					entry.ctrl.abort();
+				}
 			},
 			{ once: true }
 		);
