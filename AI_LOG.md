@@ -402,3 +402,7 @@ All work in this part was done with Opus 5.5.
 - *AI did:* the API and the Python reference fill a box more than 180° wide as strips at most 90° wide and merge them; a drawn polygon that wide is refused with a 400 (splitting arbitrary shapes needs geometry clipping, and drawn areas that wide are rare). The map pages no longer cut wide views: a view showing the whole world searches it all. A view across the 180° line is still cut there, and says so. Parity cases added (a 340° box on Argentina, a whole-world and a 200° box on the global sample, and the refused polygon), plus two Rust unit tests, which `mise run check` now runs. `docs/api.md` describes the rule.
 
 **Checks:** `mise run check` passed all five stages (Rust unit tests 2 of 2; parity 0 failures and 13 browser tests on each data set). On the global data, a whole-world search returns 287,098 hexagons at level 4 (69,285 with fire in August 2010) in about 4 s; checked in the browser from a zoomed-out map view.
+
+**01:50–02:00 · Copilot's review of PR #26**
+- *Found by Copilot:* a box such as `[-1e12, -1, 1e12, 1]` passed the order check and would have asked for about 22 billion strips, in both the API and the Python reference, before H3 looked at the coordinates. The AI agreed: it had not bounded the width when it added the strips.
+- *AI did:* both now refuse an area with a coordinate that is not a finite number, or more than 360° of longitude wide, before splitting. Added a parity case for the refused box, a Rust unit test, and a sentence in `docs/api.md`.

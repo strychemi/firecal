@@ -81,6 +81,9 @@ def fill_pieces(ring) -> list[list[tuple[float, float]]]:
     at most 90 degrees wide; a polygon that wide is refused (docs/api.md)."""
     xs = [p[0] for p in ring]
     x0, x1 = min(xs), max(xs)
+    # Checked before splitting, so an absurd box cannot ask for billions of strips.
+    if not all(math.isfinite(c) for p in ring for c in p) or x1 - x0 > 360:
+        raise ValueError("area must have finite coordinates and be at most 360 degrees of longitude wide")
     if x1 - x0 <= 180:
         return [ring]
     y0, y1 = ring[0][1], ring[2][1]

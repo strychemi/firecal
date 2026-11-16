@@ -66,6 +66,7 @@ BAD = [
     {"area": {"bbox": [-65.0, -30.0, -60.0, -26.0]}, "start": "1999-01"},
     {"area": {"bbox": [-65.0, -30.0, -60.0, -26.0]}, "baseline": "mode"},
     {"area": {"polygon": [[-100, 0], [100, 0], [0, 10]]}},  # more than 180 degrees wide and not a box
+    {"area": {"bbox": [-1e12, -1, 1e12, 1]}},  # more than 360 degrees wide: refused before splitting
 ]
 
 EXPORTS = [

@@ -105,6 +105,10 @@ pub(crate) fn ring(area: &Area, presets: &[Preset]) -> Result<Vec<(f64, f64)>> {
 fn fill_pieces(ring: &[(f64, f64)]) -> Result<Vec<Vec<(f64, f64)>>> {
     let x0 = ring.iter().map(|p| p.0).fold(f64::INFINITY, f64::min);
     let x1 = ring.iter().map(|p| p.0).fold(f64::NEG_INFINITY, f64::max);
+    // Checked before splitting, so an absurd box cannot ask for billions of strips.
+    if !ring.iter().all(|p| p.0.is_finite() && p.1.is_finite()) || x1 - x0 > 360.0 {
+        bail!("area must have finite coordinates and be at most 360 degrees of longitude wide");
+    }
     if x1 - x0 <= 180.0 {
         return Ok(vec![ring.to_vec()]);
     }
@@ -490,5 +494,12 @@ mod tests {
     fn wide_polygons_are_refused() {
         let tri = vec![(-100.0, 0.0), (100.0, 0.0), (0.0, 10.0), (-100.0, 0.0)];
         assert!(fill_pieces(&tri).is_err());
+    }
+
+    #[test]
+    fn absurd_boxes_are_refused_before_splitting() {
+        assert!(fill_pieces(&rect(-1e12, -1.0, 1e12, 1.0)).is_err());
+        assert!(fill_pieces(&rect(-180.0, -1.0, 180.000_001, 1.0)).is_err());
+        assert!(fill_pieces(&rect(-180.0, -1.0, 180.0, 1.0)).is_ok());
     }
 }
