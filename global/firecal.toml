@@ -59,8 +59,9 @@ eras = [
 [api]
 max_hexagons = 3000              # finest level that keeps an area under this many hexagons
 max_export_rows = 250000        # hotspot CSV export: larger searches are refused with their row count
-# The hotspot CSV export is not published globally yet (its file would hold billions of rows, unsplit);
-# the API refuses it with a message and the app hides the button.
+# The hotspot CSV export is not published globally (about 580 M detections, a 6-8 GB file that would need
+# a disk volume to host); the API refuses it with a message and the app hides the button. The Argentina
+# app serves the hotspot CSV.
 hotspot_export = false
 bind = "127.0.0.1:8080"
 

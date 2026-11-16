@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>firecal demo</title>
+<style>
+  @page { size: 1600px 900px; margin: 0; }
+  :root { --bg:#0f1115; --panel:#181b21; --ink:#f2f1ec; --muted:#a9a8a0; --accent:#e8743b; --blue:#5b8def; --green:#2fae7f; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; background:var(--bg); color:var(--ink); font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; }
+  .s { width:1600px; height:900px; padding:80px 96px 70px; position:relative; page-break-after:always; overflow:hidden; display:flex; flex-direction:column; }
+  .s:last-child { page-break-after:auto; }
+  h1 { font-size:96px; margin:0 0 16px; letter-spacing:-2px; }
+  h2 { font-size:56px; margin:0 0 36px; letter-spacing:-1px; line-height:1.1; }
+  p, li { font-size:30px; line-height:1.4; color:var(--ink); }
+  .muted { color:var(--muted); }
+  .kicker { font-size:22px; letter-spacing:3px; text-transform:uppercase; color:var(--accent); margin-bottom:18px; font-weight:600; }
+  ul { margin:0; padding-left:1.1em; } li { margin:0 0 14px; }
+  .foot { position:absolute; left:96px; right:96px; bottom:28px; display:flex; justify-content:space-between; font-size:17px; color:var(--muted); }
+  .row { display:flex; gap:40px; flex:1; min-height:0; }
+  .card { background:var(--panel); border-radius:16px; padding:30px 34px; flex:1; }
+  .card b { display:block; font-size:30px; margin-bottom:10px; }
+  .card span { font-size:24px; line-height:1.4; color:var(--muted); }
+  .big { font-size:88px; font-weight:700; letter-spacing:-2px; line-height:1; }
+  .flow { display:flex; align-items:stretch; gap:18px; margin-top:10px; }
+  .step { background:var(--panel); border-radius:14px; padding:24px; flex:1; }
+  .step b { font-size:27px; display:block; margin-bottom:10px; } .step span { font-size:21px; color:var(--muted); line-height:1.4; display:block; }
+  .arrow { align-self:center; font-size:40px; color:var(--accent); }
+  img.shot { border-radius:12px; border:1px solid #2a2e36; width:100%; height:100%; object-fit:contain; object-position:top left; border:none; }
+  .bars { display:flex; align-items:flex-end; gap:6px; height:200px; margin:10px 0 8px; }
+  .bars i { flex:1; display:block; border-radius:4px 4px 0 0; }
+</style>
+</head>
+<body>
+
+<section class="s" style="justify-content:center">
+  <div class="kicker">NASA Space Apps Challenge 2026 · Harmonization of MODIS and VIIRS Hot Spots</div>
+  <h1>firecal</h1>
+  <p style="font-size:40px;margin:0 0 50px">One unbroken fire calendar from 26 years of satellite fire detections.</p>
+  <p class="muted" style="margin:0">Team <b style="color:var(--ink)" id="team">Chiral Labs</b></p>
+  <p class="muted" style="margin:6px 0 0" id="members">Andrew Baik</p>
+  <div class="foot"><span>github.com/strychemi/firecal</span><span>Slides made with AI assistance (Claude); see AI_LOG.md</span></div>
+</section>
+
+<section class="s">
+  <div class="kicker">The problem</div>
+  <h2>When the satellites changed, the fire record jumped.</h2>
+  <div class="row">
+    <div class="card" style="flex:1.3">
+      <span>Raw hotspot counts, illustrative</span>
+      <div class="bars">
+        <i style="height:22%;background:var(--accent)"></i><i style="height:26%;background:var(--accent)"></i><i style="height:20%;background:var(--accent)"></i><i style="height:28%;background:var(--accent)"></i><i style="height:24%;background:var(--accent)"></i><i style="height:27%;background:var(--accent)"></i>
+        <i style="height:92%;background:var(--green)"></i><i style="height:100%;background:var(--green)"></i><i style="height:88%;background:var(--green)"></i><i style="height:96%;background:var(--green)"></i><i style="height:90%;background:var(--green)"></i><i style="height:94%;background:var(--green)"></i>
+      </div>
+      <span><b style="display:inline;font-size:24px;color:var(--accent)">MODIS</b> (1 km pixels, 2000–) → <b style="display:inline;font-size:24px;color:var(--green)">VIIRS</b> (375 m pixels, 2012–)</span>
+    </div>
+    <div class="card">
+      <p style="margin-top:0">VIIRS reports about <b style="display:inline;font-size:30px">5×</b> as many hotspots as MODIS for the same fires.</p>
+      <p>A raw 2001–2025 series mistakes a new instrument for more fire.</p>
+      <p class="muted" style="margin-bottom:0">Responders, land managers and scientists need to know: is this season unusual <i>here</i>?</p>
+    </div>
+  </div>
+  <div class="foot"><span>firecal</span><span>2 / 7</span></div>
+</section>
+
+<section class="s">
+  <div class="kicker">How it works</div>
+  <h2>Count fire the same way, then convert MODIS to VIIRS.</h2>
+  <div class="flow">
+    <div class="step"><b>NASA FIRMS</b><span>MODIS and VIIRS archives, 2000–today, plus recent days from the FIRMS API</span></div>
+    <div class="arrow">→</div>
+    <div class="step"><b>Burning cell-days</b><span>H3 hexagons, local solar date, day and night; one satellite per day, never summed</span></div>
+    <div class="arrow">→</div>
+    <div class="step"><b>Fit and validate</b><span>Day/night multipliers where both satellites observed the same place and time (NASA granule records); leave one year out</span></div>
+    <div class="arrow">→</div>
+    <div class="step"><b>Publish</b><span>Versioned Parquet → fast Rust API → web app</span></div>
+  </div>
+  <p class="muted" style="margin-top:40px">Every method change is judged by keep/reject rules written down <i>before</i> seeing the results (PREREGISTRATION.md). Globally, each continent is fitted and judged on its own.</p>
+  <div class="foot"><span>firecal</span><span>3 / 7</span></div>
+</section>
+
+<section class="s" style="padding-bottom:60px">
+  <div class="kicker">The app</div>
+  <h2 style="margin-bottom:22px;font-size:44px">Draw an area, pick dates: get the answer first.</h2>
+  <div class="row">
+    <div style="flex:2.1;min-height:0"><img class="shot" src="california.png" alt="firecal showing Northern California, August 2020: 9.9 times the usual August"></div>
+    <div style="flex:1">
+      <ul style="font-size:24px">
+        <li style="font-size:24px">"August 2020: 9.9× the usual August, 2nd highest of 26 years"</li>
+        <li style="font-size:24px">Years × months burning calendar</li>
+        <li style="font-size:24px">Month in progress vs same days of past years</li>
+        <li style="font-size:24px">Season so far; long-term trend test</li>
+        <li style="font-size:24px">Downloads: CSV of series, hexagons and hotspots; charts as PNG/SVG</li>
+        <li style="font-size:24px">Whole globe, or Argentina study region</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>Northern California, August 2020</span><span>4 / 7</span></div>
+</section>
+
+<section class="s">
+  <div class="kicker">Does it work?</div>
+  <h2>Tested on years the model never saw.</h2>
+  <div class="row" style="flex:0 0 auto">
+    <div class="card"><div class="big">9.95 %</div><span>typical error of the converted monthly count, whole Argentina study area</span></div>
+    <div class="card"><div class="big">22.2 %</div><span>typical error for 2° × 2° blocks, the harder small-area test</span></div>
+    <div class="card"><div class="big">0 diffs</div><span>between the Rust API and an independent Python reference, checked on every answer type</span></div>
+  </div>
+  <p class="muted" style="margin-top:36px">Leave-one-year-out over 2013–2022. Trend uses Theil–Sen and Mann–Kendall on converted counts, so the 2012 satellite change is not read as a rise.</p>
+  <div class="foot"><span>firecal</span><span>5 / 7</span></div>
+</section>
+
+<section class="s">
+  <div class="kicker">Built on NASA open data</div>
+  <h2>Free, open satellite data made this possible.</h2>
+  <ul>
+    <li><b>FIRMS</b> MODIS Collection 6.1 and VIIRS 375 m (S-NPP, NOAA-20) active fire archives</li>
+    <li><b>FIRMS API</b> for the most recent days</li>
+    <li><b>MCD14ML</b> MODIS monthly fire locations (version 3 labels)</li>
+    <li><b>Common Metadata Repository</b> granule records: where each satellite actually looked</li>
+  </ul>
+  <p class="muted">Open source: Python, DuckDB, H3, Rust, SvelteKit, MapLibre. Basemap © OpenStreetMap contributors, OpenFreeMap.</p>
+  <div class="foot"><span>firecal</span><span>6 / 7</span></div>
+</section>
+
+<section class="s">
+  <div class="kicker">What's next</div>
+  <h2>A fire record people can trust, anywhere, back to 2000.</h2>
+  <ul>
+    <li>A public hosted demo with daily updates from FIRMS</li>
+    <li>Coarser hexagons for continent and world views</li>
+    <li>Global hotspot CSV downloads (about 580 million detections)</li>
+    <li>Fire-season timing, two-period comparison, per-hexagon anomaly maps</li>
+  </ul>
+  <p class="muted">Code, methods and the full AI usage log: github.com/strychemi/firecal</p>
+  <div class="foot"><span>firecal</span><span>7 / 7</span></div>
+</section>
+
+</body>
+</html>

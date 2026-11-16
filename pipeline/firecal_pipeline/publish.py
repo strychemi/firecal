@@ -240,7 +240,7 @@ def run(cfg: Config) -> None:
 
     # Filtered hotspot rows for the CSV export, with the app's hexagon at each level and whether the
     # detection came from the satellite the calendar counts that day in its continent. Skipped where
-    # [api] hotspot_export = false (the global run: billions of rows, not split for serving yet); the API then
+    # [api] hotspot_export = false (the global run: about 580 M rows, 6-8 GB); the API then
     # refuses the export with a message.
     first, last = eras[0]["start"], eras[-1]["end"]
     if cfg["api"].get("hotspot_export", True):

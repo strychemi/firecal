@@ -139,7 +139,7 @@ The map fills the window, as in kepler.gl. Panels float over it: on the left, ar
 | Yearly totals | Raw-to-harmonized toggle that removes the 2012 jump (the demo moment) |
 | Fire season, year by year | Months along the bottom, one faint line per year, the usual year dashed and the selected year highlighted. Seasons start after the usually quietest month, so a season is not split at New Year. "So far this season" shows each season's running total instead, so a season running ahead or behind sits above or below the usual line (the median of the complete seasons' totals). The full monthly series is in its table and the CSV |
 | Map | Hexagons for the selected month against the average. Prototype: fire-days per hexagon for the selected month or the whole date range in five classes, flat or in 3D (height = date-range fire-days) |
-| Time bar | The whole series for the area; sets the dates and the month, and plays through the months (one search per month, cached). The map follows its last use: a month clicked or stepped to shows that month, a range dragged or Whole series shows the range |
+| Time bar | The whole series for the area; sets the dates and the month, and plays through the months (one search per month, cached). The map follows its last use: a month clicked or stepped to shows that month, a range dragged or Whole series shows the range. A month clicked in the calendar also shows that month |
 | Downloads and links | Monthly CSV, hotspot CSV, per-hexagon CSV (opens in Kepler.gl), PNG/SVG of each chart (with its title, area and dates, description and legend, so the image stands alone). The address bar holds the search (area, dates, month, "usual") as query parameters, so a link reproduces it |
 | Methods and limits | Two lines on the limits of this answer (conversion error for its continent, missing days in its dates); the full methods (how the conversion works, test results from `validation.json`, known weaknesses, data credits) in a dialog |
 
@@ -186,3 +186,20 @@ AI_LOG.md             how AI was used
 - The conversion overshoots in busy months and undershoots in quiet ones (the tilt in `PREREGISTRATION.md`, rule 3). The cause is small fires that only VIIRS detects.
 - Small areas are noisy; error ranges widen accordingly.
 - High latitudes, where satellite passes overlap several times a day, are untested.
+
+## 11. Future improvements
+
+Not built for the submission, in rough order of value.
+
+- **A res-3 level for continent and world searches.** Res 4 is the coarsest level published, and a search uses it however large it is: the whole world is 287,000 hexagons (69,000 with fire), 4 s the first time. Publishing res 3 (about 12,400 km², a config line in `app_resolutions`) and using it only above about 50,000 res-4 hexagons would cut that about sevenfold. At world zoom a res-4 hexagon is smaller than a pixel, so res 3 is also easier to read, and it is the scale the conversion is fitted and scored at. Box totals are unchanged; a drawn polygon's edge shifts slightly. Needs the API rule and Python reference, parity cases and a republish.
+- **Global hotspot CSV.** The global archive holds about 580 M detections (MODIS 111 M, S-NPP 297 M, NOAA-20 173 M), a 6–8 GB file, too large to bake into the demo's image, so it is not published; the hosted Argentina app serves the hotspot CSV. To add it: set `hotspot_export = true`, add a range filter on the search's cells so DuckDB skips row groups (the file is sorted by hexagon), and host the file on a disk volume. Or split it by year and by res-2 cell so a search reads only its own pieces, keep the 250,000-row cap, and point larger requests to the FIRMS archive download.
+- **Stream the hotspot CSV.** It is built in memory (about 24 MB at the cap); streaming it would bound the server's memory per export.
+- **An HTTP `ETag`** from the data version, so browsers and proxies can reuse answers.
+- **More analytics** (each about 1–3 hours):
+  - Season timing: the date by which half of each season's fire-days had happened, over the years, to show seasons starting earlier or later.
+  - Two periods compared, for example 2001–2010 against 2016–2025, as season curves or a difference calendar.
+  - Where a month is unusual: each hexagon coloured by its month against its own usual (needs a per-hexagon baseline in the API).
+  - Fire frequency: how many years each hexagon burned, separating yearly burning from one-off fires (needs a per-hexagon count in the API).
+  - A whole-year or whole-season trend next to the month's.
+- **Trend serial correlation.** The trend test treats years as independent; a version that allows for runs of wet or dry years (pre-whitening) would make its "unlikely to be chance" more conservative.
+- **Manual accessibility checks:** a screen reader walk-through, keyboard only, and 200 % zoom; the browser tests do not cover them.

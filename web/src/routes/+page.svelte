@@ -567,7 +567,11 @@
 							{/if}
 							<p>Every hexagon's values are in the hexagon CSV (Data tab).</p>
 						</section>
-						<CalendarHeatmap months={data.months} selected={data.stats.month} onselect={(m) => (month = m)} filename="{fileBase}-calendar" {busy} context={chartContext} />
+						<CalendarHeatmap months={data.months} selected={data.stats.month} onselect={(m) => {
+							month = m;
+							measure = 'month';
+						}}
+						filename="{fileBase}-calendar" {busy} context={chartContext} />
 						<YearlyBars months={data.months} filename="{fileBase}-yearly" {busy} context={chartContext} />
 						<SeasonCycle months={data.months} selected={data.stats.month} {baseline} filename="{fileBase}-season" {busy} context={chartContext} />
 						<MethodsPanel {meta} {data} />
