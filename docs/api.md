@@ -126,7 +126,7 @@ Field rules:
     - years are treated as independent; runs of wet or dry years can make `p` look surer than it is.
 - Numbers are rounded: `value`, `lower`, `upper`, `baseline_value` to 2 decimals, `frp` to 1, `ratio` to 3, `percentile` to 1, trend `slope` and `pct_per_year` to 2, `p` to 4.
 
-Errors return HTTP 400 with `{ "error": "message" }`.
+Errors return HTTP 400 with `{ "error": "message" }`. When the server is busy (at most one search or export runs per CPU core; a request waits up to 10 s for its turn) or a search takes more than 30 s, it returns HTTP 503 with `{ "error": "message" }`; try again later or with a smaller area. The same applies to `/api/export.csv`.
 
 ## `POST /api/export.csv`
 
