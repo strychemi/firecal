@@ -2,6 +2,7 @@
   "name": "firecal-web",
   "private": true,
   "version": "0.0.1",
+	"description": "firecal web app: the harmonized MODIS/VIIRS burning calendar. Written with AI assistance (Claude Code); see AI_LOG.md.",
   "type": "module",
   "imports": {
     "#lib": "./src/lib",
