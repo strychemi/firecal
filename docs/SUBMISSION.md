@@ -12,7 +12,7 @@ firecal turns 26 years of NASA fire detections from two generations of satellite
 
 ## Link to Project Demo
 
-7-slide deck (title, intro, problem, how it works, the app, results, future): link to `docs/firecal-demo.pdf` on GitHub once it is pushed to main.
+https://github.com/strychemi/firecal/blob/3a19569c0e129595f9301fd1a22e89ee05866f76/docs/firecal-demo.pdf (7-slide PDF)
 
 ## Link to Final Project
 
