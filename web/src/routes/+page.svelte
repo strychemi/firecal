@@ -17,10 +17,13 @@
 	import AnswerCard from '#lib/components/AnswerCard.svelte';
 	import CalendarHeatmap from '#lib/components/CalendarHeatmap.svelte';
 	import YearlyBars from '#lib/components/YearlyBars.svelte';
-	import MonthlyLine from '#lib/components/MonthlyLine.svelte';
-	import Methods from '#lib/components/Methods.svelte';
+	import SeasonCycle from '#lib/components/SeasonCycle.svelte';
+	import MethodsPanel from '#lib/components/MethodsPanel.svelte';
 	import TimeBar from '#lib/components/TimeBar.svelte';
 	import { cellToLatLng } from 'h3-js';
+	import { replaceState } from '$app/navigation';
+	import { page } from '$app/state';
+	import { fromParams, toParams } from '#lib/share.ts';
 
 	let meta = $state<Meta | null>(null);
 	let fatal = $state('');
@@ -87,11 +90,15 @@
 		try {
 			const m = await fetchMeta();
 			meta = m;
-			start = m.series_start;
-			end = m.series_end;
-			month = m.series_end;
+			// A shared link sets the search; anything missing or invalid in it falls back to the defaults.
+			const shared = fromParams(new URL(window.location.href).searchParams, m);
+			start = shared.start ?? m.series_start;
+			end = shared.end ?? m.series_end;
+			month = shared.month ?? end;
+			if (shared.baseline) baseline = shared.baseline;
 			const first = m.presets.find((p) => p.id === 'argentina-box') ?? m.presets[0];
-			if (first) setArea({ preset: first.id }, first.name);
+			if (shared.area) setArea(shared.area, shared.areaName!);
+			else if (first) setArea({ preset: first.id }, first.name);
 			else setArea({ bbox: m.region.bbox }, 'Whole region');
 		} catch (e) {
 			fatal = `Could not load firecal data: ${e instanceof Error ? e.message : String(e)}`;
@@ -117,6 +124,23 @@
 		area = a;
 		areaName = name;
 		fitKey = JSON.stringify(a);
+	}
+
+	// The address bar always holds a link to this search (replaced, not added to the history).
+	let linkMsg = $state('');
+	$effect(() => {
+		if (!meta || !start || !end || !month) return;
+		const qs = toParams({ area: $state.snapshot(area) as Area, start, end, month, baseline });
+		if (window.location.search !== `?${qs}`) replaceState(`?${qs}`, page.state);
+		linkMsg = '';
+	});
+	async function copyLink() {
+		try {
+			await navigator.clipboard.writeText(window.location.href);
+			linkMsg = 'Link copied.';
+		} catch {
+			linkMsg = 'Could not copy; copy the address from the address bar instead.';
+		}
 	}
 
 	// The whole series for the area: the time bar's histogram. Only the area changes it.
@@ -283,6 +307,8 @@
 			.replace(/[^a-z0-9]+/g, '-')
 			.replace(/^-|-$/g, '')
 			.slice(0, 40);
+	// Printed under the title of a saved chart image.
+	const chartContext = $derived(data ? `${dataAreaName}, ${monthLabel(data.start)} to ${monthLabel(data.end)}` : '');
 	const fileBase = $derived(data ? `firecal-${slug(dataAreaName)}-${data.start}_${data.end}` : 'firecal');
 	let exporting = $state(false);
 	let exportMsg = $state('');
@@ -453,6 +479,7 @@
 								</button>
 							</div>
 							{#if exportMsg}<p class="small warn" role="alert">{exportMsg}</p>{/if}
+
 							<p class="small">
 								The hexagon CSV has one row per hexagon with fire: its H3 index (<code>hex_id</code>), fire-days in {monthLabel(data.stats.month)} and over
 								the selected dates. Drop it on <a href="https://kepler.gl/demo" target="_blank" rel="noopener noreferrer">kepler.gl/demo</a>. Each chart
@@ -471,6 +498,12 @@
 									file; narrow the dates for large areas.
 								</p>
 							{/if}
+						</section>
+						<section aria-labelledby="share-title">
+							<h2 id="share-title" class="p-h">Share</h2>
+							<p class="small">The address bar holds a link to this search: area, dates, month and "usual". Anyone opening it sees the same answer.</p>
+							<button class="pbtn" type="button" onclick={copyLink}>Copy link</button>
+							<p class="small" role="status">{linkMsg}</p>
 						</section>
 					{/if}
 				</div>
@@ -513,10 +546,10 @@
 							{/if}
 							<p>Every hexagon's values are in the hexagon CSV (Data tab).</p>
 						</section>
-						<CalendarHeatmap months={data.months} selected={data.stats.month} onselect={(m) => (month = m)} filename="{fileBase}-calendar" {busy} />
-						<YearlyBars months={data.months} filename="{fileBase}-yearly" {busy} />
-						<MonthlyLine months={data.months} selected={data.stats.month} filename="{fileBase}-monthly" {busy} />
-						<Methods {meta} {data} />
+						<CalendarHeatmap months={data.months} selected={data.stats.month} onselect={(m) => (month = m)} filename="{fileBase}-calendar" {busy} context={chartContext} />
+						<YearlyBars months={data.months} filename="{fileBase}-yearly" {busy} context={chartContext} />
+						<SeasonCycle months={data.months} selected={data.stats.month} {baseline} filename="{fileBase}-season" {busy} context={chartContext} />
+						<MethodsPanel {meta} {data} />
 					{:else if busy}
 						<p class="card" role="status">Loading…</p>
 					{/if}
@@ -540,10 +573,29 @@
 						· days 1–{meta.in_progress.days} so far{/if}</span
 				>
 				<span class="range">Dates {start ? monthShortLabel(start) : ''} – {end ? monthShortLabel(end) : ''}</span>
-				<button class="pbtn" type="button" onclick={() => meta && setRange(meta.series_start, meta.series_end)}>Whole series</button>
+				<button class="pbtn" type="button" onclick={() => {
+						if (!meta) return;
+						setRange(meta.series_start, meta.series_end);
+						measure = 'range';
+					}}>Whole series</button>
 			</div>
 			{#if series.length}
-				<TimeBar {series} {start} {end} {month} {busy} onrange={setRange} onmonth={(m) => (month = m)} />
+				<!-- The map follows what the time bar was last used for: a month clicked shows that month, a range dragged shows the range. -->
+				<TimeBar
+					{series}
+					{start}
+					{end}
+					{month}
+					{busy}
+					onrange={(a, b) => {
+						setRange(a, b);
+						measure = 'range';
+					}}
+					onmonth={(m) => {
+						month = m;
+						measure = 'month';
+					}}
+				/>
 			{:else}
 				<p class="small">Loading the series…</p>
 			{/if}
@@ -649,7 +701,8 @@
 		position: absolute;
 		top: 12px;
 		left: 12px;
-		bottom: 172px;
+		/* As tall as its content, up to the space above the time panel (12px + 172px). */
+		max-height: calc(100% - 184px);
 		width: 320px;
 		display: flex;
 		flex-direction: column;
@@ -658,7 +711,6 @@
 		z-index: 2;
 	}
 	.left.closed {
-		bottom: auto;
 		width: auto;
 		padding: 6px;
 	}
@@ -672,12 +724,14 @@
 		flex: 1;
 	}
 	.pane {
-		flex: 1;
+		flex: 0 1 auto;
 		min-height: 0;
 		display: flex;
 		flex-direction: column;
 		gap: 16px;
-		padding-right: 4px;
+		/* Room for focus rings, which a scrolling box would otherwise cut off at its edges. */
+		padding: 4px 8px 4px 4px;
+		margin: -4px;
 	}
 	section p {
 		margin: 8px 0 0;

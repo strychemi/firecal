@@ -5,6 +5,9 @@
   bars are also direct-labelled and every chart has a table view.
   Sequential = blue 100->700 (flipped in dark). Diverging = blue <-> red with a
   grey midpoint; the red arm is lightness-matched to the blue steps.
+  "Much" is vivid (OKLCH chroma about 0.19, white icon) and the plain steps nearly
+  grey (chroma 0.05), so how far a month is from usual shows at a glance. The two
+  plain steps are too pale to tell apart by colour; their arrows tell them apart.
 */
 :root {
 	color-scheme: light;
@@ -40,16 +43,24 @@
 	--seq-5: #256abf;
 	--seq-6: #184f95;
 	--seq-7: #0d366b;
+	/* Map classes: an ordinal ramp (blue 250-650, every other step), so the lightest clears 2:1 on the page. */
+	--map-1: #86b6ef;
+	--map-2: #5598e7;
+	--map-3: #2a78d6;
+	--map-4: #1c5cab;
+	--map-5: #104281;
 
-	--div-mlo: #1c5cab;
-	--div-lo: #86b6ef;
+	--div-mlo: #1e59cd;
+	--div-lo: #b8d0ef;
 	--div-mid: #f0efec;
-	--div-hi: #ef9790;
-	--div-mhi: #a32c2d;
+	--div-hi: #edc2bd;
+	--div-mhi: #be2323;
 	--div-ink-strong: #ffffff;
 	--div-ink-soft: #0b0b0b;
 
 	--hatch: rgba(11, 11, 11, 0.55);
+	/* Select chevron, in --text-2 (a data URL cannot read CSS variables). */
+	--chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%2352514e' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 	--cell-ring: #0b0b0b;
 
 	--radius: 10px;
@@ -90,16 +101,22 @@
 		--seq-5: #6da7ec;
 		--seq-6: #9ec5f4;
 		--seq-7: #cde2fb;
+		--map-1: #184f95;
+		--map-2: #256abf;
+		--map-3: #3987e5;
+		--map-4: #6da7ec;
+		--map-5: #9ec5f4;
 
-		--div-mlo: #6da7ec;
-		--div-lo: #184f95;
+		--div-mlo: #3783f0;
+		--div-lo: #3d516b;
 		--div-mid: #383835;
-		--div-hi: #8e2525;
-		--div-mhi: #ea817a;
-		--div-ink-strong: #0b0b0b;
+		--div-hi: #694542;
+		--div-mhi: #e6443d;
+		--div-ink-strong: #ffffff;
 		--div-ink-soft: #f0efec;
 
 		--hatch: rgba(255, 255, 255, 0.6);
+	--chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%23c3c2b7' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 		--cell-ring: #f0efec;
 	}
 }
@@ -133,14 +150,20 @@
 	--seq-5: #6da7ec;
 	--seq-6: #9ec5f4;
 	--seq-7: #cde2fb;
-	--div-mlo: #6da7ec;
-	--div-lo: #184f95;
+	--map-1: #184f95;
+	--map-2: #256abf;
+	--map-3: #3987e5;
+	--map-4: #6da7ec;
+	--map-5: #9ec5f4;
+	--div-mlo: #3783f0;
+	--div-lo: #3d516b;
 	--div-mid: #383835;
-	--div-hi: #8e2525;
-	--div-mhi: #ea817a;
-	--div-ink-strong: #0b0b0b;
+	--div-hi: #694542;
+	--div-mhi: #e6443d;
+	--div-ink-strong: #ffffff;
 	--div-ink-soft: #f0efec;
 	--hatch: rgba(255, 255, 255, 0.6);
+	--chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%23c3c2b7' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 	--cell-ring: #f0efec;
 }
 
@@ -184,6 +207,39 @@ input,
 select {
 	font: inherit;
 	color: inherit;
+}
+
+/*
+  Selects: one look everywhere. The native arrow is replaced by a drawn chevron with room
+  around it; the native picker is kept (phones show their own wheel or list).
+*/
+select {
+	appearance: none;
+	min-height: 36px;
+	padding: 6px 34px 6px 12px;
+	border: 1px solid var(--axis);
+	border-radius: 8px;
+	background: var(--surface) var(--chevron) no-repeat right 12px center / 12px 12px;
+	line-height: 1.25;
+	cursor: pointer;
+	transition: border-color 0.15s;
+}
+select:hover {
+	border-color: var(--muted);
+}
+select:focus-visible {
+	border-color: var(--focus);
+	outline: 2px solid var(--focus);
+	outline-offset: 1px;
+}
+select:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+@media (prefers-reduced-motion: reduce) {
+	select {
+		transition: none;
+	}
 }
 
 .sr-only {

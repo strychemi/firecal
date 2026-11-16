@@ -186,7 +186,7 @@ class Reference:
                 "days_filled_by": m["days_filled_by"],
                 "validation": {} if nested else validation_entries(self.validation),
                 "continents": self.continents(),
-                "presets": [{k: p[k] for k in ("id", "name", "note", "bbox")} for p in self.presets.values()],
+                "presets": [{k: p[k] for k in ("id", "name", "note", "bbox", "group") if k in p} for p in self.presets.values()],
                 "export_limit": int(self.cfg["api"].get("max_export_rows", 250000)) if self.has_export else None}
 
     @property
@@ -346,4 +346,74 @@ class Reference:
                 "baseline_years": [int(m["month"][:4]) for m in others],
                 "ratio": None if ratio is None else round(ratio, 3), "rank": rank, "of": len(vals) + 1,
                 "percentile": pct, "category": category, "sentence": sentence,
-                "through": to_date[0] if to_date else None}
+                "through": to_date[0] if to_date else None, "trend": trend(series, selected)}
+
+
+TREND_MIN_YEARS = 10
+
+
+def norm_cdf(z: float) -> float:
+    """Standard normal CDF through erf by Abramowitz and Stegun 7.1.26, as in the Rust API."""
+    x = abs(z) / math.sqrt(2.0)
+    t = 1.0 / (1.0 + 0.3275911 * x)
+    poly = ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t
+    erf = 1.0 - poly * math.exp(-x * x)
+    return 0.5 * (1.0 + erf) if z >= 0 else 0.5 * (1.0 - erf)
+
+
+def trend(series, selected: str) -> dict:
+    """The selected calendar month over the complete years: Theil-Sen slope as a share of the median,
+    and the two-sided Mann-Kendall test with the tie correction. Mirrors `trend` in api/src/query.rs."""
+    mon = selected[5:]
+    mname = MONTHS[int(mon) - 1]
+    pts = [(float(m["month"][:4]), m["value"]) for m in series if m["month"][5:] == mon and m["complete"]]
+    n = len(pts)
+
+    def none(sentence):
+        return {"years": n, "first": None, "last": None, "slope": None, "pct_per_year": None, "p": None,
+                "direction": None, "clear": False, "sentence": sentence}
+
+    if n < TREND_MIN_YEARS:
+        return none(f"Too few complete years of {mname} here ({n}) to judge a trend; it needs {TREND_MIN_YEARS}.")
+    first, last = int(pts[0][0]), int(pts[-1][0])
+    if all(v == 0 for _, v in pts):
+        return none(f"No fire was detected here in {mname} in any of the {n} years from {first} to {last}.")
+    slopes, s_stat = [], 0
+    for i in range(n):
+        for j in range(i + 1, n):
+            d = pts[j][1] - pts[i][1]
+            slopes.append(d / (pts[j][0] - pts[i][0]))
+            s_stat += (d > 0) - (d < 0)
+    slope = float(np.median(slopes))
+    vals = sorted(v for _, v in pts)
+    typical = float(np.median(vals))
+    ties = 0.0
+    k = 0
+    while k < n:
+        e = k
+        while e + 1 < n and vals[e + 1] == vals[k]:
+            e += 1
+        t = e - k + 1
+        ties += t * (t - 1) * (2 * t + 5)
+        k = e + 1
+    var = (n * (n - 1) * (2 * n + 5) - ties) / 18.0
+    z = 0.0 if var <= 0 else (s_stat - 1) / math.sqrt(var) if s_stat > 0 else (s_stat + 1) / math.sqrt(var) if s_stat < 0 else 0.0
+    p = min(1.0, max(0.0, 2.0 * (1.0 - norm_cdf(abs(z)))))
+    pct = slope / typical * 100.0 if typical > 0 else None
+    rate = f"about {abs(pct):.1f} % a year" if pct is not None else f"about {abs(slope):.1f} fire-days a year"
+    clear = p < 0.05 and slope != 0
+    direction = "rising" if slope > 0 else "falling" if slope < 0 else "flat"
+    ps = "p\u00a0<\u00a00.001" if p < 0.001 else f"p\u00a0=\u00a0{p:.3f}"  # non-breaking: one line
+    span = f"From {first} to {last}"
+    if clear:
+        verb = "risen" if slope > 0 else "fallen"
+        sentence = f"{span}, {mname} fire-days here have {verb} {rate}: a steady change, unlikely to be chance ({n} years, {ps})."
+    elif slope == 0:
+        sentence = f"{span}, {mname} fire-days here show no trend ({n} years, {ps})."
+    else:
+        way = "up" if slope > 0 else "down"
+        sentence = (f"{span}, {mname} fire-days here show no clear trend: a drift of {rate} {way} "
+                    f"is within normal year-to-year variation ({n} years, {ps}).")
+    return {"years": n, "first": first, "last": last, "slope": round(slope, 2),
+            "pct_per_year": None if pct is None else round(pct, 2), "p": round(p, 4), "direction": direction,
+            "clear": clear, "sentence": sentence}

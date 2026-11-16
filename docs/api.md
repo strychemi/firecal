@@ -20,7 +20,7 @@ All counts are **burning cell-days**: one H3 resolution-8 cell (about 0.74 km²)
   "days_filled_by": { "noaa20": 36, "terra": 9 },
   "validation": { "aqua": { "whole_area_typical_error_pct": 9.95, "small_area_typical_error_pct": 22.23, "backward_join_gap_pct": 2.0, "converted": true } },
   "continents": { "study_area": { "fitted": true, "validation": { "aqua": { "...": "..." } }, "gaps": [], "days_filled_by": {} } },
-  "presets": [{ "id": "parana-delta", "name": "Paraná Delta", "note": "...", "bbox": [-60.8, -34.3, -58.3, -32.0] }],
+  "presets": [{ "id": "parana-delta", "name": "Paraná Delta", "note": "...", "bbox": [-60.8, -34.3, -58.3, -32.0], "group": "South America" }],
   "export_limit": 250000
 }
 ```
@@ -28,6 +28,7 @@ All counts are **burning cell-days**: one H3 resolution-8 cell (about 0.74 km²)
 - `through` is the last local solar date with data. Days after the yearly FIRMS archive come from the FIRMS area API: standard-processing data where FIRMS has it, near-real-time after that. A local date counts only once the UTC morning after it is in, so `through` is two days before the newest UTC date FIRMS has.
 - `validation` has one entry per satellite tested against S-NPP (leaving one calibration year out). `converted` is false when the pre-registered rule rejected the fitted conversion (NOAA-20): the scores are then for counting it as S-NPP unchanged, which is what the data uses, and `backward_join_gap_pct` is that version's overall gap.
 - `continents` has one entry per continent with its own model and month status: the global data has `Africa`, `Antarctica`, `Asia`, `Europe`, `North_America`, `Oceania`, `South_America` and `World`; Argentina has the one entry `study_area`. Each holds `fitted` (false for Antarctica, too sparse to fit, and so without MODIS months), `validation` (as above, for that continent), and `gaps` and `days_filled_by` from that continent's own satellite choice. `World` is the whole run's satellite choice, used only for a search with no fire. With several continents the top-level `validation` is empty and `gaps` and `days_filled_by` are `World`'s; with one they are that continent's.
+- `presets` may carry a `group`, the heading the app lists the preset under (the global data groups them by continent); it is left out when the config has none.
 - `export_limit` is `null` when the data has no hotspot file (the global data): `/api/export.csv` is then refused.
 - `in_progress` is set when the series ends partway through a month (`series_end`): that month and how many of its days (1..`days`) have data. It is `null` when `through` is a month's last day.
 
@@ -85,7 +86,12 @@ Response:
     "ratio": 0.302, "rank": 22, "of": 26, "percentile": 16.0,
     "category": "much lower than usual",
     "sentence": "December 2025 had 49 fire-days, 0.3× the usual December (median of 25 years), 22nd highest of 26 years.",
-    "through": null
+    "through": null,
+    "trend": {
+      "years": 26, "first": 2000, "last": 2025, "slope": -1.5, "pct_per_year": -0.93, "p": 0.31,
+      "direction": "falling", "clear": false,
+      "sentence": "From 2000 to 2025, December fire-days here show no clear trend: a drift of about 0.9 % a year down is within normal year-to-year variation (26 years, p = 0.310)."
+    }
   },
   "cells": [
     { "h3": "86b2a6c07ffffff", "month": 2.0, "range": 311.47 }
@@ -111,7 +117,14 @@ Field rules:
   - `category` comes from `ratio`: below 0.5 "much lower than usual", below 0.8 "lower than usual", below 1.25 "about usual", below 2 "higher than usual", otherwise "much higher than usual" (`null` when `ratio` is `null`);
   - when there are no other complete years, `baseline_value` is 0, `baseline_years` is empty and `rank` and `of` are both 1;
   - when the selected month is the in-progress month, every year is counted on days 1..D only (D = meta `in_progress.days`): `value` is the month so far, the other years' values are their own days 1..D, and `through` is meta `through`. The sentence names the days: "November 1–13, 2026 had 7,312 fire-days, 1.1× the usual November 1–13 (median of 26 years), 13th highest of 27 years." Otherwise `through` is `null`.
-- Numbers are rounded: `value`, `lower`, `upper`, `baseline_value` to 2 decimals, `frp` to 1, `ratio` to 3, `percentile` to 1.
+  - `trend` is how this calendar month has changed over the complete years of the whole series (every complete year of that month, the selected one included if complete; on days 1..D only for the in-progress month):
+    - `slope` is the Theil–Sen slope in fire-days a year (the median of the slopes between every pair of years), and `pct_per_year` that slope as a percentage of the median of those years (`null` when the median is 0);
+    - `p` is the two-sided Mann–Kendall p-value (normal approximation, continuity and tie corrected; the normal CDF is computed with Abramowitz and Stegun 7.1.26), and `clear` is true when `p` is below 0.05 and `slope` is not 0;
+    - `direction` is `rising`, `falling` or `flat` from the sign of `slope`;
+    - with fewer than 10 years, or no fire in any of them, `first`, `last`, `slope`, `pct_per_year`, `p` and `direction` are `null`, `clear` is false, and `sentence` says why;
+    - `sentence` uses non-breaking spaces in "p = 0.004" so it stays on one line;
+    - years are treated as independent; runs of wet or dry years can make `p` look surer than it is.
+- Numbers are rounded: `value`, `lower`, `upper`, `baseline_value` to 2 decimals, `frp` to 1, `ratio` to 3, `percentile` to 1, trend `slope` and `pct_per_year` to 2, `p` to 4.
 
 Errors return HTTP 400 with `{ "error": "message" }`.
 

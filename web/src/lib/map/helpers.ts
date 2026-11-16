@@ -19,7 +19,9 @@ export function rgb(value: string): RGB {
 }
 
 /** The 7 non-zero sequential steps, light to dark (dark mode: dark to light), read from the page's tokens. */
-export const seqColors = (): RGB[] => Array.from({ length: 7 }, (_, i) => rgb(`--seq-${i + 1}`));
+/** The map's five fire-day classes (--map-1..5): every step clears 2:1 against the page and differs
+ *  from its neighbours (validated as an ordinal ramp; see app.css). */
+export const seqColors = (): RGB[] => Array.from({ length: 5 }, (_, i) => rgb(`--map-${i + 1}`));
 
 /** Diverging colours for the five categories, in CATEGORY_ORDER. */
 export const divColors = (): Record<Category, RGB> => {
@@ -27,8 +29,8 @@ export const divColors = (): Record<Category, RGB> => {
 	return Object.fromEntries(CATEGORY_ORDER.map((c, i) => [c, rgb(vars[i])])) as Record<Category, RGB>;
 };
 
-/** Quantile class breaks (up to 7 classes) of the positive values. */
-export function quantileBreaks(values: number[], n = 7): number[] {
+/** Quantile class breaks (up to 5 classes) of the positive values. */
+export function quantileBreaks(values: number[], n = 5): number[] {
 	const nz = values.filter((v) => v > 0).sort((a, b) => a - b);
 	if (!nz.length) return [];
 	const out: number[] = [];
@@ -46,9 +48,10 @@ export function classOf(v: number, breaks: number[]): number {
 	return i;
 }
 
-/** Colour for class i of k, spread across the 7 sequential steps. */
+/** Colour for class i of k, spread across the colour steps. */
 export function stepColor(i: number, k: number, colors: RGB[]): RGB {
-	const step = k <= 1 ? 6 : Math.round((i * 6) / (k - 1));
+	const top = colors.length - 1;
+	const step = k <= 1 ? top : Math.round((i * top) / (k - 1));
 	return colors[step];
 }
 

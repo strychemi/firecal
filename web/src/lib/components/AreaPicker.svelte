@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Area, BBox, Meta } from '#lib/types.ts';
+	import type { Area, BBox, Meta, Preset } from '#lib/types.ts';
 
 	interface Props {
 		meta: Meta;
@@ -11,6 +11,17 @@
 	type Tab = 'preset' | 'box' | 'circle';
 	let tab = $state<Tab>('preset');
 	const currentPreset = $derived('preset' in area ? area.preset : null);
+	// Presets under their group headings, in config order; one unnamed group when none has a heading.
+	const presetGroups = $derived.by(() => {
+		const out: { name: string; presets: Preset[] }[] = [];
+		for (const p of meta.presets) {
+			const name = p.group ?? '';
+			const last = out[out.length - 1];
+			if (last && last.name === name) last.presets.push(p);
+			else out.push({ name, presets: [p] });
+		}
+		return out;
+	});
 
 	// Custom box form (strings, so partial input can be validated).
 	const rb = $derived(meta.region.bbox);
@@ -116,19 +127,18 @@
 
 	{#if tab === 'preset'}
 		<div id="panel-preset" role="tabpanel" aria-labelledby="tab-preset" class="panel">
-			<div class="presets">
-				{#each meta.presets as p (p.id)}
-					<button
-						type="button"
-						class="preset"
-						aria-pressed={currentPreset === p.id}
-						onclick={() => onarea({ preset: p.id }, p.name)}
-					>
-						<span class="pname">{p.name}</span>
-						<span class="pnote">{p.note}</span>
-					</button>
-				{/each}
-			</div>
+			{#snippet presetButton(p: Preset)}
+				<button type="button" class="preset" aria-pressed={currentPreset === p.id} onclick={() => onarea({ preset: p.id }, p.name)}>
+					<span class="pname">{p.name}</span>
+					<span class="pnote">{p.note}</span>
+				</button>
+			{/snippet}
+			{#each presetGroups as g, gi (gi)}
+				<div class="presets" role={g.name ? 'group' : undefined} aria-labelledby={g.name ? `preset-group-${gi}` : undefined}>
+					{#if g.name}<h3 class="group" id="preset-group-{gi}">{g.name}</h3>{/if}
+					{#each g.presets as p (p.id)}{@render presetButton(p)}{/each}
+				</div>
+			{/each}
 		</div>
 	{:else if tab === 'box'}
 		<div id="panel-box" role="tabpanel" aria-labelledby="tab-box" class="panel">
@@ -218,6 +228,18 @@
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
 		gap: 8px;
+	}
+	.presets + .presets {
+		margin-top: 12px;
+	}
+	.group {
+		grid-column: 1 / -1;
+		margin: 0;
+		font-size: 0.72rem;
+		font-weight: 600;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--text-2);
 	}
 	.preset {
 		display: flex;

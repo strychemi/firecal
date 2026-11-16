@@ -64,6 +64,7 @@ test('loads the newest month from the API', async ({ page, request }) => {
 	const r = await api(request, initial());
 	await open(page);
 	await expect(sentence(page)).toHaveText(r.stats.sentence);
+	await expect(page.locator('.answer .trend p')).toHaveText(r.stats.trend.sentence);
 	await expect(areaMeta(page)).toContainText(hexText(r));
 	const eyebrow = page.locator('#answer-title');
 	if (meta.in_progress) {
@@ -147,6 +148,51 @@ test('an invalid box is caught before any search', async ({ page }) => {
 	await expect(sentence(page)).toHaveText(before!);
 });
 
+test('the time bar switches the map between the month and the range', async ({ page }) => {
+	await open(page);
+	await panel(page, 'Layer');
+	const monthBtn = page.getByRole('button', { name: 'Selected month', exact: true });
+	const rangeBtn = page.getByRole('button', { name: 'Date range', exact: true });
+	const bar = page.getByRole('slider', { name: 'Month' });
+	const box = (await bar.boundingBox())!;
+	const y = box.y + box.height / 2;
+
+	// Dragging across the bars sets the dates and shows the range on the map.
+	await page.mouse.move(box.x + box.width * 0.3, y);
+	await page.mouse.down();
+	await page.mouse.move(box.x + box.width * 0.5, y, { steps: 5 });
+	await page.mouse.up();
+	await expect(rangeBtn).toHaveAttribute('aria-pressed', 'true');
+
+	// Clicking a bar picks that month and shows it on the map.
+	await page.mouse.click(box.x + box.width * 0.4, y);
+	await expect(monthBtn).toHaveAttribute('aria-pressed', 'true');
+
+	// Whole series is a range again.
+	await page.getByRole('button', { name: 'Whole series' }).click();
+	await expect(rangeBtn).toHaveAttribute('aria-pressed', 'true');
+
+	// Arrow keys step the month.
+	await bar.focus();
+	await page.keyboard.press('ArrowLeft');
+	await expect(monthBtn).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('the season chart adds up each season', async ({ page }) => {
+	await open(page);
+	const sec = page.locator('section[aria-labelledby="season-cycle-title"]');
+	const usualRow = () => sec.locator('table tbody tr').first().locator('td');
+	const perMonth = await usualRow().allTextContents();
+	await sec.getByRole('button', { name: 'So far this season' }).click();
+	await expect(sec.getByRole('button', { name: 'So far this season' })).toHaveAttribute('aria-pressed', 'true');
+	const soFar = await usualRow().allTextContents();
+	// A running total never falls, and ends at least as high as any single month.
+	const n = (t: string) => Number(t.replace(/[^0-9.]/g, ''));
+	const known = soFar.filter((t) => t !== '–').map(n);
+	for (let i = 1; i < known.length; i++) expect(known[i]).toBeGreaterThanOrEqual(known[i - 1]);
+	expect(Math.max(...known)).toBeGreaterThanOrEqual(Math.max(...perMonth.filter((t) => t !== '–').map(n)));
+});
+
 test('downloads match the API', async ({ page, request }) => {
 	await open(page);
 	await page.getByRole('button', { name: 'Paraná Delta' }).click();
@@ -179,6 +225,14 @@ test('downloads match the API', async ({ page, request }) => {
 	const [cells] = await Promise.all([page.waitForEvent('download'), hex.click()]);
 	const rows = (await text(cells)).trim().split('\n');
 	expect(rows.length - 1).toBe(r.cells!.length);
+
+	// A saved chart carries its title, the area and dates, its description and its legend.
+	const yearly = page.getByRole('group', { name: 'Download Yearly totals' });
+	const [img] = await Promise.all([page.waitForEvent('download'), yearly.getByRole('button', { name: 'SVG' }).click()]);
+	expect(img.suggestedFilename()).toBe('firecal-parana-delta-2020-08_2020-09-yearly.svg');
+	const svg = await text(img);
+	for (const s of ['>Yearly totals<', 'August 2020 to September 2020<', 'converted so MODIS years are on the VIIRS scale', '>Satellite record:<', '>Terra MODIS<'])
+		expect(svg).toContain(s);
 });
 
 test('an export over the row cap shows the server message', async ({ page, request }) => {
@@ -236,13 +290,39 @@ test('each search names the continent whose model it used, and the methods show 
 		} else {
 			const pct = `${(r.continent_share! * 100).toLocaleString('en-US', { maximumFractionDigits: 1 })} %`;
 			await expect(areaMeta(page)).toContainText(`Converted with the ${name} model, which holds ${pct} of this area's fire-days.`);
-			const methods = page.locator('.methods');
+			// The full methods open in a dialog from the "Limits for this answer" card.
+			await page.getByRole('button', { name: 'Methods and limits' }).click();
+			const methods = page.getByRole('dialog', { name: 'Methods and limits' });
+			await expect(methods).toBeVisible();
 			await expect(methods.locator('h3', { hasText: 'How well the conversion works' })).toHaveText(`How well the conversion works: ${name}`);
 			const aqua = info.validation.aqua;
 			const pctCell = (n: number) => `${n.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 2 })} %`;
 			await expect(methods.locator('tr', { hasText: 'Aqua MODIS' })).toContainText(pctCell(aqua.whole_area_typical_error_pct));
+			await page.keyboard.press('Escape');
+			await expect(methods).toBeHidden();
 		}
 	}
+});
+
+test('a shared link opens the same search, and the address bar follows each change', async ({ page, request }) => {
+	const req: QueryRequest = { area: { preset: 'parana-delta' }, start: '2010-01', end: '2015-12', month: '2012-08', baseline: 'mean' };
+	const r = await api(request, req);
+	await page.goto('/?preset=parana-delta&start=2010-01&end=2015-12&month=2012-08&baseline=mean');
+	await expect(sentence(page)).toHaveText(r.stats.sentence);
+	await setMonth(page, 'month', '2013-09');
+	await expect(page).toHaveURL(/[?&]month=2013-09(&|$)/);
+	await expect(page).toHaveURL(/[?&]preset=parana-delta(&|$)/);
+	// A box travels as numbers.
+	const box: QueryRequest = { area: { bbox: [-60, -34, -58.5, -32.5] }, start: '2019-01', end: '2021-12', month: '2020-08', baseline: 'median' };
+	const rb = await api(request, box);
+	await page.goto('/?bbox=-60,-34,-58.5,-32.5&start=2019-01&end=2021-12&month=2020-08');
+	await expect(sentence(page)).toHaveText(rb.stats.sentence);
+});
+
+test('a link with unknown or out-of-range parts falls back to the defaults', async ({ page, request }) => {
+	const r = await api(request, { ...initial(), area: { preset: meta.presets.find((p) => p.id === 'argentina-box')?.id ?? meta.presets[0].id } });
+	await page.goto('/?preset=nowhere&start=1990-01&end=2999-12&month=13-2020&baseline=mode');
+	await expect(sentence(page)).toHaveText(r.stats.sentence);
 });
 
 // Automated accessibility scan (axe-core) against WCAG 2.2 A and AA, on every panel tab. It finds

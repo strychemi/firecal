@@ -240,6 +240,98 @@ fn days_label(mname: &str, days: u32) -> String {
     if days == 1 { format!("{mname} 1") } else { format!("{mname} 1–{days}") }
 }
 
+/// Fewest complete years of a month for its trend to be judged.
+const TREND_MIN_YEARS: usize = 10;
+
+/// Standard normal CDF, through erf by Abramowitz and Stegun 7.1.26 (error under 1.5e-7).
+/// The Python reference uses the same formula, so the two agree to the last digit shown.
+fn norm_cdf(z: f64) -> f64 {
+    let x = z.abs() / std::f64::consts::SQRT_2;
+    let t = 1.0 / (1.0 + 0.3275911 * x);
+    let poly = ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t;
+    let erf = 1.0 - poly * (-x * x).exp();
+    if z >= 0.0 { 0.5 * (1.0 + erf) } else { 0.5 * (1.0 - erf) }
+}
+
+/// How the selected calendar month has changed over the complete years in `series`: the Theil–Sen
+/// slope (the median of the slopes between every pair of years), as a share of the month's median,
+/// and the Mann–Kendall test of whether the years trend one way (two-sided, ties corrected). Both
+/// are rank-based, so one extreme year cannot make or break a trend. Years are taken as independent.
+fn trend(series: &[MonthOut], selected: &str) -> Result<Value> {
+    let mon = &selected[5..];
+    let mname = MONTHS[mon.parse::<usize>()? - 1];
+    let pts: Vec<(f64, f64)> = series
+        .iter()
+        .filter(|m| &m.month[5..] == mon && m.complete)
+        .map(|m| Ok((m.month[..4].parse::<f64>()?, m.value)))
+        .collect::<Result<_>>()?;
+    let n = pts.len();
+    let none = |sentence: String| {
+        json!({"years": n, "first": null, "last": null, "slope": null, "pct_per_year": null, "p": null,
+               "direction": null, "clear": false, "sentence": sentence})
+    };
+    if n < TREND_MIN_YEARS {
+        return Ok(none(format!(
+            "Too few complete years of {mname} here ({n}) to judge a trend; it needs {TREND_MIN_YEARS}."
+        )));
+    }
+    let (first, last) = (pts[0].0, pts[n - 1].0);
+    if pts.iter().all(|p| p.1 == 0.0) {
+        return Ok(none(format!("No fire was detected here in {mname} in any of the {n} years from {first} to {last}.")));
+    }
+    let mut slopes = Vec::with_capacity(n * (n - 1) / 2);
+    let mut s_stat: i64 = 0;
+    for i in 0..n {
+        for j in i + 1..n {
+            let d = pts[j].1 - pts[i].1;
+            slopes.push(d / (pts[j].0 - pts[i].0));
+            s_stat += if d > 0.0 { 1 } else if d < 0.0 { -1 } else { 0 };
+        }
+    }
+    let slope = median(&mut slopes);
+    let mut vals: Vec<f64> = pts.iter().map(|p| p.1).collect();
+    let typical = median(&mut vals);
+    // Tie groups (vals is sorted now).
+    let nf = n as f64;
+    let mut ties = 0.0;
+    let mut k = 0;
+    while k < n {
+        let mut e = k;
+        while e + 1 < n && vals[e + 1] == vals[k] {
+            e += 1;
+        }
+        let t = (e - k + 1) as f64;
+        ties += t * (t - 1.0) * (2.0 * t + 5.0);
+        k = e + 1;
+    }
+    let var = (nf * (nf - 1.0) * (2.0 * nf + 5.0) - ties) / 18.0;
+    let s = s_stat as f64;
+    let z = if var <= 0.0 { 0.0 } else if s > 0.0 { (s - 1.0) / var.sqrt() } else if s < 0.0 { (s + 1.0) / var.sqrt() } else { 0.0 };
+    let p = (2.0 * (1.0 - norm_cdf(z.abs()))).clamp(0.0, 1.0);
+    let pct = if typical > 0.0 { Some(slope / typical * 100.0) } else { None };
+    let rate = match pct {
+        Some(x) => format!("about {:.1} % a year", x.abs()),
+        None => format!("about {:.1} fire-days a year", slope.abs()),
+    };
+    let clear = p < 0.05 && slope != 0.0;
+    let direction = if slope > 0.0 { "rising" } else if slope < 0.0 { "falling" } else { "flat" };
+    // Non-breaking spaces keep "p = 0.004" on one line.
+    let ps = if p < 0.001 { "p\u{a0}<\u{a0}0.001".to_string() } else { format!("p\u{a0}=\u{a0}{p:.3}") };
+    let span = format!("From {first} to {last}");
+    let sentence = if clear {
+        let verb = if slope > 0.0 { "risen" } else { "fallen" };
+        format!("{span}, {mname} fire-days here have {verb} {rate}: a steady change, unlikely to be chance ({n} years, {ps}).")
+    } else if slope == 0.0 {
+        format!("{span}, {mname} fire-days here show no trend ({n} years, {ps}).")
+    } else {
+        let way = if slope > 0.0 { "up" } else { "down" };
+        format!("{span}, {mname} fire-days here show no clear trend: a drift of {rate} {way} is within normal year-to-year variation ({n} years, {ps}).")
+    };
+    Ok(json!({"years": n, "first": first as i64, "last": last as i64, "slope": round(slope, 2),
+              "pct_per_year": pct.map(|x| round(x, 2)), "p": round(p, 4), "direction": direction,
+              "clear": clear, "sentence": sentence}))
+}
+
 /// `to_date`: Some((through, D)) when `series` values are days 1..D of the in-progress month.
 fn stats(series: &[MonthOut], selected: &str, baseline: &str, to_date: Option<(&str, u32)>) -> Result<Value> {
     let cur = series.iter().find(|m| m.month == selected).with_context(|| format!("month {selected} is outside the series"))?;
@@ -290,6 +382,7 @@ fn stats(series: &[MonthOut], selected: &str, baseline: &str, to_date: Option<(&
         "baseline_years": others.iter().map(|m| m.month[..4].parse::<i32>().unwrap_or(0)).collect::<Vec<_>>(),
         "ratio": ratio.map(|r| round(r, 3)), "rank": rank, "of": n + 1, "percentile": pct,
         "category": category, "sentence": sentence, "through": to_date.map(|(t, _)| t),
+        "trend": trend(series, selected)?,
     }))
 }
 
@@ -472,6 +565,32 @@ pub fn meta(data: &Data, presets: &[Preset], export_limit: usize) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn month(m: &str, value: f64) -> MonthOut {
+        MonthOut { month: m.into(), source: "viirs".into(), value, lower: None, upper: None, raw: 0, detections: 0,
+                   frp: 0.0, days: 31, days_with_data: 31, complete: true, in_progress: false }
+    }
+
+    #[test]
+    fn trend_finds_a_steady_rise_and_ignores_noise() {
+        // 2001-2020, August rising 5 a year from 100, with one wild year that must not matter.
+        let up: Vec<MonthOut> = (0..20)
+            .map(|i| month(&format!("{}-08", 2001 + i), if i == 7 { 900.0 } else { 100.0 + 5.0 * i as f64 }))
+            .collect();
+        let t = trend(&up, "2020-08").unwrap();
+        assert_eq!(t["direction"], "rising");
+        assert_eq!(t["clear"], true);
+        assert_eq!(t["slope"], 5.0);
+        // Alternating years: no trend.
+        let flat: Vec<MonthOut> =
+            (0..20).map(|i| month(&format!("{}-08", 2001 + i), if i % 2 == 0 { 100.0 } else { 120.0 })).collect();
+        assert_eq!(trend(&flat, "2020-08").unwrap()["clear"], false);
+        // Too few years.
+        assert!(trend(&up[..5], "2005-08").unwrap()["p"].is_null());
+        // The normal CDF matches known values.
+        assert!((norm_cdf(1.959964) - 0.975).abs() < 1e-6);
+        assert!((norm_cdf(-1.0) - 0.158655).abs() < 1e-6);
+    }
 
     fn rect(x0: f64, y0: f64, x1: f64, y1: f64) -> Vec<(f64, f64)> {
         vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0)]

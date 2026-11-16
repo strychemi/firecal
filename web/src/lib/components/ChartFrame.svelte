@@ -14,16 +14,23 @@
 		notes?: Snippet;
 		children: Snippet;
 		busy?: boolean;
+		/** Area and dates, printed under the title in a saved image. */
+		context?: string;
+		/** The description for a saved image, when the on-screen one has instructions for using it. */
+		exportSubtitle?: string;
 	}
-	let { id, title, subtitle, filename, svg, controls, legend, table, notes, children, busy = false }: Props =
+	let { id, title, subtitle, filename, svg, controls, legend, table, notes, children, busy = false, context, exportSubtitle }: Props =
 		$props();
+
+	let legendEl = $state<HTMLElement | null>(null);
+	const parts = () => ({ title, context, subtitle: exportSubtitle ?? subtitle, legend: legendEl });
 
 	let err = $state('');
 	async function png() {
 		err = '';
 		if (!svg) return;
 		try {
-			await downloadPng(svg, `${filename}.png`, title);
+			await downloadPng(svg, `${filename}.png`, parts());
 		} catch (e) {
 			err = e instanceof Error ? e.message : String(e);
 		}
@@ -37,14 +44,14 @@
 			{#if subtitle}<p class="sub">{subtitle}</p>{/if}
 		</div>
 		<div class="dl" role="group" aria-label="Download {title}">
-			<button class="btn small" type="button" disabled={!svg} onclick={() => svg && downloadSvg(svg, `${filename}.svg`, title)}>
+			<button class="btn small" type="button" disabled={!svg} onclick={() => svg && downloadSvg(svg, `${filename}.svg`, parts())}>
 				SVG
 			</button>
 			<button class="btn small" type="button" disabled={!svg} onclick={png}>PNG</button>
 		</div>
 	</header>
 	{#if controls}<div class="controls">{@render controls()}</div>{/if}
-	{#if legend}<div class="legend">{@render legend()}</div>{/if}
+	{#if legend}<div class="legend" bind:this={legendEl}>{@render legend()}</div>{/if}
 	<div class="plot" class:busy>{@render children()}</div>
 	{#if notes}<div class="notes">{@render notes()}</div>{/if}
 	{#if err}<p class="err" role="alert">{err}</p>{/if}
