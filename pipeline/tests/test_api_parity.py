@@ -30,6 +30,8 @@ REQUESTS = [
     {"area": {"bbox": [-58.6, -34.7, -58.3, -34.5]}, "start": "2026-01"},
     {"area": {"point": [-71.3, -41.13], "radius_km": 40}},
     {"area": {"preset": "parana-delta"}, "month": "2025-11"},
+    # Boxes more than 180 degrees wide are filled as strips (H3 alone would fill the rest of the world).
+    {"area": {"bbox": [-170.0, -60.0, 170.0, 60.0]}, "month": "2010-08"},
 ]
 # The global sample: one or more searches per continent, searches spanning two continents (the continent
 # with most of the fire-days decides the ranges and month status), Antarctica (no model) and open ocean (no fire).
@@ -50,6 +52,9 @@ GLOBAL_REQUESTS = [
     {"area": {"bbox": [73.2, -53.3, 73.9, -52.9]}, "month": "2020-01"},
     {"area": {"bbox": [-150.0, -10.0, -145.0, -5.0]}, "month": "2010-06"},
     {"area": {"preset": "central-africa"}},
+    # Boxes more than 180 degrees wide, up to the whole map, are filled as strips.
+    {"area": {"bbox": [-180.0, -85.0, 180.0, 85.0]}, "month": "2010-08"},
+    {"area": {"bbox": [-100.0, -20.0, 100.0, 20.0]}, "month": "2004-01"},
 ]
 GLOBAL_EXPORTS = [
     {"area": {"preset": "parana-delta"}, "start": "2020-08", "end": "2020-08"},  # no hotspot file: refused
@@ -60,6 +65,7 @@ BAD = [
     {"area": {"preset": "nowhere"}},
     {"area": {"bbox": [-65.0, -30.0, -60.0, -26.0]}, "start": "1999-01"},
     {"area": {"bbox": [-65.0, -30.0, -60.0, -26.0]}, "baseline": "mode"},
+    {"area": {"polygon": [[-100, 0], [100, 0], [0, 10]]}},  # more than 180 degrees wide and not a box
 ]
 
 EXPORTS = [

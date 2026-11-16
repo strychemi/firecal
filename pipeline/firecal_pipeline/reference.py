@@ -75,14 +75,34 @@ def area_ring(area: dict, presets: dict) -> list[tuple[float, float]]:
     raise ValueError("area needs one of: preset, bbox, polygon, point + radius_km")
 
 
+def fill_pieces(ring) -> list[list[tuple[float, float]]]:
+    """The ring as pieces H3 can fill. H3 takes each edge the short way round the globe, so an area more than
+    180 degrees of longitude wide would be filled as the rest of the world. A box that wide is split into strips
+    at most 90 degrees wide; a polygon that wide is refused (docs/api.md)."""
+    xs = [p[0] for p in ring]
+    x0, x1 = min(xs), max(xs)
+    if x1 - x0 <= 180:
+        return [ring]
+    y0, y1 = ring[0][1], ring[2][1]
+    if ring != [(x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0)]:
+        raise ValueError("polygon is more than 180 degrees of longitude wide; use a box, or draw it in parts")
+    k = math.ceil((x1 - x0) / 90)
+    edges = [x0 + (x1 - x0) * i / k for i in range(k)] + [x1]
+    return [[(a, y0), (b, y0), (b, y1), (a, y1), (a, y0)] for a, b in zip(edges, edges[1:])]
+
+
 def area_cells(ring, resolutions, max_hex):
-    poly = h3.LatLngPoly([(lat, lon) for lon, lat in ring[:-1]])
+    polys = [h3.LatLngPoly([(lat, lon) for lon, lat in piece[:-1]]) for piece in fill_pieces(ring)]
+
+    def fill(res):
+        return set().union(*(h3.polygon_to_cells(poly, res) for poly in polys))
+
     for res in sorted(resolutions, reverse=True):  # finest first
-        cells = h3.polygon_to_cells(poly, res)
+        cells = fill(res)
         if 0 < len(cells) <= max_hex:
             return res, cells
     finest, coarsest = max(resolutions), min(resolutions)
-    cells = h3.polygon_to_cells(poly, coarsest)
+    cells = fill(coarsest)
     if cells:
         return coarsest, cells
     lon = sum(p[0] for p in ring[:-1]) / (len(ring) - 1)

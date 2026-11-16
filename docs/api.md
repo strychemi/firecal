@@ -54,6 +54,8 @@ Request (only `area` is required):
 | Polygon | `{ "polygon": [[lon, lat], [lon, lat], ...] }` (closed or not) |
 | Circle | `{ "point": [lon, lat], "radius_km": 50 }` (64-sided polygon) |
 
+H3 takes each edge of an area the short way round the globe, so an area more than 180° of longitude wide would be read as the rest of the world. A box that wide (up to the whole world) is therefore filled as strips at most 90° wide. A polygon that wide is refused with a 400; use a box, or draw it in parts.
+
 The area becomes the H3 hexagons whose centres fall inside it, at the finest published level (6, 5, then 4) that keeps it at or under `max_hexagons` (3,000). If even level 4 is over, level 4 is used anyway. An area too small to contain any centre uses the single level-6 hexagon at its centre.
 
 `start` and `end` limit the `months` returned. They default to the series start and end. `month` is the month the stats describe (default: `end`). `baseline` is `median` (default) or `mean`.

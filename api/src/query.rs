@@ -99,25 +99,48 @@ pub(crate) fn ring(area: &Area, presets: &[Preset]) -> Result<Vec<(f64, f64)>> {
     })
 }
 
-fn polygon_cells(ring: &[(f64, f64)], res: u8) -> Result<HashSet<CellIndex>> {
-    let poly = Polygon::new(LineString::from(ring.iter().map(|&(x, y)| Coord { x, y }).collect::<Vec<_>>()), vec![]);
+/// The ring as pieces H3 can fill. H3 takes each edge the short way round the globe, so an area more than 180° of
+/// longitude wide would be filled as the rest of the world. A box that wide is split into strips at most 90° wide;
+/// a polygon that wide is refused (docs/api.md). Same as fill_pieces in the Python reference.
+fn fill_pieces(ring: &[(f64, f64)]) -> Result<Vec<Vec<(f64, f64)>>> {
+    let x0 = ring.iter().map(|p| p.0).fold(f64::INFINITY, f64::min);
+    let x1 = ring.iter().map(|p| p.0).fold(f64::NEG_INFINITY, f64::max);
+    if x1 - x0 <= 180.0 {
+        return Ok(vec![ring.to_vec()]);
+    }
+    let (y0, y1) = (ring[0].1, ring[2].1);
+    let rect = |a: f64, b: f64| vec![(a, y0), (b, y0), (b, y1), (a, y1), (a, y0)];
+    if ring != rect(x0, x1).as_slice() {
+        bail!("polygon is more than 180 degrees of longitude wide; use a box, or draw it in parts");
+    }
+    let k = ((x1 - x0) / 90.0).ceil() as usize;
+    let mut edges: Vec<f64> = (0..k).map(|i| x0 + (x1 - x0) * i as f64 / k as f64).collect();
+    edges.push(x1);
+    Ok(edges.windows(2).map(|w| rect(w[0], w[1])).collect())
+}
+
+fn polygon_cells(pieces: &[Vec<(f64, f64)>], res: u8) -> Result<HashSet<CellIndex>> {
     let mut tiler = TilerBuilder::new(Resolution::try_from(res)?).containment_mode(ContainmentMode::ContainsCentroid).build();
-    tiler.add(poly).map_err(|e| anyhow::anyhow!("invalid area: {e}"))?;
+    for ring in pieces {
+        let poly = Polygon::new(LineString::from(ring.iter().map(|&(x, y)| Coord { x, y }).collect::<Vec<_>>()), vec![]);
+        tiler.add(poly).map_err(|e| anyhow::anyhow!("invalid area: {e}"))?;
+    }
     Ok(tiler.into_coverage().collect())
 }
 
 /// Finest published level that keeps the area at or under max_hex hexagons (docs/api.md).
 pub(crate) fn area_cells(ring: &[(f64, f64)], resolutions: &[u8], max_hex: usize) -> Result<(u8, HashSet<CellIndex>)> {
+    let pieces = fill_pieces(ring)?;
     let mut levels = resolutions.to_vec();
     levels.sort_unstable_by(|a, b| b.cmp(a));
     for &res in &levels {
-        let cells = polygon_cells(ring, res)?;
+        let cells = polygon_cells(&pieces, res)?;
         if !cells.is_empty() && cells.len() <= max_hex {
             return Ok((res, cells));
         }
     }
     let (finest, coarsest) = (levels[0], *levels.last().unwrap());
-    let cells = polygon_cells(ring, coarsest)?;
+    let cells = polygon_cells(&pieces, coarsest)?;
     if !cells.is_empty() {
         return Ok((coarsest, cells));
     }
@@ -440,4 +463,32 @@ pub fn meta(data: &Data, presets: &[Preset], export_limit: usize) -> Value {
         "days_filled_by": m["days_filled_by"], "validation": validation, "continents": continents, "presets": presets,
         "export_limit": if data.has_export { Some(export_limit) } else { None },
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rect(x0: f64, y0: f64, x1: f64, y1: f64) -> Vec<(f64, f64)> {
+        vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0)]
+    }
+
+    #[test]
+    fn wide_boxes_are_filled_as_strips() {
+        assert_eq!(fill_pieces(&rect(-80.0, -20.0, 80.0, 20.0)).unwrap().len(), 1);
+        let world = fill_pieces(&rect(-180.0, -85.0, 180.0, 85.0)).unwrap();
+        assert_eq!(world.len(), 4);
+        assert_eq!(world[0], rect(-180.0, -85.0, -90.0, 85.0));
+        assert_eq!(world[3], rect(90.0, -85.0, 180.0, 85.0));
+        // Without strips H3 fills the other side: a 200° box came back with a 160° box's hexagons.
+        let (_, wide) = area_cells(&rect(-100.0, -20.0, 100.0, 20.0), &[4], usize::MAX).unwrap();
+        let (_, narrow) = area_cells(&rect(-80.0, -20.0, 80.0, 20.0), &[4], usize::MAX).unwrap();
+        assert!(wide.len() > narrow.len() && narrow.is_subset(&wide));
+    }
+
+    #[test]
+    fn wide_polygons_are_refused() {
+        let tri = vec![(-100.0, 0.0), (100.0, 0.0), (0.0, 10.0), (-100.0, 0.0)];
+        assert!(fill_pieces(&tri).is_err());
+    }
 }

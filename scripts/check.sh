@@ -60,8 +60,9 @@ step "1/5 web: type-check and build"
 (cd "$ROOT/web" && pnpm install --frozen-lockfile --silent && pnpm exec playwright install chromium > /dev/null \
     && pnpm check && pnpm build > /dev/null)
 
-step "2/5 api: build"
+step "2/5 api: build and unit tests"
 cargo build --release --locked --quiet --manifest-path "$ROOT/api/Cargo.toml"
+cargo test --release --locked --quiet --manifest-path "$ROOT/api/Cargo.toml"
 
 step "3/5 sample: pipeline, parity, browser tests"
 if [[ $FRESH == 1 || ! -d "$FIXTURE/raw" ]]; then
