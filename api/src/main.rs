@@ -17,6 +17,7 @@ use data::{current_version, Data};
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tower_http::compression::CompressionLayer;
 use tower_http::services::{ServeDir, ServeFile};
 
@@ -25,6 +26,30 @@ struct AppState {
     presets: Vec<Preset>,
     max_hex: usize,
     max_export_rows: usize,
+    areas: Arc<query::AreaCache>,
+    /// One search or export at a time per core: the work is all CPU, so more at once only slows each.
+    slots: Arc<Semaphore>,
+}
+
+/// Areas whose work is kept (query::AreaCache).
+const AREA_CACHE: usize = 64;
+/// How long a request waits for a free slot before the server says it is busy.
+const QUEUE_WAIT: Duration = Duration::from_secs(10);
+/// How long a request waits for its answer once it has a slot. The work itself cannot be stopped, so it
+/// finishes (keeping its slot, which keeps the load bounded) and its answer is dropped.
+const WORK_WAIT: Duration = Duration::from_secs(30);
+
+/// Wait for a slot; a client that gives up while waiting (the browser cancels a search it no longer
+/// needs) drops this future, so its work never starts.
+async fn slot(state: &Shared) -> Result<OwnedSemaphorePermit, ApiError> {
+    match tokio::time::timeout(QUEUE_WAIT, state.slots.clone().acquire_owned()).await {
+        Ok(Ok(p)) => Ok(p),
+        _ => Err(ApiError(StatusCode::SERVICE_UNAVAILABLE, "The server is busy; try again in a moment.".into())),
+    }
+}
+
+fn too_slow() -> ApiError {
+    ApiError(StatusCode::SERVICE_UNAVAILABLE, "This search took too long; try a smaller area.".into())
 }
 
 type Shared = Arc<AppState>;
@@ -48,16 +73,26 @@ async fn meta(State(state): State<Shared>) -> Json<serde_json::Value> {
 async fn run_query(
     State(state): State<Shared>,
     body: Result<Json<query::QueryRequest>, axum::extract::rejection::JsonRejection>,
-) -> Result<Json<serde_json::Value>, ApiError> {
+) -> Result<Response, ApiError> {
     let Json(req) = body.map_err(|e| ApiError(StatusCode::BAD_REQUEST, e.body_text()))?;
+    let permit = slot(&state).await?;
     let data = snapshot(&state);
     let max_hex = state.max_hex;
     let presets = state.presets.clone();
-    tokio::task::spawn_blocking(move || query::query(&data, &presets, max_hex, &req))
+    let areas = state.areas.clone();
+    // The answer is encoded as JSON inside the slot too: for the whole world that is several MB, and
+    // encoding it outside would let another search start while this one still uses the core.
+    let work = tokio::task::spawn_blocking(move || {
+        let _permit = permit;
+        let value = query::query(&data, &presets, max_hex, &req, &areas)
+            .map_err(|e| ApiError(StatusCode::BAD_REQUEST, e.to_string()))?;
+        serde_json::to_vec(&value).map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+    });
+    let body = tokio::time::timeout(WORK_WAIT, work)
         .await
-        .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-        .map(Json)
-        .map_err(|e| ApiError(StatusCode::BAD_REQUEST, e.to_string()))
+        .map_err(|_| too_slow())?
+        .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))??;
+    Ok(([(axum::http::header::CONTENT_TYPE, "application/json")], body).into_response())
 }
 
 /// POST /api/export.csv: the filtered hotspots for an area and dates, or 413 with the row count if over the cap.
@@ -69,9 +104,17 @@ async fn run_export(
         Ok(b) => b,
         Err(e) => return ApiError(StatusCode::BAD_REQUEST, e.body_text()).into_response(),
     };
+    let permit = match slot(&state).await {
+        Ok(p) => p,
+        Err(e) => return e.into_response(),
+    };
     let data = snapshot(&state);
     let (presets, max_hex, cap) = (state.presets.clone(), state.max_hex, state.max_export_rows);
-    let out = tokio::task::spawn_blocking(move || export::export(&data, &presets, max_hex, cap, &req)).await;
+    let work = tokio::task::spawn_blocking(move || {
+        let _permit = permit;
+        export::export(&data, &presets, max_hex, cap, &req)
+    });
+    let Ok(out) = tokio::time::timeout(WORK_WAIT, work).await else { return too_slow().into_response() };
     match out {
         Ok(Ok(x)) => (
             [
@@ -137,6 +180,8 @@ async fn main() -> Result<()> {
         presets: cfg.presets,
         max_hex: cfg.api.max_hexagons,
         max_export_rows: cfg.api.max_export_rows,
+        areas: Arc::new(query::AreaCache::new(AREA_CACHE)),
+        slots: Arc::new(Semaphore::new(std::thread::available_parallelism().map_or(4, |n| n.get()))),
     });
     tokio::spawn(watch(state.clone(), gold));
 

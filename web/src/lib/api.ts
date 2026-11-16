@@ -43,6 +43,12 @@ export async function query(req: QueryRequest): Promise<QueryResponse> {
 	return (await send('/api/query', post(req))).json();
 }
 
+/** POST /api/query, cancellable, with the response's size (characters of JSON) for the cache's budget. */
+export async function querySized(req: QueryRequest, signal: AbortSignal): Promise<{ data: QueryResponse; size: number }> {
+	const text = await (await send('/api/query', { ...post(req), signal })).text();
+	return { data: JSON.parse(text), size: text.length };
+}
+
 /**
  * POST /api/export.csv: the filtered hotspots for an area and dates, as a CSV blob.
  * Throws HttpError with the server's message (413 when the search is over the row cap).
