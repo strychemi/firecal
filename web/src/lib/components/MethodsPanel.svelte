@@ -20,8 +20,18 @@
 			.map(([k, v]) => `${SAT[k]} ${pct(v.small_area_typical_error_pct)}`)
 	);
 	const converted = $derived(data.start < '2012-02');
-	const gapsHere = $derived(gaps.filter((g) => g.end >= `${data.start}-01` && g.start <= `${data.end}-31`));
-	const gapDays = $derived(gapsHere.reduce((s, g) => s + g.days, 0));
+	/** No model for this continent (Antarctica): its MODIS months have no data rather than being converted. */
+	const unfitted = $derived(info?.fitted === false);
+	// The selected dates as days; each gap is clipped to them, since a gap can cross a month boundary.
+	const DAY = 86_400_000;
+	const ms = (d: string) => Date.parse(`${d}T00:00:00Z`);
+	const from = $derived(ms(`${data.start}-01`));
+	const to = $derived.by(() => {
+		const [y, m] = data.end.split('-').map(Number);
+		return Date.UTC(y, m, 0); // last day of the end month
+	});
+	const gapsHere = $derived(gaps.filter((g) => ms(g.end) >= from && ms(g.start) <= to));
+	const gapDays = $derived(gapsHere.reduce((s, g) => s + Math.round((Math.min(ms(g.end), to) - Math.max(ms(g.start), from)) / DAY) + 1, 0));
 
 	let dialog = $state<HTMLDialogElement | null>(null);
 

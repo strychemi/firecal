@@ -14,16 +14,22 @@ export interface Shared {
 /** Most points a polygon may have in a link (a drawn polygon has a handful; a long link fails in some apps). */
 export const MAX_LINK_POINTS = 200;
 
-const r4 = (n: number) => String(Math.round(n * 1e4) / 1e4);
+/** Whether a link can carry this area: every area but a polygon with too many points. */
+export const shareable = (a: Area) => !('polygon' in a) || a.polygon.length <= MAX_LINK_POINTS;
 
-/** The search as query parameters (without the "?"). A polygon with too many points is left out. */
-export function toParams(s: { area: Area; start: YearMonth; end: YearMonth; month: YearMonth; baseline: Baseline }): string {
-	const p = new URLSearchParams();
+// Numbers go into the link exactly as the search sent them (the shortest form that reads back the
+// same), so the link reproduces the same hexagons. Drawn shapes are already rounded where drawn.
+const num = (n: number) => String(n);
+
+/** The search as query parameters (without the "?"), or null when the area cannot go in a link. */
+export function toParams(s: { area: Area; start: YearMonth; end: YearMonth; month: YearMonth; baseline: Baseline }): string | null {
 	const a = s.area;
+	if (!shareable(a)) return null;
+	const p = new URLSearchParams();
 	if ('preset' in a) p.set('preset', a.preset);
-	else if ('bbox' in a) p.set('bbox', a.bbox.map(r4).join(','));
-	else if ('point' in a) p.set('circle', [a.point[0], a.point[1], a.radius_km].map(r4).join(','));
-	else if ('polygon' in a && a.polygon.length <= MAX_LINK_POINTS) p.set('polygon', a.polygon.map((q) => q.map(r4).join(',')).join(';'));
+	else if ('bbox' in a) p.set('bbox', a.bbox.map(num).join(','));
+	else if ('point' in a) p.set('circle', [a.point[0], a.point[1], a.radius_km].map(num).join(','));
+	else if ('polygon' in a) p.set('polygon', a.polygon.map((q) => q.map(num).join(',')).join(';'));
 	p.set('start', s.start);
 	p.set('end', s.end);
 	p.set('month', s.month);
@@ -74,10 +80,9 @@ export function fromParams(q: URLSearchParams, meta: Meta): Shared {
 		out.start = s;
 		out.end = e;
 	}
+	// The described month may lie outside the dates shown (the month picker allows any month in the series).
 	const m = q.get('month');
-	const lo = out.start ?? meta.series_start;
-	const hi = out.end ?? meta.series_end;
-	if (inSeries(m) && m >= lo && m <= hi) out.month = m;
+	if (inSeries(m)) out.month = m;
 	const b = q.get('baseline');
 	if (b === 'median' || b === 'mean') out.baseline = b;
 	return out;

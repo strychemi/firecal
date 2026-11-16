@@ -23,7 +23,7 @@
 	import { cellToLatLng } from 'h3-js';
 	import { replaceState } from '$app/navigation';
 	import { page } from '$app/state';
-	import { fromParams, toParams } from '#lib/share.ts';
+	import { MAX_LINK_POINTS, fromParams, toParams } from '#lib/share.ts';
 
 	let meta = $state<Meta | null>(null);
 	let fatal = $state('');
@@ -127,14 +127,20 @@
 	}
 
 	// The address bar always holds a link to this search (replaced, not added to the history).
+	// A polygon with too many points cannot go in a link: the address bar then drops the search, and
+	// Copy link is off, so no link opens a different area than the one shown.
 	let linkMsg = $state('');
+	let canShare = $state(true);
 	$effect(() => {
 		if (!meta || !start || !end || !month) return;
 		const qs = toParams({ area: $state.snapshot(area) as Area, start, end, month, baseline });
-		if (window.location.search !== `?${qs}`) replaceState(`?${qs}`, page.state);
+		canShare = qs !== null;
+		const want = qs === null ? '' : `?${qs}`;
+		if (window.location.search !== want) replaceState(want || window.location.pathname, page.state);
 		linkMsg = '';
 	});
 	async function copyLink() {
+		if (!canShare) return;
 		try {
 			await navigator.clipboard.writeText(window.location.href);
 			linkMsg = 'Link copied.';
@@ -502,7 +508,10 @@
 						<section aria-labelledby="share-title">
 							<h2 id="share-title" class="p-h">Share</h2>
 							<p class="small">The address bar holds a link to this search: area, dates, month and "usual". Anyone opening it sees the same answer.</p>
-							<button class="pbtn" type="button" onclick={copyLink}>Copy link</button>
+							<button class="pbtn" type="button" onclick={copyLink} disabled={!canShare} aria-describedby={canShare ? undefined : 'share-off'}>Copy link</button>
+							{#if !canShare}
+								<p id="share-off" class="small">This polygon has more than {MAX_LINK_POINTS} points, too many for a link. Draw a simpler one, or use a box, to share the search.</p>
+							{/if}
 							<p class="small" role="status">{linkMsg}</p>
 						</section>
 					{/if}

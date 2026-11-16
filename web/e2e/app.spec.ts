@@ -186,11 +186,14 @@ test('the season chart adds up each season', async ({ page }) => {
 	await sec.getByRole('button', { name: 'So far this season' }).click();
 	await expect(sec.getByRole('button', { name: 'So far this season' })).toHaveAttribute('aria-pressed', 'true');
 	const soFar = await usualRow().allTextContents();
-	// A running total never falls, and ends at least as high as any single month.
+	// A running total never falls, and ends at least as high as any single month. The usual running
+	// total needs seasons with all twelve months complete; the sample (a few days kept per month) has
+	// none, so there it is empty throughout.
 	const n = (t: string) => Number(t.replace(/[^0-9.]/g, ''));
 	const known = soFar.filter((t) => t !== '–').map(n);
+	expect(known.length === 0 || known.length === 12).toBe(true);
 	for (let i = 1; i < known.length; i++) expect(known[i]).toBeGreaterThanOrEqual(known[i - 1]);
-	expect(Math.max(...known)).toBeGreaterThanOrEqual(Math.max(...perMonth.filter((t) => t !== '–').map(n)));
+	if (known.length) expect(Math.max(...known)).toBeGreaterThanOrEqual(Math.max(...perMonth.filter((t) => t !== '–').map(n)));
 });
 
 test('downloads match the API', async ({ page, request }) => {
@@ -317,6 +320,12 @@ test('a shared link opens the same search, and the address bar follows each chan
 	const rb = await api(request, box);
 	await page.goto('/?bbox=-60,-34,-58.5,-32.5&start=2019-01&end=2021-12&month=2020-08');
 	await expect(sentence(page)).toHaveText(rb.stats.sentence);
+	// The described month may lie outside the dates shown, and the link keeps it.
+	const outside: QueryRequest = { area: { preset: 'parana-delta' }, start: '2019-01', end: '2020-12', month: '2012-08', baseline: 'median' };
+	const ro = await api(request, outside);
+	await page.goto('/?preset=parana-delta&start=2019-01&end=2020-12&month=2012-08');
+	await expect(sentence(page)).toHaveText(ro.stats.sentence);
+	await expect(page).toHaveURL(/[?&]month=2012-08(&|$)/);
 });
 
 test('a link with unknown or out-of-range parts falls back to the defaults', async ({ page, request }) => {

@@ -58,7 +58,8 @@
 	let mode = $state<Mode>('month');
 
 	/** Each season's running total from its first month; null from a missing month on, and for a
-	 *  season that starts before the dates shown (its total so far is unknown). */
+	 *  season that starts before the dates shown (its total so far is unknown). An incomplete month
+	 *  is the last point (marked hollow): every total after it would be understated too. */
 	function running(cells: (MonthRow | null)[]): (number | null)[] {
 		let t = 0;
 		let ok = true;
@@ -68,6 +69,7 @@
 				return null;
 			}
 			t += m.value;
+			if (!m.complete) ok = false;
 			return t;
 		});
 	}
@@ -79,11 +81,12 @@
 	const counts = (s: Season, i: number) =>
 		valsOf(s)[i] !== null && (mode === 'month' ? !!s.cells[i]?.complete : s.cells.slice(0, i + 1).every((m) => m?.complete));
 	const agg = (xs: number[]) => (!xs.length ? null : baseline === 'mean' ? xs.reduce((a, v) => a + v, 0) / xs.length : median(xs));
+	/** Seasons with all twelve months complete: the same cohort at every column of the usual running
+	 *  total, so the usual line cannot fall as a partial season drops out. */
+	const whole = $derived(seasons.filter((s) => s.cells.every((m) => m?.complete)));
 	/** The usual value at each column: per month as before; so far, the median (or mean) of the
 	 *  complete seasons' running totals, which is not the running total of the monthly medians. */
-	const usual = $derived(
-		order.map((c, i) => (mode === 'month' ? typical[c] : agg(seasons.filter((s) => counts(s, i)).map((s) => valsOf(s)[i]!))))
-	);
+	const usual = $derived(order.map((c, i) => (mode === 'month' ? typical[c] : agg(whole.map((s) => valsOf(s)[i]!)))));
 
 	const selRow = $derived(months.find((m) => m.month === selected) ?? null);
 	const selSeason = $derived(selRow ? seasonOf(selRow) : null);
@@ -243,7 +246,7 @@
 
 	{#snippet notes()}
 		{#if selRow}<p>The ringed point is the month described in the answer card ({monthLabel(selected)}); hollow points are incomplete months. The full monthly series, with ranges and counts, is in the table and the Data tab's CSV.</p>{/if}
-		{#if mode === 'cum'}<p>A season that starts before the dates shown has no line here, since its total so far is unknown. The usual line is the {baseline === 'mean' ? 'average' : 'median'} of the complete seasons' totals at each month.</p>{/if}
+		{#if mode === 'cum'}<p>A season that starts before the dates shown has no line here, since its total so far is unknown, and a line stops at an incomplete month, since every total after it would be too low. The usual line is the {baseline === 'mean' ? 'average' : 'median'}, at each month, of the totals of the seasons with all twelve months complete.</p>{/if}
 	{/snippet}
 
 	{#snippet table()}
