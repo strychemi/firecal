@@ -2,7 +2,7 @@
 
 **Challenge:** NASA Space Apps 2026, *Harmonization of MODIS and VIIRS Hot Spots*.
 **Shape:** offline Python + DuckDB pipeline → versioned Parquet → Rust (axum) API → SvelteKit static frontend.
-**Status:** prototype for Argentina, 2026-11-15. The method is tested in `science/rule_checks/` with its keep/reject rules fixed in `PREREGISTRATION.md`; the pipeline (`pipeline/`), API (`api/`) and app (`web/`) run end to end, including recent days from the FIRMS API and the in-progress month comparison. The rest of this document is the design for the global version.
+**Status:** prototype for Argentina, 2026-11-15. The method is tested in `science/rule_checks/` with its keep/reject rules fixed in `PREREGISTRATION.md`; the pipeline (`pipeline/`), API (`api/`) and app (`web/`) run end to end, for Argentina and for the whole globe, including recent days from the FIRMS API and the in-progress month comparison. The rest of this document is the design for the global version.
 
 ## 1. Challenge objectives → where they are met
 
@@ -62,8 +62,8 @@ SvelteKit static build (served by the same Rust binary) ── MapLibre map + ch
 
 | Step | Input | Output | Notes |
 |---|---|---|---|
-| `download` | FIRMS area API | `firms_api/{product}/{date}.{sp,nrt}.csv` | Days after the yearly zips, one file per UTC day; standard processing where available, near-real-time after. The only step that reads the FIRMS key. |
-| `ingest` | FIRMS yearly zips, `firms_api/` | `bronze/{product}/{year}.parquet`, `bronze/{product}/recent.parquet` | One schema for all products. Clipped to the configured box. Idempotent, one year at a time. Near-real-time rows have no FIRMS `type`; a static-cell mask from the archive stands in (`PREREGISTRATION.md` §7). |
+| `download` | FIRMS area API | `firms_api/{product}/{date}.{sp,nrt}.csv` | Days after the yearly zips, one file per UTC day; standard processing where available, near-real-time after. The only step that reads the FIRMS key. Requests run in parallel, paced by the key's transaction count (FIRMS charges about 36 per world-day, limit 5,000 per 10 minutes). The global run fetches the whole world, VIIRS only. |
+| `ingest` | FIRMS yearly zips, `firms_api/` | `bronze/{product}/{year}.parquet`, `bronze/{product}/recent.parquet` | One schema for all products. Clipped to the configured box. Idempotent, one year at a time. Near-real-time rows have no FIRMS `type`; a static-cell mask from the archive stands in (`PREREGISTRATION.md` §7). Recent rows have no country: in the global run each takes the continent its res-6 cell (or a coarser parent) had most often in the archive (`bronze/continent_cells.parquet`; §7). |
 | `cells` | bronze | `silver/cell_day/…` | Filters (`type = 0`; MODIS confidence ≥ 30; VIIRS nominal/high), local solar date, H3 res 8, day/night. One row per cell, date, satellite and day/night, with hotspot count and FRP. |
 | `granules` | NASA CMR granule records (public, no login) | `granules/{sat}/{YYYY-MM}.parquet` | When and where each satellite observed (5- and 6-minute swath slices with footprints and day/night flag), for the fit years. Downloaded once; recent months fetched again. |
 | `outages` | bronze, granules | `silver/coverage.parquet`, `silver/observed.parquet` | Written by `cells`. Coverage: which satellite had any detection in the box on each day; `publish` uses it to pick each day's satellite. Observed: which outage-check units (H3 res-3 cell, local solar date, pass) each satellite observed, from granule footprints (`PREREGISTRATION.md` §7, 2026-11-15), with the whole box per pass as the fallback where records are missing. Stops if over 0.1 % of a satellite's detections fall outside its footprints. |
@@ -169,7 +169,7 @@ AI_LOG.md             how AI was used
 
 1. ✅ **Pipeline on Argentina, end to end**, checked against the known numbers (day multiplier about 3.05, night about 10.3, typical error about 10 %).
 2. ✅ **API pass 1:** `query` and `meta`, enough for the calendar and answer card. Frontend built against a saved response in parallel.
-3. ⬜ **Global pipeline run**, with per-continent validation.
+3. ✅ **Global pipeline run**, with per-continent validation, including recent days.
 4. ✅ **API pass 2:** map data (per-hexagon values in `query`). **Pass 3:** the hotspot CSV export (the monthly CSV is built in the browser).
 5. ✅ **Recent-data job** (by hand for now) and month-in-progress comparison.
 

@@ -20,6 +20,10 @@ modis_labels_through = 2017
 # NASA CMR granule records (when and where each satellite observed) for the fit years, from `granules`.
 # They decide which outage-check units both satellites observed (PREREGISTRATION.md §7, 2026-11-15).
 granules_dir = "../data/global/granules"
+# Recent days (after last_year) from the FIRMS area API, one world box per request (`download`, PREREGISTRATION.md §7):
+# only VIIRS, since the series uses no MODIS after 2012 and the hotspot export is off.
+api_products = ["viirs-snpp", "viirs-jpss1"]
+api_workers = 4                  # requests in flight at once, paced under the key's transaction limit
 
 [filters]
 vegetation_only = true           # FIRMS type = 0

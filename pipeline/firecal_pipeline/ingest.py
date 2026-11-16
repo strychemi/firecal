@@ -7,8 +7,12 @@ raw detections) with one schema for all products:
 
 `continent` comes from the FIRMS country file through [data] continents (the global run,
 global/continents.toml; PREREGISTRATION.md §7). Without that setting every row is "study_area".
-Recent days from the FIRMS API carry no country: they get "study_area" too, and the global run does
-not use them.
+Recent days from the FIRMS API carry no country. With continents set, each recent row takes the
+continent its res-6 cell had most often in the archive (bronze/continent_cells.parquet), falling back
+to the res-5, 4, 3 and 2 parents for places that never burned before; rows matching none are dropped,
+as the country files hold only land (PREREGISTRATION.md §7, 2026-11-15). Tested on 2025-07-01..05:
+vegetation detections per continent were within 0.2 % of the country files. Otherwise they get
+"study_area".
 
 Recent days (after [data] last_year) come from the FIRMS area API files written by download.py and
 go to bronze/{product}/recent.parquet. Near-real-time files have no FIRMS `type` column, so for
@@ -215,7 +219,30 @@ def static_cells(cfg: Config) -> pathlib.Path:
     return out
 
 
-def ingest_recent(cfg: Config, product: str, availability: dict, static: pathlib.Path) -> tuple[list[str], str] | None:
+LOOKUP_RES = (6, 5, 4, 3, 2)  # recent rows' continent: the finest of these levels the archive has seen
+
+
+def continent_cells(cfg: Config) -> pathlib.Path:
+    """res, cell, continent: each cell's most frequent continent in the archive at LOOKUP_RES levels."""
+    bronze, last = cfg.out / "bronze", int(cfg["data"]["last_year"])
+    out = bronze / "continent_cells.parquet"
+    years = [p for p in bronze.glob("*/[0-9]*.parquet") if int(p.stem) <= last]
+    files = ", ".join(f"'{p}'" for p in sorted(years))
+    levels = ", ".join(f"({r})" for r in LOOKUP_RES)
+    con = connect()
+    con.execute(f"""COPY (
+        WITH c6 AS (SELECT h3_cell_to_parent(cell8, 6) AS c6, continent, count(*) AS n
+                    FROM read_parquet([{files}]) GROUP BY ALL),
+             u AS (SELECT v.r AS res, h3_cell_to_parent(c6, v.r) AS cell, continent, sum(n) AS n
+                   FROM c6, (VALUES {levels}) v(r) GROUP BY ALL)
+        SELECT res, cell, continent FROM u
+        QUALIFY row_number() OVER (PARTITION BY res, cell ORDER BY n DESC, continent) = 1
+        ORDER BY res, cell) TO '{out}' (FORMAT parquet)""")
+    return out
+
+
+def ingest_recent(cfg: Config, product: str, availability: dict, static: pathlib.Path,
+                  lookup: pathlib.Path | None = None) -> tuple[list[str], str] | None:
     """FIRMS area API CSVs -> bronze/{product}/recent.parquet. Returns (satellites, last complete local date)."""
     files = sorted((cfg.out / "firms_api" / product).glob("*.csv"))
     if not files:
@@ -229,6 +256,13 @@ def ingest_recent(cfg: Config, product: str, availability: dict, static: pathlib
     out = cfg.dir(f"bronze/{product}") / "recent.parquet"
     con = connect()
     con.execute(f"CREATE TABLE static AS SELECT cell8 FROM '{static}'")
+    if lookup:
+        con.execute(f"CREATE TABLE lk AS SELECT * FROM '{lookup}'")
+        joins = " ".join(f"LEFT JOIN lk k{r} ON k{r}.res = {r} AND k{r}.cell = h3_cell_to_parent(raw.cell8, {r})"
+                         for r in LOOKUP_RES)
+        continent = "coalesce(" + ", ".join(f"k{r}.continent" for r in LOOKUP_RES) + ")"
+    else:
+        joins, continent = "", f"'{STUDY_AREA}'"
     names = ", ".join(f"'{p}'" for p in files)
     csv = f"""read_csv([{names}], header = true, union_by_name = true,
                        types = {{'acq_time': 'VARCHAR', 'acq_date': 'VARCHAR', 'confidence': 'VARCHAR',
@@ -247,9 +281,14 @@ def ingest_recent(cfg: Config, product: str, availability: dict, static: pathlib
                   FROM {csv})
             WHERE longitude BETWEEN {x0} AND {x1} AND latitude BETWEEN {y0} AND {y1})
         SELECT raw.sat, raw.lat, raw.lon, raw.acq_utc, raw.local_date, raw.dn, raw.frp, raw.confidence, raw.type,
-               {keep} AS keep, raw.cell8, '{STUDY_AREA}' AS continent
-        FROM raw LEFT JOIN static s ON s.cell8 = raw.cell8
+               {keep} AS keep, raw.cell8, {continent} AS continent
+        FROM raw LEFT JOIN static s ON s.cell8 = raw.cell8 {joins}
         WHERE raw.sat IS NOT NULL AND raw.local_date <= DATE '{through}'""")
+    if lookup:
+        n_all = con.execute(f"SELECT count(*) FROM b").fetchone()[0]
+        con.execute("DELETE FROM b WHERE continent IS NULL")
+        n_off = n_all - con.execute("SELECT count(*) FROM b").fetchone()[0]
+        print(f"bronze {product} recent: {n_off:,} rows in no archive continent dropped", flush=True)
     con.execute(f"COPY (SELECT DISTINCT * FROM b ORDER BY acq_utc) TO '{out}' (FORMAT parquet, COMPRESSION zstd)")
     n, nrt, sats = con.execute("SELECT count(*), count(*) FILTER (WHERE type IS NULL), list(DISTINCT sat ORDER BY sat) FROM b").fetchone()
     print(f"bronze {product} recent: {n:,} rows ({nrt:,} near-real-time) through {through}", flush=True)
@@ -271,9 +310,10 @@ def run(cfg: Config, force: bool = False) -> None:
         return
     availability = json.loads(avail_path.read_text())["sources"]
     static = static_cells(cfg)
+    lookup = continent_cells(cfg) if continents(cfg) else None
     through = {}
     for product in PRODUCTS:
-        got = ingest_recent(cfg, product, availability, static)
+        got = ingest_recent(cfg, product, availability, static, lookup)
         if got:
             for sat in got[0]:
                 through[sat] = got[1]

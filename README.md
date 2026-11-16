@@ -51,6 +51,7 @@ mise run api        # build and run the API, which serves the app: http://127.0.
 ```bash
 cd pipeline
 FIRECAL_ROOT=../global uv run python -m firecal_pipeline granules   # about an hour, once
+FIRECAL_ROOT=../global uv run python -m firecal_pipeline download   # recent days, VIIRS only; ~50 min from January, minutes after
 FIRECAL_ROOT=../global uv run python -m firecal_pipeline ingest
 FIRECAL_ROOT=../global uv run python -m firecal_pipeline cells
 FIRECAL_ROOT=../global uv run python -m firecal_pipeline fit
@@ -62,7 +63,9 @@ FIRECAL_ROOT=../global uv run python -m firecal_pipeline publish    # → data/g
 
 A `silver/` built before coverage was split by continent needs `FIRECAL_ROOT=../global uv run python -m firecal_pipeline coverage` (seconds) before `publish`; `publish` says so.
 
-**Global app.** The same app over the whole globe, archive only (November 2000 to December 2025): no recent days from the FIRMS API yet, and no hotspot CSV (`hotspot_export = false` in `global/firecal.toml`; the API refuses it with a message and the app hides the button). Build the frontend once, then serve the global data:
+**Global recent days.** `download` fetches the days after December 2025 for the whole world, one box per request, VIIRS only (`api_products`). FIRMS counts about 36 transactions per world-day against the key's 5,000 per 10 minutes, so the first download from January is about 22,500 transactions: roughly 50 minutes, paced to stay under 95 % of the limit. Later runs fetch only new days. `download --sample YYYY-MM-DD` probes 5 days and prints their time and cost. API rows carry no country, so `ingest` gives each the continent its place had most often in the archive (PREREGISTRATION.md §7).
+
+**Global app.** The same app over the whole globe, from November 2000 to the latest complete day, with the month in progress compared with the same days of earlier years. No hotspot CSV (`hotspot_export = false` in `global/firecal.toml`; the API refuses it with a message and the app hides the button). Build the frontend once, then serve the global data:
 
 ```bash
 mise run web:build
@@ -102,6 +105,8 @@ It runs everything on this machine, in about half a minute:
 The sample is real FIRMS rows for a small box near the Paraná Delta, including recent near-real-time days. It's built from your local `data/` the first time (`--fresh-sample` rebuilds it) and is git-ignored, so no fire data goes into the repo. The pipeline and the API both read `FIRECAL_ROOT` to find it (`pipeline/tests/fixture/`). The script exits non-zero if any check fails.
 
 ## Data credits
+
+AI use: the code, data processing and much of the text were written with an AI assistant (Claude, by Anthropic) at the team's direction; [AI_LOG.md](AI_LOG.md) records every session. The app says so in its Methods panel and in the page's `ai-disclosure` metadata.
 
 Fire data: NASA FIRMS active-fire archives: MODIS MCD14ML Collection 6 and 6.1 (Terra and Aqua) and VIIRS 375 m Collection 2 (S-NPP and NOAA-20). MODIS hotspot types for 2000–2017 from the MCD14ML Collection 6 version 3 files of the MODIS fire team, University of Maryland (Giglio, L., Schroeder, W. & Justice, C. O. (2016), The Collection 6 MODIS active fire detection algorithm and fire products, *Remote Sensing of Environment* 178, 31–41). NASA data, shared without restriction under the [EOSDIS Data Use and Citation Guidance](https://www.earthdata.nasa.gov/data/catalog/lancemodis-mcd14dl-6.1nrt).
 
