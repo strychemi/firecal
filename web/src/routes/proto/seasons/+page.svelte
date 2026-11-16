@@ -326,7 +326,7 @@
 
 			<div class="legend glass" aria-label="Map legend">
 				<p class="lt">{mapTitle}{(busyMain && mode === 'month') || busyMap ? ' · loading…' : ''}</p>
-				{#each legend as l (l.label)}
+				{#each legend as l, i (i)}
 					<span class="li"><i class="swatch" style="background:{l.color}"></i>{l.label}</span>
 				{/each}
 				{#if mode === 'change' && (partial(yearA) || partial(yearB))}

@@ -41,6 +41,10 @@
 	let mapReady = $state(false);
 
 	let data = $state<QueryResponse | null>(null);
+	// The area that `data` answers, kept with it, so the hexagon comparison and exports never mix
+	// a newly chosen area with the previous area's results.
+	let dataArea = $state<Area | null>(null);
+	let dataAreaKey = $state('');
 	let busy = $state(false);
 	let notice = $state('');
 	let hexes = $state<HexAnomaly[]>([]);
@@ -120,6 +124,8 @@
 			.then((res) => {
 				if (my !== seq) return;
 				data = res;
+				dataArea = req.area;
+				dataAreaKey = JSON.stringify(req.area);
 				notice = '';
 				picked = null;
 			})
@@ -134,7 +140,7 @@
 	// Per-hexagon comparison: one search per comparison year (the API has no per-hexagon baseline yet).
 	$effect(() => {
 		const d = data;
-		const a = area;
+		const a = dataArea;
 		if (!d || !a || mode !== 'anomaly') return;
 		const my = ++hexSeq;
 		const row = d.months.find((m) => m.month === d.stats.month);
@@ -177,8 +183,14 @@
 	const mapHexes = $derived<Hex[]>(showAnomaly ? hexes : fireHexes);
 	const breaks = $derived(quantileBreaks(fireHexes.map((h) => h.value)));
 	let palette = $state<{ seq: ReturnType<typeof seqColors>; div: ReturnType<typeof divColors> } | null>(null);
+	// Read the palette from CSS once the map is up, and again whenever the colour scheme changes.
 	$effect(() => {
-		if (mapReady) palette = { seq: seqColors(), div: divColors() };
+		if (!mapReady) return;
+		const read = () => (palette = { seq: seqColors(), div: divColors() });
+		read();
+		const media = matchMedia('(prefers-color-scheme: dark)');
+		media.addEventListener('change', read);
+		return () => media.removeEventListener('change', read);
 	});
 	const fill = $derived.by(() => {
 		const p = palette;
@@ -187,7 +199,9 @@
 		if (showAnomaly) return (d: Hex): RGBA => [...p.div[d.category], d.value === 0 ? 140 : 200];
 		return (d: Hex): RGBA => [...stepColor(classOf(d.value, b), b.length + 1, p.seq), 200];
 	});
-	const fillKey = $derived(`${showAnomaly}|${breaks.join(',')}|${!!palette}|${hexes.length}`);
+	const fillKey = $derived(
+		`${showAnomaly}|${breaks.join(',')}|${palette ? [...palette.seq.flat(), ...Object.values(palette.div).flat()].join(',') : ''}|${hexes.length}`
+	);
 
 	function tooltip(d: Hex): string {
 		const m = data ? monthLabel(data.stats.month) : '';
@@ -224,11 +238,11 @@
 		return lines.join('\n') + '\n';
 	}
 	async function hotspots() {
-		if (!data || !area) return;
+		if (!data || !dataArea) return;
 		exporting = true;
 		exportMsg = '';
 		try {
-			const blob = await exportHotspots({ area: $state.snapshot(area) as Area, start: data.stats.month, end: data.stats.month });
+			const blob = await exportHotspots({ area: $state.snapshot(dataArea) as Area, start: data.stats.month, end: data.stats.month });
 			downloadBlob(`${fileBase}-hotspots.csv`, blob);
 		} catch (e) {
 			exportMsg = e instanceof Error ? e.message : String(e);
@@ -254,7 +268,7 @@
 			{fill}
 			{fillKey}
 			ring={follow ? null : (data?.area.ring ?? null)}
-			fitKey={follow ? '' : fitKey && data ? fitKey + JSON.stringify(data.area.ring[0]) : ''}
+			fitKey={follow || dataAreaKey !== fitKey ? '' : fitKey}
 			{tooltip}
 			onhex={(d) => (picked = d)}
 			onarea={setArea}
@@ -712,6 +726,10 @@
 		.answer {
 			max-height: 44vh;
 			overflow: auto;
+		}
+		.proto {
+			/* The footer spans the full width here, so lift the zoom buttons above it. */
+			--map-ctrl-bottom: 172px;
 		}
 		.bottom {
 			right: 12px;

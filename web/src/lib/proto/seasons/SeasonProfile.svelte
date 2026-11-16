@@ -51,7 +51,9 @@
 	});
 	const sentence = $derived(
 		!season
-			? 'No fire in any complete year here, so there is no fire season to show.'
+			? months.some((m) => m.complete && m.value > 0)
+				? `The usual (${baseline}) value of every month is zero, though some years had fire, so there is no regular fire season to show.`
+				: 'No fire in any complete year here, so there is no fire season to show.'
 			: `Fire season peaks in ${season.a === season.b ? MONTH_NAMES[season.a] : `${MONTH_NAMES[season.a]}–${MONTH_NAMES[season.b]}`}` +
 					` (busiest: ${MONTH_NAMES[season.top]}), with ${Math.round(season.share * 100)} % of a usual year's fire-days.`
 	);

@@ -137,7 +137,7 @@
 	</div>
 	<div class="legend" aria-label="Calendar legend">
 		<span>Fire-days per month:</span>
-		{#each legend as l (l.label)}
+		{#each legend as l, i (i)}
 			<span class="li"><i class="swatch" style="background:{l.color}"></i>{l.label}</span>
 		{/each}
 		<span class="li"><i class="swatch hatch"></i>incomplete or in progress</span>
@@ -158,7 +158,7 @@
 	}
 	.scroll {
 		overflow-x: auto;
-		overflow-y: hidden;
+		overflow-y: auto;
 		flex: 1;
 		min-height: 0;
 		scrollbar-width: thin;

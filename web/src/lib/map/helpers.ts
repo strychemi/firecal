@@ -62,8 +62,10 @@ export function viewBox(b: { getWest(): number; getEast(): number; getSouth(): n
 } {
 	let w = b.getWest();
 	let e = b.getEast();
-	const s = Math.max(-84, b.getSouth());
-	const n = Math.min(84, b.getNorth());
+	// Clamp both edges to the Web Mercator limit, so a view at a pole can never put south above north.
+	const LAT = 85.0511;
+	const s = Math.min(LAT, Math.max(-LAT, b.getSouth()));
+	const n = Math.min(LAT, Math.max(-LAT, b.getNorth()));
 	let clipped = false;
 	if (e - w > 179) {
 		const c = (w + e) / 2;
@@ -83,8 +85,10 @@ export function viewBox(b: { getWest(): number; getEast(): number; getSouth(): n
 		e = 180;
 		clipped = true;
 	}
-	const r = (x: number) => Math.round(x * 1000) / 1000;
-	return { bbox: [r(w), r(s), r(e), r(n)], clipped };
+	// Round outwards (minima down, maxima up), so a tiny view never collapses to zero width or height.
+	const lo = (x: number) => Math.floor(x * 1000) / 1000;
+	const hi = (x: number) => Math.ceil(x * 1000) / 1000;
+	return { bbox: [lo(w), lo(s), hi(e), hi(n)], clipped };
 }
 
 /** Bounds of a ring as [[w, s], [e, n]]. */

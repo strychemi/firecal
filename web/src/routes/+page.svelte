@@ -39,6 +39,8 @@
 	let dataAreaName = $state('');
 	// The area behind the numbers on screen, which may differ from `area` while a new one loads.
 	let dataArea: Area | null = null;
+	// The area of the hexagons on screen, as text: the map fits only once these match the chosen area.
+	let dataAreaKey = $state('');
 	let busy = $state(false);
 	let notice = $state('');
 	let seq = 0;
@@ -142,12 +144,14 @@
 				data = r;
 				dataAreaName = name;
 				dataArea = req.area;
+				dataAreaKey = JSON.stringify(req.area);
 				notice = '';
 			})
 			.catch((e) => {
 				if (my !== seq) return;
 				notice = `The query failed: ${e instanceof Error ? e.message : String(e)}`;
 				playing = false;
+				rightOpen = true; // the notice lives in the insights panel
 			})
 			.finally(() => {
 				if (my === seq) busy = false;
@@ -202,7 +206,7 @@
 		const cs = colors;
 		return (d: CellValue): RGBA => (cs.length ? [...stepColor(classOf(d[m], b), k, cs), 235] : [128, 128, 128, 200]);
 	});
-	const fillKey = $derived(`${measure}|${breaks.join(',')}|${colors.length}`);
+	const fillKey = $derived(`${measure}|${breaks.join(',')}|${colors.flat().join(',')}`);
 	const legend = $derived.by(() => {
 		if (!colors.length || !cells.length) return [];
 		const vals = cells.map((c) => c[measure]);
@@ -323,7 +327,7 @@
 			{opacity}
 			{outline}
 			ring={data?.area.ring ?? null}
-			{fitKey}
+			fitKey={dataAreaKey === fitKey ? fitKey : ''}
 			{tooltip}
 			bind:tool
 			{padding}
@@ -402,7 +406,7 @@
 								</p>
 							{/if}
 							<ul class="legend" aria-label="Colour classes">
-								{#each legend as l (l.label)}
+								{#each legend as l, i (i)}
 									<li><span class="swatch" style="background:{l.color}"></span>{l.label}</li>
 								{/each}
 							</ul>
@@ -778,6 +782,14 @@
 		margin: 6px 0 0;
 		padding-left: 20px;
 	}
+	.proto {
+		/* Keep the map's zoom buttons above the time panel. */
+		--map-ctrl-bottom: 172px;
+	}
+	.proto:has(.right:not(.closed)) {
+		/* ...and beside the open insights panel. */
+		--map-ctrl-right: 432px;
+	}
 	.time {
 		position: absolute;
 		left: 12px;
@@ -810,8 +822,14 @@
 		.right {
 			width: 360px;
 		}
+		.proto:has(.right:not(.closed)) {
+			--map-ctrl-right: 372px;
+		}
 	}
 	@media (max-width: 760px) {
+		.proto {
+			--map-ctrl-bottom: 196px;
+		}
 		.left,
 		.right {
 			bottom: 196px;

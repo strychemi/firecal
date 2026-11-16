@@ -341,6 +341,15 @@
 		padding: 10px 14px;
 		border-radius: 8px;
 	}
+	/* A page whose panel covers the bottom of the map sets --map-ctrl-bottom (and a side panel
+	   --map-ctrl-right) to keep the zoom buttons and attribution clear of it. */
+	.fullmap :global(.maplibregl-ctrl-bottom-right),
+	.fullmap :global(.maplibregl-ctrl-bottom-left) {
+		bottom: var(--map-ctrl-bottom, 0px);
+	}
+	.fullmap :global(.maplibregl-ctrl-bottom-right) {
+		right: var(--map-ctrl-right, 0px);
+	}
 	.fullmap :global(.maplibregl-ctrl-attrib) {
 		font-size: 10px;
 	}

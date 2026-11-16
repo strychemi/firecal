@@ -389,3 +389,7 @@ All work in this part was done with Opus 5.5.
 - *Found by the new test on the Argentina sample:* the Methods page's "Known gaps" list scrolls when there are more than 12 gaps, and keyboard users could not scroll it (nothing in it takes focus). It predates this work. It is now a labelled region that takes focus.
 - *Still not done:* a keyboard-only walk-through, a screen-reader session, and a 200 % zoom check.
 
+
+**00:40–01:10 · Copilot's review of PR #25**
+- *Asked:* address Copilot's twelve comments.
+- *AI did:* agreed with all twelve and fixed them. The map's zoom buttons were hidden behind the time panel (and the insights panel); pages now lift them clear. A search box near a pole could put south above north, and rounding could shrink a tiny box to nothing; both edges are now clamped to the map's ±85.05° limit and rounded outwards. The fitted view and, on A, the per-hexagon comparison and hotspot export could pair a newly chosen area with the previous area's results; each now uses the area its results answer. Map colours now redraw when the system switches light/dark (A) and whenever the palette changes (home page). A failed search opens the insights panel, where its message is. Legend lists are keyed by position, not label. On C, the calendar scrolls vertically when it needs to, and the typical-season chart no longer says "no fire" when some years burned but the usual value of every month is zero.
