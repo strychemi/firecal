@@ -17,7 +17,6 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 FIXTURE="$ROOT/pipeline/tests/fixture"
 API="$ROOT/api/target/release/firecal-api"
-PORT=8090
 FRESH=0
 [[ "${1:-}" == "--fresh-sample" ]] && FRESH=1
 
@@ -29,10 +28,19 @@ stop_api() {  # always succeeds: a killed process's exit status must not trip `s
 }
 trap stop_api EXIT
 
-# Start the API on $PORT for the data root in $1, serving the built app, and run the parity test and
-# the browser tests against it.
+# A port no one is using, from the system. A fixed port let two check runs at once (two sessions)
+# test each other's server: on macOS both could bind it, so the check below did not catch it.
+free_port() { python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])'; }
+
+# Start the API on a free port for the data root in $1, serving the built app, and run the parity test
+# and the browser tests against it.
 against() {
     local root="$1" log
+    PORT="$(free_port)"
+    if curl -sf "http://127.0.0.1:$PORT/api/meta" > /dev/null; then
+        echo "Something already answers on 127.0.0.1:$PORT; not testing it."
+        exit 1
+    fi
     log="$(mktemp)"
     FIRECAL_ROOT="$root" FIRECAL_WEB="$ROOT/web/build" FIRECAL_BIND="127.0.0.1:$PORT" "$API" > "$log" 2>&1 &
     api_pid=$!
