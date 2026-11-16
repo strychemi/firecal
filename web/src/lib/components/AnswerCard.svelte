@@ -7,8 +7,10 @@
 		data: QueryResponse;
 		areaName: string;
 		busy?: boolean;
+		/** Announce changes to screen readers (off while the months play, which would announce every step). */
+		live?: boolean;
 	}
-	let { data, areaName, busy = false }: Props = $props();
+	let { data, areaName, busy = false, live = true }: Props = $props();
 
 	const s = $derived(data.stats);
 	const row = $derived<MonthRow | undefined>(data.months.find((m) => m.month === s.month));
@@ -20,7 +22,7 @@
 	const span = $derived(toDay === null ? monthName : toDay === 1 ? `${monthName} 1` : `${monthName} 1–${toDay}`);
 </script>
 
-<section class="card answer" class:busy aria-labelledby="answer-title" aria-live="polite">
+<section class="card answer" class:busy aria-labelledby="answer-title" aria-live={live ? 'polite' : 'off'}>
 	<h2 id="answer-title" class="eyebrow">{areaName} · {monthLabel(s.month)}{s.through ? ' so far' : ''}</h2>
 	<p class="sentence">{s.sentence}</p>
 

@@ -3,6 +3,7 @@
 // data version (the sample or the full data).
 import { readFile } from 'node:fs/promises';
 import { expect, test, type APIRequestContext, type Download, type Page } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 import type { Meta, QueryRequest, QueryResponse } from '../src/lib/types';
 import { monthsToCsv } from '../src/lib/download';
 
@@ -44,7 +45,13 @@ async function open(page: Page) {
 	await expect(sentence(page)).toBeVisible();
 }
 
+/** Open one of the left panel's tabs (the page opens on Area). */
+async function panel(page: Page, name: 'Area' | 'Dates' | 'Layer' | 'Data') {
+	await page.getByRole('tab', { name, exact: true }).click();
+}
+
 async function setMonth(page: Page, id: 'start' | 'end' | 'month', ym: string) {
+	await panel(page, 'Dates');
 	await page.locator(`#${id}-y`).selectOption(ym.slice(0, 4));
 	await page.locator(`#${id}-m`).selectOption(String(Number(ym.slice(5))));
 }
@@ -148,6 +155,7 @@ test('downloads match the API', async ({ page, request }) => {
 	const body = { area: { preset: 'parana-delta' }, start: '2020-08', end: '2020-09' };
 	const r = await api(request, { ...body, month: '2020-09', baseline: 'median' });
 	await expect(sentence(page)).toHaveText(r.stats.sentence);
+	await panel(page, 'Data');
 
 	const [monthly] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /^Download CSV/ }).click()]);
 	expect(monthly.suggestedFilename()).toBe('firecal-parana-delta-2020-08_2020-09-monthly.csv');
@@ -179,6 +187,7 @@ test('an export over the row cap shows the server message', async ({ page, reque
 	test.skip(res.status() !== 413, 'this data fits under the export cap');
 	const msg = (await res.json()).error as string;
 	await open(page);
+	await panel(page, 'Data');
 	await page.getByRole('button', { name: 'Hotspots CSV' }).click();
 	await expect(page.locator('.downloads [role=alert]')).toHaveText(msg);
 });
@@ -194,7 +203,7 @@ test('a failed query is reported', async ({ page }) => {
 	await open(page);
 	await page.route('**/api/query', (route) => route.fulfill({ status: 500, json: { error: 'boom' } }));
 	await page.getByRole('button', { name: 'Paraná Delta' }).click();
-	await expect(page.locator('main > .notice[role=alert]')).toHaveText('The query failed: boom');
+	await expect(page.locator('.notice[role=alert]')).toHaveText('The query failed: boom');
 });
 
 test('clicking a calendar month describes it', async ({ page, request }) => {
@@ -235,3 +244,22 @@ test('each search names the continent whose model it used, and the methods show 
 		}
 	}
 });
+
+// Automated accessibility scan (axe-core) against WCAG 2.2 A and AA, on every panel tab. It finds
+// only what can be checked by machine; keyboard and screen-reader use still need testing by hand.
+for (const scheme of ['light', 'dark'] as const)
+test(`no automated accessibility violations on any panel (${scheme})`, async ({ page }) => {
+	await page.emulateMedia({ colorScheme: scheme });
+	await open(page);
+	const scan = async (where: string) => {
+		const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
+		const found = r.violations.map((v) => `${scheme} ${where}: ${v.id} (${v.impact}): ${v.help}\n    ${v.nodes.map((n) => n.target.join(' ')).slice(0, 5).join('\n    ')}`);
+		expect(found, found.join('\n')).toEqual([]);
+	};
+	await scan('Area');
+	for (const tab of ['Dates', 'Layer', 'Data'] as const) {
+		await panel(page, tab);
+		await scan(tab);
+	}
+});
+

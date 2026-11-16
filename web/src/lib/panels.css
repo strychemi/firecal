@@ -1,0 +1,135 @@
+/* Full-screen map pages: the map fills the window and panels float over it. */
+.proto {
+	position: fixed;
+	inset: 0;
+	overflow: hidden;
+	font-family: var(--font);
+	color: var(--text);
+	background: var(--page);
+}
+.glass {
+	/* Solid, so text contrast never depends on the map behind it (and can be checked). */
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: 12px;
+	box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+}
+.p-h {
+	font-size: 0.72rem;
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--text-2);
+	margin: 0 0 6px;
+}
+.seg {
+	display: inline-flex;
+	border: 1px solid var(--border);
+	border-radius: 8px;
+	overflow: hidden;
+}
+.seg button {
+	border: 0;
+	background: transparent;
+	color: var(--text);
+	font: inherit;
+	font-size: 0.82rem;
+	padding: 6px 10px;
+	min-height: 32px;
+	cursor: pointer;
+}
+.seg button + button {
+	border-left: 1px solid var(--border);
+}
+.seg button[aria-pressed='true'] {
+	background: var(--accent);
+	color: var(--accent-ink);
+	font-weight: 600;
+}
+.pbtn {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	min-height: 32px;
+	padding: 0 10px;
+	border-radius: 8px;
+	border: 1px solid var(--border);
+	background: var(--surface);
+	color: var(--text);
+	font: inherit;
+	font-size: 0.82rem;
+	cursor: pointer;
+}
+@media (hover: hover) {
+	.pbtn:hover {
+		background: var(--wash);
+	}
+}
+.pbtn[aria-pressed='true'],
+.pbtn.primary {
+	background: var(--accent);
+	border-color: var(--accent);
+	color: var(--accent-ink);
+	font-weight: 600;
+}
+.pbtn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+.swatch {
+	display: inline-block;
+	width: 12px;
+	height: 12px;
+	border-radius: 3px;
+	vertical-align: -1px;
+}
+.sr {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+}
+.scroll {
+	overflow: auto;
+	scrollbar-width: thin;
+}
+/* Tabs: a plain row with a rule under it; the selected tab has darker text and an accent
+   underline, so colour is not the only cue. Nothing changes the tab's size when selected. */
+.seg[role='tablist'] {
+	border: 0;
+	border-block-end: 1px solid var(--border);
+	border-radius: 0;
+	overflow: visible;
+}
+.seg [role='tab'] {
+	position: relative;
+	color: var(--text-2);
+}
+.seg [role='tab'] + [role='tab'] {
+	border-left: 0;
+}
+.seg [role='tab'][aria-selected='true'] {
+	color: var(--text);
+}
+.seg [role='tab'][aria-selected='true']::after {
+	content: '';
+	position: absolute;
+	inset: auto 0 -1px;
+	border-block-end: 3px solid var(--accent);
+}
+@media (hover: hover) {
+	.seg [role='tab']:hover {
+		color: var(--text);
+	}
+}
+@media (forced-colors: active) {
+	.seg button[aria-pressed='true'],
+	.pbtn[aria-pressed='true'],
+	.pbtn.primary {
+		background: Highlight;
+		color: HighlightText;
+		forced-color-adjust: none;
+	}
+}
