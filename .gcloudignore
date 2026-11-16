@@ -1,0 +1,28 @@
+# Upload only what the Dockerfile copies. Gitignore rules: a directory must be re-included before
+# anything inside it can be.
+/*
+!/Dockerfile
+!/firecal.toml
+!/api/
+/api/*
+!/api/Cargo.toml
+!/api/Cargo.lock
+!/api/src/
+!/web/
+/web/*
+!/web/build/
+!/global/
+/global/*
+!/global/firecal.toml
+!/data/
+/data/*
+!/data/gold/
+/data/gold/*
+!/data/gold/CURRENT
+!/data/gold/v12/
+!/data/global/
+/data/global/*
+!/data/global/gold/
+/data/global/gold/*
+!/data/global/gold/CURRENT
+!/data/global/gold/v5/

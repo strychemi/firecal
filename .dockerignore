@@ -1,0 +1,13 @@
+# Upload only what the Dockerfile copies (see Dockerfile).
+**
+!Dockerfile
+!api/Cargo.toml
+!api/Cargo.lock
+!api/src/**
+!web/build/**
+!firecal.toml
+!global/firecal.toml
+!data/gold/CURRENT
+!data/gold/v12/**
+!data/global/gold/CURRENT
+!data/global/gold/v5/**

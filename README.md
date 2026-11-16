@@ -4,6 +4,8 @@ Harmonizing 26 years of NASA MODIS & VIIRS satellite fire records into an unbrok
 
 NASA Space Apps 2026 · *Harmonization of MODIS and VIIRS Hot Spots*. Prototype: Argentina study region, November 2000 to two days ago (recent days from the FIRMS API).
 
+**Live demo:** [global app](https://firecal-709583608801.us-central1.run.app) · [Argentina app](https://firecal-argentina-709583608801.us-central1.run.app) (has the hotspot CSV download). Hosted on Google Cloud Run; the first visit after a quiet spell takes about 15 s while the data loads. Built and deployed from the `Dockerfile` (one image, `APP=global` or `APP=argentina`).
+
 | Document | What it covers |
 |---|---|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System design |
