@@ -119,17 +119,51 @@
 				<li>The conversion tends to overshoot in busy months and undershoot in quiet ones.</li>
 				<li>Small areas are noisier; their ranges are wider.</li>
 				{#if global}
-					<li>Archive only, November 2000 to {meta.series_end}: no recent days yet, and no hotspot CSV.</li>
+					<li>No hotspot CSV for the whole globe yet.</li>
+					<li>Recent days are near-real-time data; they change slightly when FIRMS publishes the final versions.</li>
 				{:else}
 					<li>Study region only for now: {[meta.region.countries].flat().map((c) => c.replace(/_/g, ' ')).join(', ')} (parts of).</li>
 				{/if}
 			</ul>
 		</div>
 	</div>
-	<p class="credit">
-		Fire data: NASA FIRMS (MODIS MCD14ML C6/C6.1, with 2000–2017 hotspot types from the MODIS fire team's version-3 files; VIIRS 375 m S-NPP and NOAA-20). Data version {meta.data_version}, {meta.series_start} to
-		{meta.series_end}. Unit: {meta.unit}.
-	</p>
+	<div class="credit" aria-labelledby="credits-title">
+		<h3 id="credits-title">Data, credits and AI use</h3>
+		<dl class="facts">
+			<dt>Data version</dt>
+			<dd>{meta.data_version}, {meta.series_start} to {meta.series_end}</dd>
+			<dt>Unit</dt>
+			<dd>{meta.unit}</dd>
+		</dl>
+		<h4>Fire data</h4>
+		<ul>
+			<li><a href="https://firms.modaps.eosdis.nasa.gov/" target="_blank" rel="noopener noreferrer">NASA FIRMS</a> active-fire archives: MODIS MCD14ML Collection 6/6.1 (Terra, Aqua) and VIIRS 375 m (S-NPP, NOAA-20)</li>
+			<li>Recent days: FIRMS area API (near-real-time until final versions are published)</li>
+			<li>MODIS hotspot types 2000–2017: MCD14ML version-3 files, MODIS fire team, University of Maryland</li>
+			<li>Where each satellite observed: NASA CMR granule records</li>
+			<li>
+				NASA data, shared under the <a href="https://www.earthdata.nasa.gov/engage/open-data-services-software-policies/data-use-guidance" target="_blank" rel="noopener noreferrer"
+					>EOSDIS data use guidance</a
+				>
+			</li>
+		</ul>
+		<h4>Grid and map</h4>
+		<ul>
+			<li><a href="https://h3geo.org/" target="_blank" rel="noopener noreferrer">H3</a> hexagonal grid: h3-js and the DuckDB H3 extension (Apache-2.0)</li>
+			<li>
+				Basemap: <a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer">OpenFreeMap</a> tiles, © <a href="https://openmaptiles.org/" target="_blank" rel="noopener noreferrer">OpenMapTiles</a>, data ©
+				<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors
+			</li>
+			<li>Map libraries: MapLibre GL JS (BSD-3-Clause), deck.gl and Terra Draw (MIT)</li>
+		</ul>
+		<h4 id="ai-use">AI use</h4>
+		<ul>
+			<li>Built with an AI assistant, Claude (Anthropic), which wrote most of the code and data processing and drafted text at the team's direction</li>
+			<li>The team chose the method, fixed the rules for keeping or rejecting each change before testing it, and reviewed the results</li>
+			<li>The map and charts are drawn by the app from the data, not generated as images</li>
+			<li>Every session is recorded in <a href="https://github.com/strychemi/firecal/blob/main/AI_LOG.md" target="_blank" rel="noopener noreferrer">AI_LOG.md</a></li>
+		</ul>
+	</div>
 </section>
 
 <style>
@@ -166,6 +200,37 @@
 	div.scroll:focus-visible {
 		outline: 2px solid var(--focus);
 		outline-offset: 2px;
+	}
+	.credit h3 {
+		margin-top: 0;
+		color: var(--text);
+	}
+	.credit h4 {
+		margin: 10px 0 2px;
+		font-size: 0.8rem;
+		font-weight: 600;
+		letter-spacing: 0.02em;
+		color: var(--text);
+	}
+	.credit ul {
+		margin: 0;
+		font-size: inherit;
+		max-width: none;
+	}
+	.credit li {
+		margin: 2px 0;
+	}
+	.credit dl.facts {
+		display: grid;
+		grid-template-columns: max-content 1fr;
+		gap: 2px 12px;
+		margin: 4px 0 0;
+	}
+	.credit dt {
+		color: var(--text);
+	}
+	.credit dd {
+		margin: 0;
 	}
 	.credit {
 		margin-top: 12px;
