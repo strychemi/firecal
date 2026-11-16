@@ -8,7 +8,13 @@ firecal
 
 ## High-level summary
 
-firecal turns 26 years of NASA fire detections from two generations of satellites (MODIS on Terra and Aqua, VIIRS on S-NPP and NOAA-20) into one unbroken burning calendar, so a change in satellites is no longer mistaken for a change in fire. VIIRS sees far more hotspots than MODIS for the same fires, so a raw count jumps in 2012. We count burning cell-days instead, convert MODIS to VIIRS-equivalent counts with day and night multipliers fitted where both satellites observed the same places at the same times, and test every change against rules written down before seeing the results. A web app lets anyone draw an area or enter coordinates, pick dates, and see at once how busy this month is against the usual, a years × months calendar, the season so far, a long-term trend, and downloads of the numbers, the charts and the hotspots themselves. It runs for the whole globe and for an Argentina study region, through two days ago.
+firecal turns 26 years of NASA fire detections from two generations of satellites, MODIS (Terra and Aqua, since 2000) and VIIRS (S-NPP and NOAA-20, since 2012), into one unbroken burning calendar. VIIRS sees about five times as many hotspots as MODIS for the same fires, so raw counts jump in 2012 and a change of instrument is easily mistaken for a change in fire. We count burning cell-days on a hexagon grid instead, convert MODIS to VIIRS-equivalent counts with day and night multipliers fitted only where both satellites observed the same place at the same time, validate on years the model never saw, and judge every method change by rules written down before seeing the results.
+
+A public web app lets anyone draw an area or enter coordinates, pick dates, and get the answer first: how this month compares with the usual (e.g. "9.9× the usual August, 2nd highest of 26 years"), a years × months burning calendar, the month in progress against the same days of past years, the season so far, and a long-term trend test. Numbers, hexagon maps, charts and the hotspots themselves can be downloaded. It runs for the whole globe and for an Argentina study region, from November 2000 through 13 November 2026.
+
+This matters because responders, land managers and scientists need to know whether a fire season is unusual where they work, across the full satellite record, without the switch of satellites misleading them.
+
+Live app: https://firecal-709583608801.us-central1.run.app
 
 ## Link to Project Demo
 
@@ -16,7 +22,7 @@ https://github.com/strychemi/firecal/blob/3a19569c0e129595f9301fd1a22e89ee05866f
 
 ## Link to Final Project
 
-https://github.com/strychemi/firecal (the repository must be public; check the link in a private window).
+Live app: https://firecal-709583608801.us-central1.run.app (global) and https://firecal-argentina-709583608801.us-central1.run.app (Argentina, with the hotspot CSV). Code: https://github.com/strychemi/firecal
 
 ## Detailed Project Description
 
