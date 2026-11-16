@@ -8,7 +8,8 @@ use h3o::geom::{ContainmentMode, TilerBuilder};
 use h3o::{CellIndex, LatLng, Resolution};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::sync::{Arc, Mutex};
 
 const MONTHS: [&str; 12] = [
     "January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
@@ -386,12 +387,95 @@ fn stats(series: &[MonthOut], selected: &str, baseline: &str, to_date: Option<(&
     }))
 }
 
-pub fn query(data: &Data, presets: &[Preset], max_hex: usize, req: &QueryRequest) -> Result<Value> {
-    let ring = ring(&req.area, presets)?;
-    let (res, cells) = area_cells(&ring, &data.resolutions, max_hex)?;
+/// What a search's area alone decides, the same for every month and date range: its hexagons, which of
+/// them have fire, the monthly sums over the whole series and the month-to-date sums. Choosing the hexagons
+/// and adding up its rows is nearly all of a large search's time (the whole world: 4.2 s the first time,
+/// 0.05 s for another month or other dates), so it is kept per area.
+pub struct AreaWork {
+    res: u8,
+    hexagons: usize,
+    area_km2: f64,
+    ci: usize,
+    share: Option<f64>,
+    /// Hexagons with any rows, sorted by their H3 string (the order of `cells` in the response).
+    active: Vec<(String, u64)>,
+    /// Per month: converted value, raw cell-days, detections, FRP.
+    sums: Vec<(f64, u64, u64, f64)>,
+    /// Per month: days 1..D of the in-progress calendar month (empty when nothing is in progress).
+    mtd: Vec<f64>,
+}
+
+fn area_work(data: &Data, ring: &[(f64, f64)], max_hex: usize) -> Result<AreaWork> {
+    let (res, cells) = area_cells(ring, &data.resolutions, max_hex)?;
     let area_km2: f64 = cells.iter().map(|c| c.area_km2()).sum();
     let table = data.cells.get(&res).context("resolution not loaded")?;
     let (ci, share) = continent_of(data, res, &cells);
+    let mut sums = vec![(0f64, 0u64, 0u64, 0f64); data.n_months];
+    let mut active = Vec::new();
+    for cell in &cells {
+        if let Some(rows) = table.get(u64::from(*cell)) {
+            active.push((cell.to_string(), u64::from(*cell)));
+            for r in rows {
+                let s = &mut sums[r.month as usize];
+                s.0 += r.value as f64;
+                s.1 += r.raw as u64;
+                s.2 += r.detections as u64;
+                s.3 += r.frp as f64;
+            }
+        }
+    }
+    active.sort_unstable();
+    let mut mtd = Vec::new();
+    if data.in_progress.is_some() {
+        let level = data.mtd.get(&res).context("month-to-date level not loaded")?;
+        mtd = vec![0f64; data.n_months];
+        for cell in &cells {
+            for &(i, v) in level.get(&u64::from(*cell)).map(Vec::as_slice).unwrap_or(&[]) {
+                mtd[i as usize] += v;
+            }
+        }
+    }
+    Ok(AreaWork { res, hexagons: cells.len(), area_km2, ci, share, active, sums, mtd })
+}
+
+/// The most recent areas' work, keyed by data version and outline. A few hundred kB per area at most
+/// (the whole world: 69,000 hexagons with fire).
+pub struct AreaCache {
+    capacity: usize,
+    inner: Mutex<(HashMap<String, Arc<AreaWork>>, VecDeque<String>)>,
+}
+
+impl AreaCache {
+    pub fn new(capacity: usize) -> Self {
+        Self { capacity, inner: Mutex::new((HashMap::new(), VecDeque::new())) }
+    }
+
+    fn get_or_make(&self, data: &Data, ring: &[(f64, f64)], max_hex: usize) -> Result<Arc<AreaWork>> {
+        let key = format!("{}|{max_hex}|{:?}", data.version, ring.iter().map(|&(x, y)| (x.to_bits(), y.to_bits())).collect::<Vec<_>>());
+        if let Some(w) = self.inner.lock().unwrap().0.get(&key) {
+            return Ok(w.clone());
+        }
+        // Made outside the lock: two searches of a new area at once both make it, and nobody waits.
+        let w = Arc::new(area_work(data, ring, max_hex)?);
+        let mut g = self.inner.lock().unwrap();
+        let (map, order) = &mut *g;
+        if map.insert(key.clone(), w.clone()).is_none() {
+            order.push_back(key);
+            while order.len() > self.capacity {
+                if let Some(old) = order.pop_front() {
+                    map.remove(&old);
+                }
+            }
+        }
+        Ok(w)
+    }
+}
+
+pub fn query(data: &Data, presets: &[Preset], max_hex: usize, req: &QueryRequest, cache: &AreaCache) -> Result<Value> {
+    let ring = ring(&req.area, presets)?;
+    let work = cache.get_or_make(data, &ring, max_hex)?;
+    let (res, area_km2, ci, share) = (work.res, work.area_km2, work.ci, work.share);
+    let table = data.cells.get(&res).context("resolution not loaded")?;
     let continent = data.areas[ci].as_str();
     let status = data.status.get(continent).context("no month status")?;
 
@@ -417,37 +501,24 @@ pub fn query(data: &Data, presets: &[Preset], max_hex: usize, req: &QueryRequest
     let start_idx = month_index(data.start, parse_month(&start)?);
     let end_idx = month_index(data.start, parse_month(&end)?);
 
-    let mut sums = vec![(0f64, 0u64, 0u64, 0f64); data.n_months];
-    let mut active = 0usize;
     // Per-hexagon values for the map: the selected month and the start..end total.
-    let mut per_cell: Vec<(String, f64, f64)> = Vec::new();
-    for cell in &cells {
-        if let Some(rows) = table.get(u64::from(*cell)) {
-            active += 1;
-            let (mut in_month, mut in_range) = (0f64, 0f64);
-            for r in rows {
-                let s = &mut sums[r.month as usize];
-                let value = r.value as f64;
-                s.0 += value;
-                s.1 += r.raw as u64;
-                s.2 += r.detections as u64;
-                s.3 += r.frp as f64;
-                let i = r.month as i64;
-                if i == sel_idx as i64 {
-                    in_month += value;
-                }
-                if i >= start_idx as i64 && i <= end_idx as i64 {
-                    in_range += value;
-                }
+    let mut hexes: Vec<Value> = Vec::new();
+    for (h, cell) in &work.active {
+        let (mut in_month, mut in_range) = (0f64, 0f64);
+        for r in table.get(*cell).unwrap_or(&[]) {
+            let i = r.month as i64;
+            if i == sel_idx as i64 {
+                in_month += r.value as f64;
             }
-            if in_month > 0.0 || in_range > 0.0 {
-                per_cell.push((cell.to_string(), in_month, in_range));
+            if i >= start_idx as i64 && i <= end_idx as i64 {
+                in_range += r.value as f64;
             }
         }
+        if in_month > 0.0 || in_range > 0.0 {
+            hexes.push(json!({"h3": h, "month": round(in_month, 2), "range": round(in_range, 2)}));
+        }
     }
-    per_cell.sort_by(|a, b| a.0.cmp(&b.0));
-    let hexes: Vec<Value> =
-        per_cell.iter().map(|(h, m, r)| json!({"h3": h, "month": round(*m, 2), "range": round(*r, 2)})).collect();
+    let sums = &work.sums;
 
     let series: Vec<MonthOut> = (0..data.n_months)
         .map(|i| {
@@ -475,17 +546,10 @@ pub fn query(data: &Data, presets: &[Preset], max_hex: usize, req: &QueryRequest
     let mut compared = series.clone();
     let to_date = match data.in_progress {
         Some((ip, days)) if ip as i64 == sel_idx => {
-            let mtd = data.mtd.get(&res).context("month-to-date level not loaded")?;
-            let mut sums = vec![0f64; data.n_months];
-            for cell in &cells {
-                for &(i, v) in mtd.get(&u64::from(*cell)).map(Vec::as_slice).unwrap_or(&[]) {
-                    sums[i as usize] += v;
-                }
-            }
             let mon = &selected[5..];
             for (i, m) in compared.iter_mut().enumerate() {
                 if &m.month[5..] == mon {
-                    m.value = round(sums[i], 2);
+                    m.value = round(work.mtd[i], 2);
                 }
             }
             Some((data.through.as_str(), days))
@@ -497,7 +561,7 @@ pub fn query(data: &Data, presets: &[Preset], max_hex: usize, req: &QueryRequest
     let outline: Vec<[f64; 2]> = ring.iter().map(|&(x, y)| [round(x, 5), round(y, 5)]).collect();
     Ok(json!({
         "data_version": data.version,
-        "area": {"resolution": res, "hexagons": cells.len(), "active_hexagons": active, "ring": outline},
+        "area": {"resolution": res, "hexagons": work.hexagons, "active_hexagons": work.active.len(), "ring": outline},
         "continent": continent, "continent_share": share,
         "start": start, "end": end, "months": shown,
         "stats": stats(&compared, &selected, &baseline, to_date)?,

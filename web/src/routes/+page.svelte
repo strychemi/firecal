@@ -11,7 +11,7 @@
 	import { ERA_VAR } from '#lib/scales.ts';
 	import type { Area, BBox, Baseline, CellValue, Meta, MonthRow, QueryResponse, YearMonth } from '#lib/types.ts';
 	import FullMap from '#lib/map/FullMap.svelte';
-	import { cachedQuery, classOf, quantileBreaks, seqColors, stepColor, type RGB, type RGBA, type Tool } from '#lib/map/helpers.ts';
+	import { cachedQuery, isCached, classOf, quantileBreaks, seqColors, stepColor, type RGB, type RGBA, type Tool } from '#lib/map/helpers.ts';
 	import AreaPicker from '#lib/components/AreaPicker.svelte';
 	import MonthPicker from '#lib/components/MonthPicker.svelte';
 	import AnswerCard from '#lib/components/AnswerCard.svelte';
@@ -154,11 +154,13 @@
 		if (!meta) return;
 		const req = { area: $state.snapshot(area) as Area, start: meta.series_start, end: meta.series_end, month: meta.series_end };
 		const my = ++seriesSeq;
-		cachedQuery(req)
+		const ctrl = new AbortController();
+		cachedQuery(req, ctrl.signal)
 			.then((r) => {
 				if (my === seriesSeq) series = r.months;
 			})
 			.catch(() => {});
+		return () => ctrl.abort();
 	});
 
 	// The selected dates and month: hexagons, answer and charts. Previous results stay on screen while loading.
@@ -168,24 +170,34 @@
 		const name = areaName;
 		const my = ++seq;
 		busy = true;
-		cachedQuery(req)
-			.then((r) => {
-				if (my !== seq) return;
-				data = r;
-				dataAreaName = name;
-				dataArea = req.area;
-				dataAreaKey = JSON.stringify(req.area);
-				notice = '';
-			})
-			.catch((e) => {
-				if (my !== seq) return;
-				notice = `The query failed: ${e instanceof Error ? e.message : String(e)}`;
-				playing = false;
-				rightOpen = true; // the notice lives in the insights panel
-			})
-			.finally(() => {
-				if (my === seq) busy = false;
-			});
+		// A search not yet asked for waits a moment, so dragging across the time bar or typing sends one
+		// search, not one per step; a search overtaken by a newer one is cancelled.
+		const ctrl = new AbortController();
+		const send = () =>
+			cachedQuery(req, ctrl.signal)
+				.then((r) => {
+					if (my !== seq) return;
+					data = r;
+					dataAreaName = name;
+					dataArea = req.area;
+					dataAreaKey = JSON.stringify(req.area);
+					notice = '';
+				})
+				.catch((e) => {
+					if (my !== seq || ctrl.signal.aborted) return;
+					notice = `The query failed: ${e instanceof Error ? e.message : String(e)}`;
+					playing = false;
+					rightOpen = true; // the notice lives in the insights panel
+				})
+				.finally(() => {
+					if (my === seq) busy = false;
+				});
+		const wait = isCached(req) ? undefined : setTimeout(send, 250);
+		if (wait === undefined) send();
+		return () => {
+			clearTimeout(wait);
+			ctrl.abort();
+		};
 	});
 
 	function setRange(s: YearMonth, e: YearMonth) {

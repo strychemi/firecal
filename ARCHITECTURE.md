@@ -123,7 +123,8 @@ An **area** is a GeoJSON polygon, a box, or a point and radius.
 
 - **Stateless.** Every request carries its area; nothing is stored per user, so restarts and extra instances are harmless.
 - **Coarse levels in memory, fine levels from disk.** Res 4 and 5 are loaded at start-up. Res 6 and hotspot rows are read through DuckDB from cell-sorted Parquet.
-- **Cacheable.** A response depends only on the request and the data version, so the data version is the HTTP cache key (`ETag`). Prototype: not yet implemented, and neither is the per-shape hexagon cache.
+- **Cacheable.** A response depends only on the request and the data version, so the data version is the HTTP cache key (`ETag`; not yet implemented). The API keeps the work that depends only on the area for the 64 most recent areas (its hexagons, which have fire, the monthly sums over the whole series): on the global data a whole-world search takes 4.2 s the first time and 0.05 s for another month or other dates. The browser keeps up to 30 M characters of responses, waits 250 ms before sending a search it has not sent, so a drag or typing sends one search, and cancels searches it no longer needs.
+- **Bounded load.** At most one search or export runs per CPU core; others wait up to 10 s, then get 503 ("busy"). A search that has not answered after 30 s gets 503; its work finishes in the background, keeping its slot. A search cancelled while it waits never starts.
 - **Version swap.** `gold/CURRENT` names one version. When it changes, the API loads the new version and swaps atomically.
 
 ## 6. Frontend (`web/`, SvelteKit with `adapter-static`)

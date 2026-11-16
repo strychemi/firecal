@@ -1,5 +1,5 @@
 // Map helpers: colours read from the page tokens, class breaks, the map view as a search box, a query cache, per-hexagon comparisons.
-import { query } from '#lib/api.ts';
+import { querySized } from '#lib/api.ts';
 import { median } from '#lib/format.ts';
 import { categoryOf, CATEGORY_ORDER } from '#lib/scales.ts';
 import type { Area, BBox, Baseline, Category, QueryRequest, QueryResponse, YearMonth } from '#lib/types.ts';
@@ -107,18 +107,79 @@ export function ringBounds(ring: [number, number][]): [[number, number], [number
 	];
 }
 
-// A small cache, so scrubbing back and forth through months doesn't refetch.
-const cache = new Map<string, Promise<QueryResponse>>();
-export function cachedQuery(req: QueryRequest): Promise<QueryResponse> {
+// Responses kept so scrubbing back and forth through months doesn't refetch. The budget is in characters
+// of JSON; parsed, they take a few times that. A whole-world search is about 3.7 M characters.
+const CACHE_CHARS = 30_000_000;
+
+interface Entry {
+	p: Promise<QueryResponse>;
+	ctrl: AbortController;
+	size: number;
+	done: boolean;
+	/** A caller without a signal (a prefetch) wants it whatever happens to the others. */
+	keep: boolean;
+	/** Callers with a signal that have not cancelled. */
+	waiting: number;
+}
+const cache = new Map<string, Entry>();
+let cacheChars = 0;
+
+function drop(key: string, e: Entry) {
+	if (cache.get(key) !== e) return;
+	cache.delete(key);
+	if (e.done) cacheChars -= e.size;
+}
+
+/** Whether this search is already answered or on its way (so it needs no wait before sending). */
+export function isCached(req: QueryRequest): boolean {
+	return cache.has(JSON.stringify(req));
+}
+
+/**
+ * The search, from the cache when it can be. With `signal`, the caller may cancel: a search still running
+ * when every caller has cancelled is cancelled too, so the server can drop it if it has not started.
+ */
+export function cachedQuery(req: QueryRequest, signal?: AbortSignal): Promise<QueryResponse> {
 	const key = JSON.stringify(req);
-	let p = cache.get(key);
-	if (!p) {
-		p = query(req);
-		p.catch(() => cache.delete(key));
-		cache.set(key, p);
-		if (cache.size > 400) cache.delete(cache.keys().next().value!);
+	let e = cache.get(key);
+	if (e) {
+		// Most recently used last.
+		cache.delete(key);
+		cache.set(key, e);
+	} else {
+		const ctrl = new AbortController();
+		const entry: Entry = { p: Promise.resolve() as unknown as Promise<QueryResponse>, ctrl, size: 0, done: false, keep: false, waiting: 0 };
+		entry.p = querySized(req, ctrl.signal).then(({ data, size }) => {
+			entry.done = true;
+			entry.size = size;
+			if (cache.get(key) === entry) {
+				cacheChars += size;
+				// Drop the oldest answered searches until within budget, keeping at least this one.
+				for (const [k, x] of cache) {
+					if (cacheChars <= CACHE_CHARS) break;
+					if (x !== entry && x.done) drop(k, x);
+				}
+			}
+			return data;
+		});
+		entry.p.catch(() => drop(key, entry));
+		cache.set(key, entry);
+		e = entry;
 	}
-	return p;
+	if (!signal) e.keep = true;
+	else if (!e.done) {
+		const entry = e;
+		entry.waiting++;
+		signal.addEventListener(
+			'abort',
+			() => {
+				entry.waiting--;
+				if (entry.waiting <= 0 && !entry.keep && !entry.done) entry.ctrl.abort();
+			},
+			{ once: true }
+		);
+	}
+	return e.p;
 }
 
 /** Run tasks with at most `n` in flight. */
