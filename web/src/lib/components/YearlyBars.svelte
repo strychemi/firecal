@@ -11,8 +11,10 @@
 		months: MonthRow[];
 		filename: string;
 		busy?: boolean;
+		/** Area and dates, for saved images. */
+		context?: string;
 	}
-	let { months, filename, busy = false }: Props = $props();
+	let { months, filename, busy = false, context }: Props = $props();
 
 	let mode = $state<'value' | 'raw'>('value');
 
@@ -174,6 +176,10 @@
 	id="yearly"
 	{title}
 	subtitle="Fire-days per year. Switch to raw satellite counts to see the jump in 2012 when the record moves from MODIS to VIIRS, whose smaller pixels see more small fires. Converted counts put both on the VIIRS scale."
+	exportSubtitle={mode === 'value'
+		? 'Fire-days per year, converted so MODIS years are on the VIIRS scale.'
+		: 'Fire-days per year, raw satellite counts (not converted): the jump in 2012 is the change from MODIS to VIIRS, whose smaller pixels see more small fires.'}
+	{context}
 	{filename}
 	svg={svgEl}
 	{busy}

@@ -64,57 +64,109 @@ max_export_rows = 250000        # hotspot CSV export: larger searches are refuse
 hotspot_export = false
 bind = "127.0.0.1:8080"
 
-# Places shown as buttons in the global app, one or more per continent. The first opens the app.
+# Places shown as buttons in the global app, grouped by continent (`group`), with at least one
+# well-known area per continent except Antarctica. The first opens the app.
 [[presets]]
 id = "central-africa"
 name = "Central African savanna"
 note = "The world's busiest fire belt; burns November to February"
 bbox = [18.0, 4.0, 28.0, 10.0]
+group = "Africa"
 
 [[presets]]
-id = "southern-amazon"
-name = "Southern Amazon (Rondônia)"
-note = "Forest clearing fires, August to October"
-bbox = [-66.0, -13.0, -60.0, -8.0]
-
-[[presets]]
-id = "parana-delta"
-name = "Paraná Delta"
-note = "Wetland fires, notably 2020 and 2022"
-bbox = [-60.8, -34.3, -58.3, -32.0]
+id = "miombo"
+name = "Miombo woodlands (Zambia and Angola)"
+note = "Southern Africa's dry-season belt; burns June to October"
+bbox = [19.0, -15.0, 27.0, -10.0]
+group = "Africa"
 
 [[presets]]
 id = "mainland-se-asia"
 name = "Northern Thailand and Laos"
 note = "Dry-season burning, February to April"
 bbox = [98.0, 17.0, 104.0, 21.0]
+group = "Asia"
+
+[[presets]]
+id = "kalimantan"
+name = "Central Kalimantan (Borneo)"
+note = "Peatland fires, notably 2006 and 2015"
+bbox = [111.5, -3.5, 115.0, -1.0]
+group = "Asia"
 
 [[presets]]
 id = "yakutia"
 name = "Yakutia (Sakha)"
 note = "Boreal forest fires, notably 2021"
 bbox = [120.0, 60.0, 135.0, 66.0]
-
-[[presets]]
-id = "northern-california"
-name = "Northern California"
-note = "Wildfires, notably 2018 and 2020"
-bbox = [-124.0, 38.0, -120.0, 42.0]
+group = "Asia"
 
 [[presets]]
 id = "central-portugal"
 name = "Central Portugal"
 note = "Summer wildfires, notably 2003, 2005 and 2017"
 bbox = [-9.5, 39.0, -7.0, 41.5]
+group = "Europe"
+
+[[presets]]
+id = "attica-evia"
+name = "Attica and Evia (Greece)"
+note = "Summer wildfires, notably 2007 and 2021"
+bbox = [22.5, 37.5, 24.5, 39.0]
+group = "Europe"
+
+[[presets]]
+id = "northern-california"
+name = "Northern California"
+note = "Wildfires, notably 2008, 2020 and 2021"
+bbox = [-124.0, 38.0, -120.0, 42.0]
+group = "North America"
+
+[[presets]]
+id = "northern-quebec"
+name = "Northern Quebec"
+note = "Canada's record 2023 season, June and July"
+bbox = [-80.0, 48.0, -72.0, 53.0]
+group = "North America"
 
 [[presets]]
 id = "top-end"
 name = "Top End (Northern Territory)"
 note = "Savanna burning, May to November"
 bbox = [129.0, -16.0, 137.0, -11.0]
+group = "Oceania"
+
+[[presets]]
+id = "black-summer"
+name = "South-east Australia"
+note = "The Black Summer bushfires (December 2019 to January 2020) and the 2003 alpine fires"
+bbox = [146.0, -38.0, 151.0, -32.5]
+group = "Oceania"
+
+[[presets]]
+id = "southern-amazon"
+name = "Southern Amazon (Rondônia)"
+note = "Forest clearing fires, August to October"
+bbox = [-66.0, -13.0, -60.0, -8.0]
+group = "South America"
+
+[[presets]]
+id = "pantanal"
+name = "Pantanal (Brazil)"
+note = "Wetland fires, notably 2020 and 2024"
+bbox = [-58.0, -20.0, -55.0, -16.0]
+group = "South America"
+
+[[presets]]
+id = "parana-delta"
+name = "Paraná Delta"
+note = "Wetland fires, notably 2008 and 2020"
+bbox = [-60.8, -34.3, -58.3, -32.0]
+group = "South America"
 
 [[presets]]
 id = "panama-colombia"
 name = "Panama–Colombia border"
 note = "Spans North and South America"
 bbox = [-80.0, 6.0, -75.0, 10.0]
+group = "Across continents"

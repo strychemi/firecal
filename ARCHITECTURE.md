@@ -14,7 +14,7 @@
 | Select a region and a date range | Frontend map and form → `POST /api/query` | Draw a box or polygon, or enter latitude/longitude (box, or point and radius). Date-range picker. |
 | Burning calendar: busier months, busier years, current fire vs previous | Frontend calendar and stats card | Years × months heatmap; answer card comparing the selected month with the same month in earlier years. |
 | Current month against the historical median | `mtd_res{4,5,6}.parquet` + stats | A month still in progress is compared like for like (days 1–D against days 1–D of earlier years). |
-| Download analytics and visualizations | Frontend downloads, chart export | Monthly series and per-hexagon values as CSV, built in the browser from the query response; charts as PNG/SVG. |
+| Download analytics and visualizations | Frontend downloads, chart export | Monthly series and per-hexagon values as CSV, built in the browser from the query response; charts as PNG/SVG with their title, area and dates, description and legend. |
 | CSV of hotspots detected during a search | `POST /api/export.csv` | Filtered hotspot rows for the area and months; a search over the row cap is refused with its row count. |
 | Colour ramps showing similarities and differences across months | Frontend | Sequential ramp for counts, diverging ramp for anomalies, both colour-blind safe, with values on hover. |
 
@@ -132,15 +132,15 @@ The map fills the window, as in kepler.gl. Panels float over it: on the left, ar
 
 | View | Purpose |
 |---|---|
-| Area input | Map drawing (box, polygon or circle), a latitude/longitude form (box, or point and radius), and presets |
-| Answer card | "Is this month unusual?", with the error range and the comparison used |
-| Calendar heatmap | Years × months; sequential ramp for counts, diverging for anomalies |
+| Area input | Map drawing (box, polygon or circle), a latitude/longitude form (box, or point and radius), and presets grouped by continent |
+| Answer card | "Is this month unusual?", with the error range and the comparison used, and whether this month has been rising or falling over the record (Theil–Sen slope, Mann–Kendall test, computed by the API) |
+| Calendar heatmap | Years × months; sequential ramp for counts, diverging for anomalies ("much" the most intense step, with a drawn icon for each category) |
 | Yearly totals | Raw-to-harmonized toggle that removes the 2012 jump (the demo moment) |
-| Monthly series | Every month in the chosen dates with 80 % ranges for converted months. Prototype: in place of the seasonal curve (typical year with its normal range), which is not built yet |
-| Map | Hexagons for the selected month against the average. Prototype: fire-days per hexagon for the selected month or the whole date range, flat or in 3D (height = date-range fire-days) |
-| Time bar | The whole series for the area; sets the dates and the month, and plays through the months (one search per month, cached) |
-| Downloads | Monthly CSV, hotspot CSV, per-hexagon CSV (opens in Kepler.gl), PNG/SVG of each chart |
-| Methods and limits | How the conversion works, test results from `validation.json`, known weaknesses, data credits, AI use |
+| Fire season, year by year | Months along the bottom, one faint line per year, the usual year dashed and the selected year highlighted. Seasons start after the usually quietest month, so a season is not split at New Year. "So far this season" shows each season's running total instead, so a season running ahead or behind sits above or below the usual line (the median of the complete seasons' totals). The full monthly series is in its table and the CSV |
+| Map | Hexagons for the selected month against the average. Prototype: fire-days per hexagon for the selected month or the whole date range in five classes, flat or in 3D (height = date-range fire-days) |
+| Time bar | The whole series for the area; sets the dates and the month, and plays through the months (one search per month, cached). The map follows its last use: a month clicked or stepped to shows that month, a range dragged or Whole series shows the range |
+| Downloads and links | Monthly CSV, hotspot CSV, per-hexagon CSV (opens in Kepler.gl), PNG/SVG of each chart (with its title, area and dates, description and legend, so the image stands alone). The address bar holds the search (area, dates, month, "usual") as query parameters, so a link reproduces it |
+| Methods and limits | Two lines on the limits of this answer (conversion error for its continent, missing days in its dates); the full methods (how the conversion works, test results from `validation.json`, known weaknesses, data credits) in a dialog |
 
 The frontend always reads the API; it has no saved data of its own. Browser tests (`web/e2e`, Playwright) load the built app from a running API and check every number on screen against the API's answer for the same request.
 

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { SOURCE_LABEL, dayLabel, fmt, monthLabel } from '#lib/format.ts';
-	import { CATEGORY_GLYPH, CATEGORY_INK, CATEGORY_VAR } from '#lib/scales.ts';
+	import { CATEGORY_INK, CATEGORY_VAR } from '#lib/scales.ts';
+	import CategoryIcon from './CategoryIcon.svelte';
 	import type { MonthRow, QueryResponse } from '#lib/types.ts';
 
 	interface Props {
@@ -46,7 +47,7 @@
 			{#if s.category}
 				<span class="cat">
 					<span class="chip" style:background={CATEGORY_VAR[s.category]} style:color={CATEGORY_INK[s.category]} aria-hidden="true">
-						{CATEGORY_GLYPH[s.category]}
+						<CategoryIcon category={s.category} size={16} />
 					</span>
 					<span class="cat-text">{s.category}</span>
 				</span>
@@ -60,6 +61,16 @@
 			<span class="big">{s.rank}<span class="of"> of {s.of}</span></span>
 			<span class="small">1 = most burning{s.percentile !== null ? `; busier than ${s.percentile}% of years` : ''}</span>
 		</div>
+	</div>
+
+	<div class="trend" class:clear={s.trend.clear}>
+		<span class="label">
+			Trend in {monthName}{s.trend.first !== null ? `, ${s.trend.first}–${s.trend.last}` : ''}
+		</span>
+		<p>{s.trend.sentence}</p>
+		{#if s.trend.p !== null}
+			<span class="small">Theil–Sen slope and Mann–Kendall test on the converted counts, which keep the 2012 change of satellite from looking like a trend. Methods has the details.</span>
+		{/if}
 	</div>
 
 	<ul class="meta">
@@ -159,6 +170,22 @@
 		font-weight: 650;
 		font-size: 1.05rem;
 		line-height: 1.2;
+	}
+	.trend {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		padding: 10px 12px;
+		border-radius: 8px;
+		border: 1px solid var(--border);
+	}
+	.trend.clear {
+		border-color: var(--axis);
+	}
+	.trend p {
+		margin: 0;
+		font-size: 0.95rem;
+		text-wrap: pretty;
 	}
 	.meta {
 		margin: 0;
