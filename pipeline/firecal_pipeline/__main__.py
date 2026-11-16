@@ -13,13 +13,18 @@ def main() -> None:
     ap = argparse.ArgumentParser(prog="firecal")
     ap.add_argument("step", choices=["download", "granules", "ingest", "cells", "coverage", "fit", "report", "tilt", "seasonal", "publish", "prune", "all"])
     ap.add_argument("--force", action="store_true", help="rebuild bronze files that already exist")
+    ap.add_argument("--sample", metavar="YYYY-MM-DD", help="download: probe 5 standard-processing days from this date into firms_api_sample/")
     args = ap.parse_args()
     cfg = Config.load()
     steps = ["ingest", "cells", "fit", "publish"] if args.step == "all" else [args.step]
     for step in steps:
         if step == "download":
             from . import download
-            download.run(cfg)
+            if args.sample:
+                import datetime as dt
+                download.sample(cfg, dt.date.fromisoformat(args.sample))
+            else:
+                download.run(cfg)
         elif step == "granules":
             from . import granules
             granules.download(cfg)

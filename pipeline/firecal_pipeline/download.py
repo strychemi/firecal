@@ -10,17 +10,36 @@ Standard-processing (SP) data is used where FIRMS has it and near-real-time (NRT
 NRT day is replaced once its SP version is published, and the last few NRT days are fetched again
 on every run because NRT files keep filling in for a day or two.
 
+Requests run in parallel ([data] api_workers, default 4) and are paced by the key's own transaction
+count (mapkey_status): a request starts only while the count, plus what the requests in flight are
+expected to cost, stays under QUOTA_SHARE of the limit (5,000 per 10 minutes). FIRMS charges per day of
+data by the box's width: about 36 transactions per world-day, 18 for half the world, 2 for a 10° box
+(measured 2026-11-16). A request is expected to cost its days times the larger of that estimate and the
+per-day cost measured on the first request, which runs alone; the count is a rolling window, so a
+measurement can come out low when older transactions expire meanwhile, and the estimate is the floor. [data] api_products limits the products fetched
+(the global run fetches only VIIRS: its series uses no MODIS after 2012).
+
+`download --sample YYYY-MM-DD` fetches 5 standard-processing days from that date into
+firms_api_sample/{product}/ and prints the time and transactions each request took: a probe before a
+large download, and archive days to compare the API with the yearly files.
+
 The MAP_KEY comes from FIRMS_MAP_KEY in the environment or in the git-ignored .env at the repo
-root. It is placed only in request URLs: never printed, logged, or written to disk.
+root (for a git worktree, the main checkout's). It is placed only in request URLs: never printed,
+logged, or written to disk.
 """
 import csv
 import datetime as dt
 import io
 import json
+import math
 import os
+import pathlib
+import subprocess
+import threading
 import time
 import urllib.error
 import urllib.request
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
 from .config import ROOT, Config
 
@@ -28,6 +47,10 @@ BASE = "https://firms.modaps.eosdis.nasa.gov"
 SOURCES = {"modis": "MODIS", "viirs-snpp": "VIIRS_SNPP", "viirs-jpss1": "VIIRS_NOAA20"}  # product -> FIRMS id
 CHUNK_DAYS = 5      # the area API's largest DAY_RANGE
 REFRESH_DAYS = 3    # NRT days this close to the newest are fetched again
+QUOTA_SHARE = 0.95  # share of the key's transaction limit the download may fill
+WORLD_DAY_COST = 36  # transactions FIRMS charges per day of data for a 360°-wide box
+MIN_DAY_COST = 2     # ... and for a narrow one (a 10° box)
+RETRIES = 4         # attempts per request on a timeout, connection error or server error
 
 
 class MissingKey(RuntimeError):
@@ -36,8 +59,8 @@ class MissingKey(RuntimeError):
 
 def map_key() -> str:
     key = os.environ.get("FIRMS_MAP_KEY", "").strip()
-    env = ROOT / ".env"
-    if not key and env.exists():
+    env = env_file()
+    if not key and env:
         for line in env.read_text().splitlines():
             name, sep, value = line.partition("=")
             if sep and name.strip() == "FIRMS_MAP_KEY":
@@ -47,16 +70,35 @@ def map_key() -> str:
     return key
 
 
-def get(url: str, key: str) -> str:
+def env_file():
+    """.env at the repo root; in a git worktree without one, the main checkout's."""
+    if (ROOT / ".env").exists():
+        return ROOT / ".env"
+    try:
+        common = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--path-format=absolute", "--git-common-dir"],
+                                capture_output=True, text=True, check=True).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    env = pathlib.Path(common).parent / ".env"
+    return env if env.exists() else None
+
+
+class Transient(RuntimeError):
+    """A failure worth retrying: timeout, connection error, server error."""
+
+
+def get(url: str, key: str, timeout: int = 180) -> str:
     """GET a FIRMS URL; any error message has the key removed."""
     try:
-        with urllib.request.urlopen(url, timeout=180) as r:
+        with urllib.request.urlopen(url, timeout=timeout) as r:
             return r.read().decode("utf-8")
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", "replace")[:300]
-        raise RuntimeError(f"FIRMS HTTP {e.code}: {body}".replace(key, "<MAP_KEY>")) from None
-    except urllib.error.URLError as e:
-        raise RuntimeError(f"FIRMS unreachable: {e.reason}".replace(key, "<MAP_KEY>")) from None
+        kind = Transient if e.code >= 500 or e.code == 429 else RuntimeError
+        raise kind(f"FIRMS HTTP {e.code}: {body}".replace(key, "<MAP_KEY>")) from None
+    except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+        reason = getattr(e, "reason", e)
+        raise Transient(f"FIRMS unreachable: {reason}".replace(key, "<MAP_KEY>")) from None
 
 
 def availability(key: str) -> dict[str, tuple[dt.date, dt.date]]:
@@ -69,20 +111,65 @@ def availability(key: str) -> dict[str, tuple[dt.date, dt.date]]:
     return out
 
 
-def wait_for_quota(key: str) -> None:
-    """Sleep while this key has used most of its transactions for the current 10-minute window."""
-    while True:
-        s = json.loads(get(f"{BASE}/mapserver/mapkey_status/?MAP_KEY={key}", key))
-        used, limit = int(s.get("current_transactions", 0)), int(s.get("transaction_limit", 5000))
-        if used < 0.8 * limit:
-            return
-        print(f"  FIRMS quota {used}/{limit} used; waiting 60 s", flush=True)
-        time.sleep(60)
+def key_status(key: str) -> tuple[int, int]:
+    """(transactions used in the current 10-minute window, limit)."""
+    s = json.loads(get(f"{BASE}/mapserver/mapkey_status/?MAP_KEY={key}", key))
+    return int(s.get("current_transactions") or 0), int(s.get("transaction_limit") or 5000)
+
+
+def day_cost(bbox: list[float]) -> float:
+    """Estimated transactions per day of data for a box, from its width in longitude."""
+    span = min(360.0, float(bbox[2]) - float(bbox[0]))
+    return max(MIN_DAY_COST, math.ceil(WORLD_DAY_COST * span / 360))
+
+
+class Quota:
+    """Starts a request only while the key's count plus the expected cost of the requests in flight,
+    this one included, stays under QUOTA_SHARE of its limit."""
+
+    def __init__(self, key: str):
+        self.key, self.reserved = key, 0.0
+        self.lock = threading.Lock()
+
+    def acquire(self, cost: float) -> None:
+        while True:
+            used, limit = key_status(self.key)
+            with self.lock:
+                if used + self.reserved + cost <= QUOTA_SHARE * limit:
+                    self.reserved += cost
+                    return
+            print(f"  FIRMS quota {used}/{limit} used, {self.reserved:g} reserved in flight; waiting 30 s", flush=True)
+            time.sleep(30)
+
+    def release(self, cost: float) -> None:
+        with self.lock:
+            self.reserved -= cost
+
+
+def measured(key: str, call):
+    """Run call() alone; returns (result, seconds, transactions it cost as the key's count saw it)."""
+    before = key_status(key)[0]
+    t = time.monotonic()
+    out = call()
+    secs = time.monotonic() - t
+    time.sleep(5)  # let the count catch up
+    after = key_status(key)[0]
+    return out, secs, max(after - before, 0)
 
 
 def fetch(key: str, source: str, bbox: str, first: dt.date, n: int) -> dict[dt.date, tuple[str, list[str]]]:
     """One area request: `n` days from `first`. Returns {acq_date: (header, rows)} for every day asked."""
-    text = get(f"{BASE}/api/area/csv/{key}/{source}/{bbox}/{n}/{first.isoformat()}", key)
+    url = f"{BASE}/api/area/csv/{key}/{source}/{bbox}/{n}/{first.isoformat()}"
+    for attempt in range(RETRIES):
+        try:
+            text = get(url, key, timeout=900)
+            break
+        except Transient as e:
+            if attempt == RETRIES - 1:
+                raise
+            wait_s = 30 * 2 ** attempt
+            print(f"  {source} {first}: {e}; retrying in {wait_s} s", flush=True)
+            time.sleep(wait_s)
     lines = text.splitlines()
     if not lines or not lines[0].startswith("latitude,"):
         raise RuntimeError(f"FIRMS {source} {first}: unexpected reply: " + text[:200].replace(key, "<MAP_KEY>"))
@@ -111,16 +198,55 @@ def runs(days: list[tuple[dt.date, str]]):
         yield chunk
 
 
+def products(cfg: Config) -> dict[str, str]:
+    """Products to fetch: [data] api_products, default all three."""
+    names = cfg["data"].get("api_products", list(SOURCES))
+    unknown = set(names) - set(SOURCES)
+    if unknown:
+        raise SystemExit(f"download: unknown api_products {sorted(unknown)}; choose from {list(SOURCES)}")
+    return {p: SOURCES[p] for p in names}
+
+
+def bbox_arg(cfg: Config) -> str:
+    return ",".join(f"{float(v):g}" for v in cfg.bbox)
+
+
+def save(pdir: pathlib.Path, variant: str, got: dict) -> int:
+    """Write one CSV per day; an SP day replaces its NRT file. Returns the row count."""
+    for day, (header, rows) in got.items():
+        path = pdir / f"{day}.{variant}.csv"
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text("\n".join([header, *rows]) + "\n")
+        tmp.replace(path)
+        other = pdir / f"{day}.{'nrt' if variant == 'sp' else 'sp'}.csv"
+        if variant == "sp" and other.exists():
+            other.unlink()
+    return sum(len(r) for _, r in got.values())
+
+
+def sample(cfg: Config, first: dt.date) -> None:
+    """Probe: CHUNK_DAYS standard-processing days from `first`, one request per product, run alone."""
+    key = map_key()
+    used, limit = key_status(key)
+    print(f"key: {used}/{limit} transactions used in this window", flush=True)
+    for product, sid in products(cfg).items():
+        pdir = cfg.dir(f"firms_api_sample/{product}")
+        got, secs, cost = measured(key, lambda: fetch(key, f"{sid}_SP", bbox_arg(cfg), first, CHUNK_DAYS))
+        n = save(pdir, "sp", got)
+        print(f"{sid}_SP {first} +{CHUNK_DAYS}d: {n:,} rows in {secs:.0f} s, {cost} transactions", flush=True)
+
+
 def run(cfg: Config) -> None:
     key = map_key()
     avail = availability(key)
     out = cfg.dir("firms_api")
     start = dt.date(int(cfg["data"]["last_year"]) + 1, 1, 1)
     today = dt.datetime.now(dt.timezone.utc).date()
-    bbox = ",".join(f"{float(v):g}" for v in cfg.bbox)
+    bbox = bbox_arg(cfg)
+    workers = int(cfg["data"].get("api_workers", 4))
     used = {}
-    n_requests = 0
-    for product, sid in SOURCES.items():
+    jobs = []
+    for product, sid in products(cfg).items():
         sp, nrt = avail.get(f"{sid}_SP"), avail.get(f"{sid}_NRT")
         used.update({f"{sid}_SP": sp, f"{sid}_NRT": nrt})
         last = min(today, max(r[1] for r in (sp, nrt) if r))
@@ -136,22 +262,49 @@ def run(cfg: Config) -> None:
                     need.append((d, want))
             d += dt.timedelta(1)
         print(f"{product}: {len(need)} days to fetch ({start} to {last})", flush=True)
-        for chunk in runs(need):
-            if n_requests % 20 == 0:
-                wait_for_quota(key)
-            first, variant = chunk[0]
-            got = fetch(key, f"{sid}_{variant.upper()}", bbox, first, len(chunk))
-            n_requests += 1
-            for day, (header, rows) in got.items():
-                path = pdir / f"{day}.{variant}.csv"
-                tmp = path.with_suffix(".tmp")
-                tmp.write_text("\n".join([header, *rows]) + "\n")
-                tmp.replace(path)
-                other = pdir / f"{day}.{'nrt' if variant == 'sp' else 'sp'}.csv"
-                if variant == "sp" and other.exists():
-                    other.unlink()
-            print(f"  {sid}_{variant.upper()} {first} +{len(chunk)}d: {sum(len(r) for _, r in got.values()):,} rows", flush=True)
+        jobs += [(pdir, sid, chunk) for chunk in runs(need)]
+    print(f"{len(jobs)} requests, up to {workers} at a time", flush=True)
+
+    per_day = day_cost(cfg.bbox)  # raised below if the first request measures more
+
+    def cost(job) -> float:
+        return per_day * len(job[2])
+
+    def one(job, reserved: float) -> str:
+        pdir, sid, chunk = job
+        first, variant = chunk[0]
+        t = time.monotonic()
+        try:
+            n = save(pdir, variant, fetch(key, f"{sid}_{variant.upper()}", bbox, first, len(chunk)))
+        finally:
+            quota.release(reserved)
+        return f"  {sid}_{variant.upper()} {first} +{len(chunk)}d: {n:,} rows in {time.monotonic() - t:.0f} s"
+
+    quota = Quota(key)
+    done = 0
+    if jobs:  # the first request runs alone, to measure what a day of data costs
+        c = cost(jobs[0])
+        quota.acquire(c)
+        msg, _, spent = measured(key, lambda: one(jobs[0], c))
+        per_day = max(per_day, spent / len(jobs[0][2]))
+        done = 1
+        print(f"{msg}, {spent} transactions; pacing at {per_day:g} per day of data", flush=True)
+    with ThreadPoolExecutor(workers) as pool:
+        pending = set()
+        for job in jobs[1:]:
+            while len(pending) >= workers:
+                finished, pending = wait(pending, return_when=FIRST_COMPLETED)
+                for f in finished:
+                    print(f.result(), flush=True)
+                    done += 1
+            c = cost(job)
+            quota.acquire(c)
+            pending.add(pool.submit(one, job, c))
+        for f in pending:
+            print(f.result(), flush=True)
+            done += 1
     (out / "availability.json").write_text(json.dumps(
         {"fetched": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
          "sources": {k: [v[0].isoformat(), v[1].isoformat()] for k, v in used.items() if v}}, indent=1))
-    print(f"download done: {n_requests} requests", flush=True)
+    used_now, limit = key_status(key)
+    print(f"download done: {done} requests; key at {used_now}/{limit} transactions", flush=True)
