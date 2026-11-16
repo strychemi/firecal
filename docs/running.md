@@ -130,10 +130,11 @@ The sample is real FIRMS rows for a small box near the Paraná Delta, including 
 
 ## 7. Deploy to Google Cloud Run
 
-One image holds the API, the built frontend and the current published data for both data sets; the `APP` environment variable picks which one a container serves (`global` is the live app; `argentina` also works). `.gcloudignore` uploads only the files the `Dockerfile` copies (no `.env`, no raw data). Update the two version names in `.gcloudignore` and `.dockerignore` after publishing a new version.
+One image holds the API, the built frontend and the current published data for both data sets; the `APP` environment variable picks which one a container serves (`global` is the live app; `argentina` also works). `.gcloudignore` uploads only the files the `Dockerfile` copies (no `.env`, no raw data). `mise run deploy:files` writes both ignore files from the versions `gold/CURRENT` names; run it before every build. The build fails if they disagree.
 
 ```bash
 mise run web:build
+mise run deploy:files
 gcloud builds submit --tag us-central1-docker.pkg.dev/PROJECT/firecal/app:TAG --machine-type=e2-highcpu-32 .
 gcloud run deploy firecal --image=us-central1-docker.pkg.dev/PROJECT/firecal/app:TAG --region=us-central1 \
     --memory=4Gi --cpu=2 --cpu-boost --max-instances=2 --set-env-vars=APP=global --allow-unauthenticated
