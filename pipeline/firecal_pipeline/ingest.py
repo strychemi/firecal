@@ -244,11 +244,15 @@ def continent_cells(cfg: Config) -> pathlib.Path:
 def ingest_recent(cfg: Config, product: str, availability: dict, static: pathlib.Path,
                   lookup: pathlib.Path | None = None) -> tuple[list[str], str] | None:
     """FIRMS area API CSVs -> bronze/{product}/recent.parquet. Returns (satellites, last complete local date)."""
-    files = sorted((cfg.out / "firms_api" / product).glob("*.csv"))
-    if not files:
-        return None
     sid = {"modis": "MODIS", "viirs-snpp": "VIIRS_SNPP", "viirs-jpss1": "VIIRS_NOAA20"}[product]
-    newest = max(dt.date.fromisoformat(r[1]) for k, r in availability.items() if k.startswith(sid + "_"))
+    ranges = [dt.date.fromisoformat(r[1]) for k, r in availability.items() if k.startswith(sid + "_")]
+    files = sorted((cfg.out / "firms_api" / product).glob("*.csv"))
+    if not files or not ranges:
+        # Not downloaded, or no longer: the last download left it out ([data] api_products), so its
+        # leftover CSVs are stale. Drop its recent rows rather than publish them.
+        (cfg.dir(f"bronze/{product}") / "recent.parquet").unlink(missing_ok=True)
+        return None
+    newest = max(ranges)
     through = newest - dt.timedelta(days=2)
     x0, y0, x1, y1 = (float(v) for v in cfg.bbox)
     res = int(cfg["grid"]["celldays_resolution"])

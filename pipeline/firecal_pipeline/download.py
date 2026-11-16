@@ -12,8 +12,11 @@ on every run because NRT files keep filling in for a day or two.
 
 Requests run in parallel ([data] api_workers, default 4) and are paced by the key's own transaction
 count (mapkey_status): a request starts only while the count, plus what the requests in flight are
-expected to cost, stays under QUOTA_SHARE of the limit (5,000 per 10 minutes). The expected cost is
-measured on the first request, which runs alone. [data] api_products limits the products fetched
+expected to cost, stays under QUOTA_SHARE of the limit (5,000 per 10 minutes). FIRMS charges per day of
+data by the box's width: about 36 transactions per world-day, 18 for half the world, 2 for a 10° box
+(measured 2026-11-16). A request is expected to cost its days times the larger of that estimate and the
+per-day cost measured on the first request, which runs alone; the count is a rolling window, so a
+measurement can come out low when older transactions expire meanwhile, and the estimate is the floor. [data] api_products limits the products fetched
 (the global run fetches only VIIRS: its series uses no MODIS after 2012).
 
 `download --sample YYYY-MM-DD` fetches 5 standard-processing days from that date into
@@ -28,6 +31,7 @@ import csv
 import datetime as dt
 import io
 import json
+import math
 import os
 import pathlib
 import subprocess
@@ -44,6 +48,8 @@ SOURCES = {"modis": "MODIS", "viirs-snpp": "VIIRS_SNPP", "viirs-jpss1": "VIIRS_N
 CHUNK_DAYS = 5      # the area API's largest DAY_RANGE
 REFRESH_DAYS = 3    # NRT days this close to the newest are fetched again
 QUOTA_SHARE = 0.95  # share of the key's transaction limit the download may fill
+WORLD_DAY_COST = 36  # transactions FIRMS charges per day of data for a 360°-wide box
+MIN_DAY_COST = 2     # ... and for a narrow one (a 10° box)
 RETRIES = 4         # attempts per request on a timeout, connection error or server error
 
 
@@ -111,27 +117,33 @@ def key_status(key: str) -> tuple[int, int]:
     return int(s.get("current_transactions") or 0), int(s.get("transaction_limit") or 5000)
 
 
-class Quota:
-    """Starts requests only while the key's count plus the expected cost of those in flight stays
-    under QUOTA_SHARE of its limit."""
+def day_cost(bbox: list[float]) -> float:
+    """Estimated transactions per day of data for a box, from its width in longitude."""
+    span = min(360.0, float(bbox[2]) - float(bbox[0]))
+    return max(MIN_DAY_COST, math.ceil(WORLD_DAY_COST * span / 360))
 
-    def __init__(self, key: str, cost: float = 1.0):
-        self.key, self.cost, self.inflight = key, cost, 0
+
+class Quota:
+    """Starts a request only while the key's count plus the expected cost of the requests in flight,
+    this one included, stays under QUOTA_SHARE of its limit."""
+
+    def __init__(self, key: str):
+        self.key, self.reserved = key, 0.0
         self.lock = threading.Lock()
 
-    def acquire(self) -> None:
+    def acquire(self, cost: float) -> None:
         while True:
             used, limit = key_status(self.key)
             with self.lock:
-                if used + (self.inflight + 1) * self.cost <= QUOTA_SHARE * limit:
-                    self.inflight += 1
+                if used + self.reserved + cost <= QUOTA_SHARE * limit:
+                    self.reserved += cost
                     return
-            print(f"  FIRMS quota {used}/{limit} used, {self.inflight} requests in flight; waiting 30 s", flush=True)
+            print(f"  FIRMS quota {used}/{limit} used, {self.reserved:g} reserved in flight; waiting 30 s", flush=True)
             time.sleep(30)
 
-    def release(self) -> None:
+    def release(self, cost: float) -> None:
         with self.lock:
-            self.inflight -= 1
+            self.reserved -= cost
 
 
 def measured(key: str, call):
@@ -253,24 +265,30 @@ def run(cfg: Config) -> None:
         jobs += [(pdir, sid, chunk) for chunk in runs(need)]
     print(f"{len(jobs)} requests, up to {workers} at a time", flush=True)
 
-    def one(job) -> str:
+    per_day = day_cost(cfg.bbox)  # raised below if the first request measures more
+
+    def cost(job) -> float:
+        return per_day * len(job[2])
+
+    def one(job, reserved: float) -> str:
         pdir, sid, chunk = job
         first, variant = chunk[0]
         t = time.monotonic()
         try:
             n = save(pdir, variant, fetch(key, f"{sid}_{variant.upper()}", bbox, first, len(chunk)))
         finally:
-            quota.release()
+            quota.release(reserved)
         return f"  {sid}_{variant.upper()} {first} +{len(chunk)}d: {n:,} rows in {time.monotonic() - t:.0f} s"
 
     quota = Quota(key)
     done = 0
-    if jobs:  # the first request runs alone, to measure what one costs
-        quota.acquire()
-        msg, _, cost = measured(key, lambda: one(jobs[0]))
-        quota.cost = max(1.0, float(cost))
+    if jobs:  # the first request runs alone, to measure what a day of data costs
+        c = cost(jobs[0])
+        quota.acquire(c)
+        msg, _, spent = measured(key, lambda: one(jobs[0], c))
+        per_day = max(per_day, spent / len(jobs[0][2]))
         done = 1
-        print(f"{msg}, {cost} transactions; pacing at {quota.cost:g} per request", flush=True)
+        print(f"{msg}, {spent} transactions; pacing at {per_day:g} per day of data", flush=True)
     with ThreadPoolExecutor(workers) as pool:
         pending = set()
         for job in jobs[1:]:
@@ -279,8 +297,9 @@ def run(cfg: Config) -> None:
                 for f in finished:
                     print(f.result(), flush=True)
                     done += 1
-            quota.acquire()
-            pending.add(pool.submit(one, job))
+            c = cost(job)
+            quota.acquire(c)
+            pending.add(pool.submit(one, job, c))
         for f in pending:
             print(f.result(), flush=True)
             done += 1
