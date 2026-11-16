@@ -85,8 +85,8 @@
 	<div class="head">
 		<h3 id="prof-h">Typical fire season</h3>
 		<div class="dl">
-			<button type="button" class="pbtn" onclick={() => svg && downloadSvg(svg, `${filename}.svg`, title)}>SVG</button>
-			<button type="button" class="pbtn" onclick={() => svg && downloadPng(svg, `${filename}.png`, title)}>PNG</button>
+			<button type="button" class="pbtn" onclick={() => svg && downloadSvg(svg, `${filename}.svg`, { title })}>SVG</button>
+			<button type="button" class="pbtn" onclick={() => svg && downloadPng(svg, `${filename}.png`, { title })}>PNG</button>
 		</div>
 	</div>
 	<p class="sent">{sentence}</p>

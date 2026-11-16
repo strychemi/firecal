@@ -63,7 +63,7 @@ bbox = [-76.0, -56.0, -50.0, -20.0]
 [[presets]]
 id = "parana-delta"
 name = "Paraná Delta"
-note = "Wetland fires, notably 2020 and 2022"
+note = "Wetland fires, notably 2008 and 2020"
 bbox = [-60.8, -34.3, -58.3, -32.0]
 
 [[presets]]

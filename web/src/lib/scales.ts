@@ -101,6 +101,23 @@ export const CATEGORY_GLYPH: Record<Category, string> = {
 	'much higher than usual': '⇑'
 };
 
+/**
+ * Drawn icons (SVG path data in a 12 × 12 box), used where the text glyphs above render thin in many
+ * fonts. One arrow shape throughout: hollow (outline) for lower/higher, solid for "much", echoing the
+ * dim and vivid colours; two bars for about usual.
+ */
+const ARROW_UP = 'M6 0.75L11.25 6.25H7.9V11.25H4.1V6.25H0.75Z';
+const ARROW_DOWN = 'M6 11.25L0.75 5.75H4.1V0.75H7.9V5.75H11.25Z';
+export const CATEGORY_ICON: Record<Category, { d: string; outline: boolean }> = {
+	'much lower than usual': { d: ARROW_DOWN, outline: false },
+	'lower than usual': { d: ARROW_DOWN, outline: true },
+	'about usual': { d: 'M1.25 2.75H10.75V5H1.25Z M1.25 7H10.75V9.25H1.25Z', outline: false },
+	'higher than usual': { d: ARROW_UP, outline: true },
+	'much higher than usual': { d: ARROW_UP, outline: false }
+};
+/** Stroke width of an outline icon, in the icon's 12-unit box. */
+export const ICON_STROKE = 1.2;
+
 export const CATEGORY_INK: Record<Category, string> = {
 	'much lower than usual': 'var(--div-ink-strong)',
 	'lower than usual': 'var(--div-ink-soft)',

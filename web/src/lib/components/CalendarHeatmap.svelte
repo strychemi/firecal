@@ -1,9 +1,11 @@
 <script lang="ts">
 	import ChartFrame from './ChartFrame.svelte';
 	import Tooltip, { type TipRow } from './Tooltip.svelte';
+	import CategoryIcon from './CategoryIcon.svelte';
 	import { MONTH_SHORT, SOURCE_LABEL, fmt, fmt1, monthLabel, monthNote } from '#lib/format.ts';
 	import {
-		CATEGORY_GLYPH,
+		CATEGORY_ICON,
+		ICON_STROKE,
 		CATEGORY_INK,
 		CATEGORY_ORDER,
 		CATEGORY_VAR,
@@ -20,8 +22,10 @@
 		onselect: (m: YearMonth) => void;
 		filename: string;
 		busy?: boolean;
+		/** Area and dates, for saved images. */
+		context?: string;
 	}
-	let { months, selected, onselect, filename, busy = false }: Props = $props();
+	let { months, selected, onselect, filename, busy = false, context }: Props = $props();
 
 	type Mode = 'value' | 'raw' | 'detections' | 'frp' | 'anomaly';
 	const MODES: { id: Mode; label: string; unit: string }[] = [
@@ -58,7 +62,7 @@
 		x: number;
 		y: number;
 		fill: string;
-		glyph?: string;
+		icon?: { d: string; outline: boolean };
 		ink?: string;
 	}
 	const cells = $derived.by(() => {
@@ -75,7 +79,7 @@
 				}
 				c.fill = CATEGORY_VAR[a.category];
 				if (a.category !== 'about usual') {
-					c.glyph = CATEGORY_GLYPH[a.category];
+					c.icon = CATEGORY_ICON[a.category];
 					c.ink = CATEGORY_INK[a.category];
 				}
 			} else {
@@ -136,7 +140,7 @@
 			rows.push({ value: fmt(m.value), label: 'fire-days so far' });
 			rows.push({ value: 'Select it', label: 'to compare with the same days in other years' });
 		} else if (a) {
-			rows.push({ value: `${CATEGORY_GLYPH[a.category]} ${a.category}`, label: '' });
+			rows.push({ value: a.category, label: '' });
 			rows.push({ value: fmt(m.value), label: 'fire-days' });
 			rows.push({ value: fmt(a.baseline), label: `median of ${a.years} years` });
 			if (a.ratio !== null) rows.push({ value: `${a.ratio.toFixed(2)}×`, label: 'the median' });
@@ -193,6 +197,8 @@
 	id="calendar"
 	{title}
 	subtitle="Each row is a year, each column a month. Darker means more burning. Click a month (or use the arrow keys and Enter) to describe it above."
+	exportSubtitle="Each row is a year, each column a month. Darker means more burning. Ringed: the month in the answer card."
+	{context}
 	{filename}
 	svg={svgEl}
 	{busy}
@@ -209,7 +215,7 @@
 		{#if mode === 'anomaly'}
 			<span class="lt">Against the median of the same month in other complete years shown:</span>
 			{#each CATEGORY_ORDER as c (c)}
-				<span class="li"><span class="sw" style:background={CATEGORY_VAR[c]}></span>{CATEGORY_GLYPH[c]} {c}</span>
+				<span class="li"><span class="sw icon" style:background={CATEGORY_VAR[c]} style:color={CATEGORY_INK[c]}><CategoryIcon category={c} size={10} /></span>{c}</span>
 			{/each}
 		{:else}
 			<span class="lt">{modeInfo.label}{mode === 'frp' ? ' (MW)' : ''}:</span>
@@ -263,8 +269,16 @@
 						{#if !c.m.complete}
 							<rect x={c.x + 1} y={c.y + 1} width={CW - 2} height={RH - 2} rx="2" fill="url(#hatch)" />
 						{/if}
-						{#if c.glyph}
-							<text class="glyph" x={c.x + CW / 2} y={c.y + RH / 2 + 0.5} text-anchor="middle" dominant-baseline="central" fill={c.ink}>{c.glyph}</text>
+						{#if c.icon}
+							<path
+								class="glyph"
+								transform="translate({c.x + CW / 2 - 5} {c.y + RH / 2 - 5}) scale({10 / 12})"
+								d={c.icon.d}
+								fill={c.icon.outline ? 'none' : c.ink}
+								stroke={c.icon.outline ? c.ink : 'none'}
+								stroke-width={ICON_STROKE}
+								stroke-linejoin="round"
+							/>
 						{/if}
 					</g>
 				{/each}
@@ -326,13 +340,6 @@
 		gap: 8px;
 		font-size: 0.9rem;
 	}
-	.ctl select {
-		min-height: 36px;
-		padding: 4px 8px;
-		border-radius: 8px;
-		border: 1px solid var(--border);
-		background: var(--surface);
-	}
 	.lt {
 		color: var(--text-2);
 		flex-basis: 100%;
@@ -348,6 +355,10 @@
 		height: 14px;
 		border-radius: 3px;
 		box-shadow: inset 0 0 0 1px var(--border);
+	}
+	.sw.icon {
+		display: inline-grid;
+		place-items: center;
 	}
 	.scroll {
 		overflow-x: auto;
@@ -374,9 +385,6 @@
 		font-family: var(--font);
 	}
 	.glyph {
-		font-size: 10px;
-		font-weight: 700;
-		font-family: var(--font);
 		pointer-events: none;
 	}
 	.cell {

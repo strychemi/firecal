@@ -34,6 +34,9 @@ pub struct Preset {
     pub name: String,
     pub note: String,
     pub bbox: [f64; 4],
+    /// Heading the app lists the preset under (the global app uses continents).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
 }
 
 /// The repository root: the first command-line argument, $FIRECAL_ROOT, or the nearest parent of the

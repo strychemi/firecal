@@ -48,6 +48,8 @@ export interface Preset {
 	name: string;
 	note: string;
 	bbox: BBox;
+	/** Heading the preset is listed under (the global app uses continents). */
+	group?: string;
 }
 
 export interface Meta {
@@ -122,6 +124,25 @@ export interface Stats {
 	sentence: string;
 	/** Set when `month` is in progress: values compare days 1..D up to this date (YYYY-MM-DD). */
 	through?: string | null;
+	trend: Trend;
+}
+
+/** How the selected calendar month has changed over the complete years of the record. */
+export interface Trend {
+	years: number;
+	/** null (with p, slope and direction) when there are too few years or no fire at all */
+	first: number | null;
+	last: number | null;
+	/** Theil–Sen slope, fire-days per year */
+	slope: number | null;
+	/** slope as a share of the month's median; null when the median is 0 */
+	pct_per_year: number | null;
+	/** two-sided Mann–Kendall p-value */
+	p: number | null;
+	direction: 'rising' | 'falling' | 'flat' | null;
+	/** p < 0.05 and a non-zero slope */
+	clear: boolean;
+	sentence: string;
 }
 
 /** One hexagon with fire in the selected month or the date range. */

@@ -50,7 +50,7 @@
 		margin: 0;
 		display: flex;
 		flex-wrap: wrap;
-		gap: 4px;
+		gap: 6px;
 		align-items: center;
 		min-width: 0;
 	}
@@ -62,11 +62,10 @@
 		float: left;
 		width: 100%;
 	}
-	select {
-		min-height: 36px;
-		padding: 4px 6px;
-		border-radius: 8px;
-		border: 1px solid var(--border);
-		background: var(--surface);
+	select:first-of-type {
+		min-width: 6.5em;
+	}
+	select:last-of-type {
+		min-width: 6em;
 	}
 </style>
