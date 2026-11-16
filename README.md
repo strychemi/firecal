@@ -2,7 +2,9 @@
 
 Harmonizing 26 years of NASA MODIS & VIIRS satellite fire records into an unbroken, cross-calibrated burning activity calendar.
 
-NASA Space Apps 2026 · *Harmonization of MODIS and VIIRS Hot Spots*. Prototype: Argentina study region, November 2000 to two days ago (recent days from the FIRMS API).
+NASA Space Apps 2026 · *Harmonization of MODIS and VIIRS Hot Spots*, team Chiral Labs. Two apps over the same method: the whole globe, and an Argentina study region. Data from November 2000 through 13 November 2026 (recent days from the FIRMS API).
+
+**AI use.** This project's code, documentation, tests and analysis were written with AI assistance (Claude Code, by Anthropic), and the published data is produced by that code; the team set the goals, made the decisions and checked the results. Every session is recorded in [AI_LOG.md](AI_LOG.md).
 
 **Live demo:** [global app](https://firecal-709583608801.us-central1.run.app) · [Argentina app](https://firecal-argentina-709583608801.us-central1.run.app) (has the hotspot CSV download). Hosted on Google Cloud Run; the first visit after a quiet spell takes about 15 s while the data loads. Built and deployed from the `Dockerfile` (one image, `APP=global` or `APP=argentina`).
 

@@ -1,6 +1,7 @@
 [package]
 name = "firecal-api"
 version = "0.1.0"
+description = "firecal API: serves the harmonized MODIS/VIIRS burning calendar. Written with AI assistance (Claude Code); see AI_LOG.md."
 edition = "2024"
 
 [dependencies]

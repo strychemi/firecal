@@ -1,7 +1,7 @@
 [project]
 name = "firecal-pipeline"
 version = "0.1.0"
-description = "Harmonize FIRMS MODIS and VIIRS hotspots into a burning-activity calendar"
+description = "Harmonize FIRMS MODIS and VIIRS hotspots into a burning-activity calendar. Written with AI assistance (Claude Code); see AI_LOG.md."
 requires-python = ">=3.13"
 dependencies = [
   "duckdb>=1.1",
